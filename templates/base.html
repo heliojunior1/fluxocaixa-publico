@@ -167,7 +167,8 @@
 
             {% if tem_permissao(request, 'FC_CONS_LANCAMENTO')
                 or tem_permissao(request, 'FC_CONS_SALDO_BANCARIO')
-                or tem_permissao(request, 'FC_CONS_FUNDO') %}
+                or tem_permissao(request, 'FC_CONS_FUNDO')
+                or tem_permissao(request, 'FC_CONS_CONTA') %}
             <p
                 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 sidebar-section-title whitespace-nowrap" data-testid="menu-grupo-movimentacao">
                 Movimentação</p>
@@ -205,6 +206,16 @@
                 <span class="ml-auto bg-amber-400 text-slate-900 text-xs font-bold px-2 py-0.5 rounded-full sidebar-text"
                     data-testid="badge-fundos-pendentes">{{ pendentes }}</span>
                 {% endif %}
+            </a>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_CONS_CONTA') %}
+            <a href="{{ url_for('contas_bancarias') }}" data-testid="menu-contas-bancarias"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="Contas Bancárias">
+                <i data-lucide="wallet"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">Contas Bancárias</span>
             </a>
             {% endif %}
 
@@ -344,7 +355,6 @@
             {% endif %}
 
             {% if tem_permissao(request, 'FC_CONS_QUALIFICADOR')
-                or tem_permissao(request, 'FC_CONS_CONTA')
                 or tem_permissao(request, 'FC_CONS_ALERTA') %}
             <p
                 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 sidebar-section-title whitespace-nowrap" data-testid="menu-grupo-cadastros">
@@ -358,16 +368,6 @@
                 <i data-lucide="tags"
                     class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
                 <span class="sidebar-text whitespace-nowrap">Qualificadores</span>
-            </a>
-            {% endif %}
-
-            {% if tem_permissao(request, 'FC_CONS_CONTA') %}
-            <a href="{{ url_for('contas_bancarias') }}" data-testid="menu-contas-bancarias"
-                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
-                title="Contas Bancárias">
-                <i data-lucide="landmark"
-                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
-                <span class="sidebar-text whitespace-nowrap">Contas Bancárias</span>
             </a>
             {% endif %}
 
