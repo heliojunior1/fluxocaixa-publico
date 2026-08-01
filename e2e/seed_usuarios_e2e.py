@@ -108,6 +108,13 @@ if not ContaBancaria.query.filter_by(cod_banco='104', num_agencia='0001', num_co
                                  dsc_conta='Conta E2E'))
     db.session.commit()
 
+# Conta inativa de massa (contas-bancarias.spec.ts — reativação pela tela).
+# Dados fictícios, como tudo neste seed.
+if not ContaBancaria.query.filter_by(cod_banco='237', num_agencia='0009', num_conta='INAT-1').first():
+    db.session.add(ContaBancaria(cod_banco='237', num_agencia='0009', num_conta='INAT-1',
+                                 dsc_conta='Conta E2E Inativa', ind_status='I'))
+    db.session.commit()
+
 _conta_e2e = ContaBancaria.query.filter_by(cod_banco='104', num_agencia='0001', num_conta='E2E-1').first()
 _geral = garantir_fundo_geral()
 if not Fundo.query.filter_by(cod_fundo='FIE2E').first():

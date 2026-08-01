@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div class="flex items-center">
+        <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-700">
+            <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+        </a>
+        <h2 class="text-2xl font-bold text-gray-800 ml-4">Contas Bancárias</h2>
+    </div>
+    {% if tem_permissao(request, 'FC_INS_CONTA') %}
+    <button id="nova-conta-btn" data-testid="nova-conta"
+        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center">
+        <i data-lucide="plus" class="w-5 h-5 mr-2"></i>
+        <span>Nova Conta</span>
+    </button>
+    {% endif %}
+</div>
+
+<!-- Filtros -->
+<form method="get" action="{{ url_for('contas_bancarias') }}" class="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-wrap items-end gap-4">
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Banco</label>
+        <input type="text" name="cod_banco" value="{{ filtros.cod_banco }}" placeholder="Ex: 001"
+            class="border rounded px-2 py-1 w-24" data-testid="filtro-banco">
+    </div>
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Agência</label>
+        <input type="text" name="num_agencia" value="{{ filtros.num_agencia }}" placeholder="Ex: 0001"
+            class="border rounded px-2 py-1 w-28" data-testid="filtro-agencia">
+    </div>
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Conta</label>
+        <input type="text" name="num_conta" value="{{ filtros.num_conta }}" placeholder="Ex: 12345-6"
+            class="border rounded px-2 py-1 w-32" data-testid="filtro-conta">
+    </div>
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Descrição</label>
+        <input type="text" name="dsc" value="{{ filtros.dsc }}" class="border rounded px-2 py-1">
+    </div>
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Status</label>
+        <select name="status" class="border rounded px-2 py-1" data-testid="filtro-status">
+            <option value="ativo" {% if filtros.status == 'ativo' %}selected{% endif %}>Ativas</option>
+            <option value="inativo" {% if filtros.status == 'inativo' %}selected{% endif %}>Inativas</option>
+            <option value="todas" {% if filtros.status == 'todas' %}selected{% endif %}>Todas</option>
+        </select>
+    </div>
+    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Filtrar</button>
+</form>
+
+<!-- Tabela -->
+<div class="bg-white rounded-lg shadow-md overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-50 text-left text-gray-600">
+            <tr>
+                <th class="px-4 py-3 font-semibold">Banco</th>
+                <th class="px-4 py-3 font-semibold">Agência</th>
+                <th class="px-4 py-3 font-semibold">Conta</th>
+                <th class="px-4 py-3 font-semibold">Descrição</th>
+                <th class="px-4 py-3 font-semibold">Status</th>
+                <th class="px-4 py-3 font-semibold text-right">Ações</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for c in contas %}
+            <tr>
+                <td class="px-4 py-3 font-medium text-gray-800">{{ c.cod_banco }}</td>
+                <td class="px-4 py-3 text-gray-700">{{ c.num_agencia }}</td>
+                <td class="px-4 py-3 text-gray-700">{{ c.num_conta }}</td>
+                <td class="px-4 py-3 text-gray-700">{{ c.dsc_conta }}</td>
+                <td class="px-4 py-3">
+                    <span class="{% if c.ativo %}text-green-700{% else %}text-gray-400{% endif %}">
+                        {{ 'Ativa' if c.ativo else 'Inativa' }}
+                    </span>
+                </td>
+                <td class="px-4 py-3 text-right whitespace-nowrap">
+                    {% if c.ativo and tem_permissao(request, 'FC_ALT_CONTA') %}
+                    <button type="button" data-testid="editar-conta-{{ c.seq_conta }}"
+                        onclick="abrirEdicao({{ c.seq_conta }}, '{{ c.cod_banco|e }}', '{{ c.num_agencia|e }}', '{{ c.num_conta|e }}', '{{ c.dsc_conta|e }}', {{ 'true' if c.tem_vinculos else 'false' }})"
+                        class="text-blue-600 hover:text-blue-800 p-1" title="Editar">
+                        <i data-lucide="edit-2" class="w-4 h-4"></i>
+                    </button>
+                    {% endif %}
+                    {% if c.ativo and tem_permissao(request, 'FC_DEL_CONTA') %}
+                    <form action="/contas-bancarias/{{ c.seq_conta }}/inativar" method="POST" class="inline-block"
+                        onsubmit="return confirm('Inativar esta conta bancária?');">
+                        <button type="submit" data-testid="inativar-conta-{{ c.seq_conta }}"
+                            class="text-red-600 hover:text-red-800 p-1" title="Inativar">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                    {% if not c.ativo and tem_permissao(request, 'FC_ATIVAR_CONTA') %}
+                    <form action="/contas-bancarias/{{ c.seq_conta }}/reativar" method="POST" class="inline-block">
+                        <button type="submit" data-testid="reativar-conta-{{ c.seq_conta }}"
+                            class="text-green-600 hover:text-green-800 p-1" title="Reativar">
+                            <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">Nenhuma conta bancária encontrada</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal cadastro/edição -->
+<div id="conta-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50">
+    <div class="relative top-24 mx-auto p-6 border w-96 shadow-lg rounded-md bg-white">
+        <h3 class="text-lg font-bold text-gray-800 mb-4" id="conta-modal-titulo">Nova Conta Bancária</h3>
+        <form id="conta-form" method="POST" data-testid="conta-form">
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Código do banco</label>
+                <input type="text" name="cod_banco" id="conta-cod-banco" data-testid="conta-cod-banco"
+                    class="w-full border rounded px-3 py-2" maxlength="10" placeholder="Ex: 001" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Agência</label>
+                <input type="text" name="num_agencia" id="conta-num-agencia" data-testid="conta-num-agencia"
+                    class="w-full border rounded px-3 py-2" maxlength="20" placeholder="Ex: 0001" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Número da conta</label>
+                <input type="text" name="num_conta" id="conta-num-conta" data-testid="conta-num-conta"
+                    class="w-full border rounded px-3 py-2" maxlength="30" placeholder="Ex: 12345-6" required>
+            </div>
+            <div class="mb-2">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Descrição (opcional)</label>
+                <input type="text" name="dsc_conta" id="conta-dsc" data-testid="conta-dsc"
+                    class="w-full border rounded px-3 py-2" maxlength="100" placeholder="Ex: Conta Movimento">
+            </div>
+            <p id="conta-aviso-vinculos" class="text-xs text-amber-700 mb-4 hidden"
+                data-testid="conta-aviso-vinculos">
+                Conta com saldos ou lançamentos vinculados — banco, agência e conta não podem ser alterados.
+            </p>
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="fecharModal('conta-modal')"
+                    class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</button>
+                <button type="submit" data-testid="conta-salvar"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function fecharModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+    function _setTripla(banco, agencia, conta, travada) {
+        const campos = [
+            ['conta-cod-banco', banco],
+            ['conta-num-agencia', agencia],
+            ['conta-num-conta', conta],
+        ];
+        for (const [id, valor] of campos) {
+            const el = document.getElementById(id);
+            el.value = valor;
+            el.disabled = travada;
+        }
+        document.getElementById('conta-aviso-vinculos').classList.toggle('hidden', !travada);
+    }
+
+    const novaBtn = document.getElementById('nova-conta-btn');
+    if (novaBtn) {
+        novaBtn.addEventListener('click', () => {
+            document.getElementById('conta-modal-titulo').textContent = 'Nova Conta Bancária';
+            document.getElementById('conta-form').action = '/contas-bancarias/adicionar';
+            _setTripla('', '', '', false);
+            document.getElementById('conta-dsc').value = '';
+            document.getElementById('conta-modal').classList.remove('hidden');
+        });
+    }
+
+    function abrirEdicao(seq, banco, agencia, conta, dsc, temVinculos) {
+        document.getElementById('conta-modal-titulo').textContent = 'Editar Conta Bancária';
+        document.getElementById('conta-form').action = '/contas-bancarias/' + seq + '/editar';
+        _setTripla(banco, agencia, conta, temVinculos);
+        document.getElementById('conta-dsc').value = dsc;
+        document.getElementById('conta-modal').classList.remove('hidden');
+    }
+
+    // Campo desabilitado não viaja no POST — reabilita no submit para o
+    // serviço receber a tripla intacta (a imutabilidade é validada lá)
+    document.getElementById('conta-form').addEventListener('submit', () => {
+        for (const id of ['conta-cod-banco', 'conta-num-agencia', 'conta-num-conta']) {
+            document.getElementById(id).disabled = false;
+        }
+    });
+
+    if (window.lucide) lucide.createIcons();
+</script>
+{% endblock %}

@@ -223,6 +223,7 @@ def import_lancamentos_service(
             num_agencia=agencia,
             num_conta=conta,
             dsc_conta=f"{banco}-{agencia}/{conta}",
+            cod_pessoa_inclusao=cod_pessoa_atual(),
         )
         session.add(c)
         session.flush()

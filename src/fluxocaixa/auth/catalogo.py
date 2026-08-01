@@ -22,6 +22,12 @@ PERMISSOES = [
     ("FC_ALT_SALDO_BANCARIO", "Alterar saldo bancário"),
     ("FC_DEL_SALDO_BANCARIO", "Excluir saldo bancário"),
     ("FC_IMP_SALDO_BANCARIO", "Importar saldos bancários (CSV/XLSX)"),
+    # Contas bancárias
+    ("FC_CONS_CONTA", "Consultar contas bancárias"),
+    ("FC_INS_CONTA", "Incluir conta bancária"),
+    ("FC_ALT_CONTA", "Alterar conta bancária"),
+    ("FC_DEL_CONTA", "Inativar conta bancária"),
+    ("FC_ATIVAR_CONTA", "Reativar conta bancária inativa"),
     # Qualificadores
     ("FC_CONS_QUALIFICADOR", "Consultar qualificadores"),
     ("FC_INS_QUALIFICADOR", "Incluir qualificador"),
@@ -122,6 +128,7 @@ MATRIZ_PERFIS = {
         "FC_CONS_LANCAMENTO",
         "FC_CONS_SALDO_BANCARIO",
         "FC_CONS_FUNDO",
+        "FC_CONS_CONTA",
         "FC_EXEC_EXTRACAO",
         "FC_CONS_FONTE_EXTRACAO",
         "FC_CONS_EXECUCAO_EXTRACAO",

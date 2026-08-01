@@ -275,6 +275,8 @@ recebe **403** (e os botões/menus correspondentes ficam ocultos).
 
 A tela **Fundos** (menu Gestão) permite cadastrar fundos manualmente e **aprovar** os auto-cadastrados pelas importações — o item de menu exibe um contador de pendentes para quem tem a permissão de aprovação.
 
+A tela **Contas Bancárias** (menu Cadastros) permite cadastrar, alterar, inativar e reativar contas. A tripla banco/agência/conta fica **imutável** quando a conta já tem saldos ou lançamentos vinculados (corrija criando a conta certa e inativando a errada — o histórico é preservado), e a inativação é bloqueada enquanto houver saldo ativo.
+
 ### Criar um usuário
 
 ```bash

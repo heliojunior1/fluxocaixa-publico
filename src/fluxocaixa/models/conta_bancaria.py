@@ -19,6 +19,12 @@ class ContaBancaria(Base):
     dsc_conta = Column(String(100))
     ind_status = Column(String(1), default="A", nullable=False)
     dat_cadastro = Column(Date, default=date.today)
+    # Auditoria (migração 0016): nullable — a tabela é anterior à convenção e
+    # as linhas antigas não têm autor registrado (dat_cadastro cobre a época)
+    dat_inclusao = Column(Date, default=date.today)
+    cod_pessoa_inclusao = Column(Integer)
+    dat_alteracao = Column(Date)
+    cod_pessoa_alteracao = Column(Integer)
 
     def display(self) -> str:
         desc = f" - {self.dsc_conta}" if self.dsc_conta else ""
