@@ -1,0 +1,2265 @@
+{
+ "comparativa": {
+  "data": {
+   "Rubrica caracterização 2.99": {
+    "1": {
+     "2018": 0,
+     "2019": 0
+    },
+    "10": {
+     "2018": 0,
+     "2019": 0
+    },
+    "11": {
+     "2018": 0,
+     "2019": 0
+    },
+    "12": {
+     "2018": 0,
+     "2019": 0
+    },
+    "2": {
+     "2018": 0,
+     "2019": 0
+    },
+    "3": {
+     "2018": 0,
+     "2019": 0
+    },
+    "4": {
+     "2018": 0,
+     "2019": 0
+    },
+    "5": {
+     "2018": 0,
+     "2019": 0
+    },
+    "6": {
+     "2018": 0,
+     "2019": 0
+    },
+    "7": {
+     "2018": 0,
+     "2019": 0
+    },
+    "8": {
+     "2018": 0,
+     "2019": 0
+    },
+    "9": {
+     "2018": 0,
+     "2019": 0
+    },
+    "total": {
+     "2018": 0,
+     "2019": 0
+    }
+   },
+   "Rubrica caracterização 2.99.1": {
+    "1": {
+     "2018": 0,
+     "2019": 0
+    },
+    "10": {
+     "2018": 0,
+     "2019": 0
+    },
+    "11": {
+     "2018": 0,
+     "2019": 0
+    },
+    "12": {
+     "2018": 0,
+     "2019": 0
+    },
+    "2": {
+     "2018": 0,
+     "2019": 0
+    },
+    "3": {
+     "2018": 0,
+     "2019": 0
+    },
+    "4": {
+     "2018": 0,
+     "2019": 0
+    },
+    "5": {
+     "2018": 0,
+     "2019": 0
+    },
+    "6": {
+     "2018": 0,
+     "2019": 0
+    },
+    "7": {
+     "2018": 0,
+     "2019": 0
+    },
+    "8": {
+     "2018": 0,
+     "2019": 0
+    },
+    "9": {
+     "2018": 0,
+     "2019": 0
+    },
+    "total": {
+     "2018": 0,
+     "2019": 0
+    }
+   },
+   "Rubrica caracterização 2.99.2": {
+    "1": {
+     "2018": 0,
+     "2019": 0
+    },
+    "10": {
+     "2018": 0,
+     "2019": 0
+    },
+    "11": {
+     "2018": 0,
+     "2019": 0
+    },
+    "12": {
+     "2018": 0,
+     "2019": 0
+    },
+    "2": {
+     "2018": 0,
+     "2019": 0
+    },
+    "3": {
+     "2018": 0,
+     "2019": 0
+    },
+    "4": {
+     "2018": 0,
+     "2019": 0
+    },
+    "5": {
+     "2018": 0,
+     "2019": 0
+    },
+    "6": {
+     "2018": 0,
+     "2019": 0
+    },
+    "7": {
+     "2018": 0,
+     "2019": 0
+    },
+    "8": {
+     "2018": 0,
+     "2019": 0
+    },
+    "9": {
+     "2018": 0,
+     "2019": 0
+    },
+    "total": {
+     "2018": 0,
+     "2019": 0
+    }
+   }
+  },
+  "meses_nomes": {
+   "1": "Janeiro",
+   "10": "Outubro",
+   "11": "Novembro",
+   "12": "Dezembro",
+   "2": "Fevereiro",
+   "3": "Março",
+   "4": "Abril",
+   "5": "Maio",
+   "6": "Junho",
+   "7": "Julho",
+   "8": "Agosto",
+   "9": "Setembro"
+  },
+  "totals": {
+   "1": {
+    "2018": 0,
+    "2019": 0
+   },
+   "10": {
+    "2018": 0,
+    "2019": 0
+   },
+   "11": {
+    "2018": 0,
+    "2019": 0
+   },
+   "12": {
+    "2018": 0,
+    "2019": 0
+   },
+   "2": {
+    "2018": 0,
+    "2019": 0
+   },
+   "3": {
+    "2018": 0,
+    "2019": 0
+   },
+   "4": {
+    "2018": 0,
+    "2019": 0
+   },
+   "5": {
+    "2018": 0,
+    "2019": 0
+   },
+   "6": {
+    "2018": 0,
+    "2019": 0
+   },
+   "7": {
+    "2018": 0,
+    "2019": 0
+   },
+   "8": {
+    "2018": 0,
+    "2019": 0
+   },
+   "9": {
+    "2018": 0,
+    "2019": 0
+   },
+   "total": {
+    "2018": 0,
+    "2019": 0
+   }
+  }
+ },
+ "controle_despesa": {
+  "evolucao_mensal": [
+   {
+    "is_futuro": false,
+    "mes": "Abr",
+    "mes_num": 4,
+    "previsao": null,
+    "realizado": "0.00"
+   },
+   {
+    "is_futuro": false,
+    "mes": "Ago",
+    "mes_num": 8,
+    "previsao": null,
+    "realizado": "0.00"
+   },
+   {
+    "is_futuro": false,
+    "mes": "Dez",
+    "mes_num": 12,
+    "previsao": null,
+    "realizado": "0.00"
+   },
+   {
+    "is_futuro": false,
+    "mes": "Fev",
+    "mes_num": 2,
+    "previsao": null,
+    "realizado": "0.00"
+   },
+   {
+    "is_futuro": false,
+    "mes": "Jan",
+    "mes_num": 1,
+    "previsao": null,
+    "realizado": "0.00"
+   },
+   {
+    "is_futuro": false,
+    "mes": "Jul",
+    "mes_num": 7,
+    "previsao": null,
+    "realizado": "0.00"
+   },
+   {
+    "is_futuro": false,
+    "mes": "Jun",
+    "mes_num": 6,
+    "previsao": null,
+    "realizado": "250.00"
+   },
+   {
+    "is_futuro": false,
+    "mes": "Mai",
+    "mes_num": 5,
+    "previsao": null,
+    "realizado": "0.00"
+   },
+   {
+    "is_futuro": false,
+    "mes": "Mar",
+    "mes_num": 3,
+    "previsao": null,
+    "realizado": "420.00"
+   },
+   {
+    "is_futuro": false,
+    "mes": "Nov",
+    "mes_num": 11,
+    "previsao": null,
+    "realizado": "0.00"
+   },
+   {
+    "is_futuro": false,
+    "mes": "Out",
+    "mes_num": 10,
+    "previsao": null,
+    "realizado": "0.00"
+   },
+   {
+    "is_futuro": false,
+    "mes": "Set",
+    "mes_num": 9,
+    "previsao": null,
+    "realizado": "0.00"
+   }
+  ],
+  "execucao_por_grupo": [
+   {
+    "executado_total": "120.00",
+    "percentual_execucao": 0,
+    "previsao_total": 0,
+    "qualificador_nome": "Rubrica caracterização 2.99.2"
+   },
+   {
+    "executado_total": "550.00",
+    "percentual_execucao": 0,
+    "previsao_total": 0,
+    "qualificador_nome": "Rubrica caracterização 2.99.1"
+   }
+  ],
+  "kpis": {
+   "executado_total": "670.00",
+   "previsao_total": 0,
+   "saldo_projetado": "-670.00"
+  },
+  "mes_atual": 13
+ },
+ "dfc_ano": {
+  "dre_data": [
+   {
+    "children": [
+     {
+      "children": [
+       {
+        "children": [],
+        "level": 2,
+        "name": "Rubrica caracterização 1.99.1",
+        "number": "1.99.1",
+        "proj": [
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false
+        ],
+        "values": [
+         0,
+         0,
+         "1100.00",
+         0,
+         0,
+         "800.00",
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "children": [],
+        "level": 2,
+        "name": "Rubrica caracterização 1.99.2",
+        "number": "1.99.2",
+        "proj": [
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false
+        ],
+        "values": [
+         0,
+         0,
+         "400.00",
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       }
+      ],
+      "level": 1,
+      "name": "Rubrica caracterização 1.99",
+      "number": "1.99",
+      "proj": [
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false
+      ],
+      "values": [
+       0,
+       0,
+       "1500.00",
+       0,
+       0,
+       "800.00",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     }
+    ],
+    "level": 0,
+    "name": "RECEITA LÍQUIDA",
+    "number": "1",
+    "proj": [
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false
+    ],
+    "values": [
+     0,
+     0,
+     "1500.00",
+     0,
+     0,
+     "800.00",
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   {
+    "children": [
+     {
+      "children": [
+       {
+        "children": [],
+        "level": 2,
+        "name": "Rubrica caracterização 2.99.1",
+        "number": "2.99.1",
+        "proj": [
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false
+        ],
+        "values": [
+         0,
+         0,
+         "-300.00",
+         0,
+         0,
+         "-250.00",
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "children": [],
+        "level": 2,
+        "name": "Rubrica caracterização 2.99.2",
+        "number": "2.99.2",
+        "proj": [
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false
+        ],
+        "values": [
+         0,
+         0,
+         "-120.00",
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       }
+      ],
+      "level": 1,
+      "name": "Rubrica caracterização 2.99",
+      "number": "2.99",
+      "proj": [
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false
+      ],
+      "values": [
+       0,
+       0,
+       "-420.00",
+       0,
+       0,
+       "-250.00",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     }
+    ],
+    "level": 0,
+    "name": "DESPESAS",
+    "number": "2",
+    "proj": [
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false
+    ],
+    "values": [
+     0,
+     0,
+     "-420.00",
+     0,
+     0,
+     "-250.00",
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   }
+  ],
+  "headers": [
+   "Nome",
+   "JAN",
+   "FEV",
+   "MAR",
+   "ABR",
+   "MAI",
+   "JUN",
+   "JUL",
+   "AGO",
+   "SET",
+   "OUT",
+   "NOV",
+   "DEZ"
+  ],
+  "meses_nomes": {
+   "1": "Janeiro",
+   "10": "Outubro",
+   "11": "Novembro",
+   "12": "Dezembro",
+   "2": "Fevereiro",
+   "3": "Março",
+   "4": "Abril",
+   "5": "Maio",
+   "6": "Junho",
+   "7": "Julho",
+   "8": "Agosto",
+   "9": "Setembro"
+  },
+  "meses_projetados": [],
+  "projecao_origem": null,
+  "resultado_dia": [
+   0,
+   0,
+   "1080.00",
+   0,
+   0,
+   "550.00",
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "saldos_banco_anterior": [
+   "0.00",
+   "0.00",
+   "0.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1630.00",
+   "1630.00",
+   "1630.00",
+   "1630.00",
+   "1630.00",
+   "1630.00"
+  ],
+  "saldos_banco_final": [
+   "0.00",
+   "0.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1630.00",
+   "1630.00",
+   "1630.00",
+   "1630.00",
+   "1630.00",
+   "1630.00",
+   "1630.00"
+  ],
+  "totals": [
+   0,
+   0,
+   "1080.00",
+   0,
+   0,
+   "550.00",
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ]
+ },
+ "dfc_mes": {
+  "dre_data": [
+   {
+    "children": [
+     {
+      "children": [
+       {
+        "children": [],
+        "level": 2,
+        "name": "Rubrica caracterização 1.99.1",
+        "number": "1.99.1",
+        "proj": [
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false
+        ],
+        "values": [
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         "1100.00",
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "children": [],
+        "level": 2,
+        "name": "Rubrica caracterização 1.99.2",
+        "number": "1.99.2",
+        "proj": [
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false
+        ],
+        "values": [
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         "400.00",
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       }
+      ],
+      "level": 1,
+      "name": "Rubrica caracterização 1.99",
+      "number": "1.99",
+      "proj": [
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false
+      ],
+      "values": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       "1500.00",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     }
+    ],
+    "level": 0,
+    "name": "RECEITA LÍQUIDA",
+    "number": "1",
+    "proj": [
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false
+    ],
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     "1500.00",
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   },
+   {
+    "children": [
+     {
+      "children": [
+       {
+        "children": [],
+        "level": 2,
+        "name": "Rubrica caracterização 2.99.1",
+        "number": "2.99.1",
+        "proj": [
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false
+        ],
+        "values": [
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         "-300.00",
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       },
+       {
+        "children": [],
+        "level": 2,
+        "name": "Rubrica caracterização 2.99.2",
+        "number": "2.99.2",
+        "proj": [
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false,
+         false
+        ],
+        "values": [
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         "-120.00",
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0,
+         0
+        ]
+       }
+      ],
+      "level": 1,
+      "name": "Rubrica caracterização 2.99",
+      "number": "2.99",
+      "proj": [
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false,
+       false
+      ],
+      "values": [
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       "-300.00",
+       "-120.00",
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0,
+       0
+      ]
+     }
+    ],
+    "level": 0,
+    "name": "DESPESAS",
+    "number": "2",
+    "proj": [
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false,
+     false
+    ],
+    "values": [
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     "-300.00",
+     "-120.00",
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ]
+   }
+  ],
+  "headers": [
+   "Nome",
+   "01/SEX",
+   "02/SÁB",
+   "03/DOM",
+   "04/SEG",
+   "05/TER",
+   "06/QUA",
+   "07/QUI",
+   "08/SEX",
+   "09/SÁB",
+   "10/DOM",
+   "11/SEG",
+   "12/TER",
+   "13/QUA",
+   "14/QUI",
+   "15/SEX",
+   "16/SÁB",
+   "17/DOM",
+   "18/SEG",
+   "19/TER",
+   "20/QUA",
+   "21/QUI",
+   "22/SEX",
+   "23/SÁB",
+   "24/DOM",
+   "25/SEG",
+   "26/TER",
+   "27/QUA",
+   "28/QUI",
+   "29/SEX",
+   "30/SÁB",
+   "31/DOM"
+  ],
+  "meses_nomes": {
+   "1": "Janeiro",
+   "10": "Outubro",
+   "11": "Novembro",
+   "12": "Dezembro",
+   "2": "Fevereiro",
+   "3": "Março",
+   "4": "Abril",
+   "5": "Maio",
+   "6": "Junho",
+   "7": "Julho",
+   "8": "Agosto",
+   "9": "Setembro"
+  },
+  "meses_projetados": [],
+  "projecao_origem": null,
+  "resultado_dia": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   "1200.00",
+   "-120.00",
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ],
+  "saldos_banco_anterior": [
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "1200.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00"
+  ],
+  "saldos_banco_final": [
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "1200.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00",
+   "1080.00"
+  ],
+  "totals": [
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   "1200.00",
+   "-120.00",
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0,
+   0
+  ]
+ },
+ "indicadores": {
+  "area_chart_data": {
+   "despesas": [
+    "0.00",
+    "0.00",
+    "420.00",
+    "0.00",
+    "0.00",
+    "250.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00"
+   ],
+   "labels": [
+    "Jan",
+    "Fev",
+    "Mar",
+    "Abr",
+    "Mai",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Set",
+    "Out",
+    "Nov",
+    "Dez"
+   ],
+   "receitas": [
+    "0.00",
+    "0.00",
+    "1500.00",
+    "0.00",
+    "0.00",
+    "800.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00"
+   ]
+  },
+  "meses_nomes": {
+   "1": "Janeiro",
+   "10": "Outubro",
+   "11": "Novembro",
+   "12": "Dezembro",
+   "2": "Fevereiro",
+   "3": "Março",
+   "4": "Abril",
+   "5": "Maio",
+   "6": "Junho",
+   "7": "Julho",
+   "8": "Agosto",
+   "9": "Setembro"
+  },
+  "pie_chart_data": {
+   "labels": [
+    "Rubrica caracterização 1.99.1",
+    "Rubrica caracterização 1.99.2"
+   ],
+   "values": [
+    "1900.00",
+    "400.00"
+   ]
+  },
+  "projection_chart_data": {
+   "labels": [
+    "Jan",
+    "Fev",
+    "Mar",
+    "Abr",
+    "Mai",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Set",
+    "Out",
+    "Nov",
+    "Dez"
+   ],
+   "saldo": [
+    "0.00",
+    "0.00",
+    "1080.00",
+    "1080.00",
+    "1080.00",
+    "1630.00",
+    "1630.00",
+    "1630.00",
+    "1630.00",
+    "1630.00",
+    "1630.00",
+    "1630.00"
+   ]
+  }
+ },
+ "kpis": {
+  "composicao": {
+   "outras_despesas": "0.00",
+   "outras_receitas": "0.00",
+   "top_despesas": [
+    {
+     "dsc_qualificador": "Rubrica caracterização 2.99.1",
+     "dsc_qualificador_pai": "Rubrica caracterização 2.99",
+     "num_qualificador": "2.99.1",
+     "num_qualificador_pai": "2.99",
+     "percentual": "82.09",
+     "valor": "550.00"
+    },
+    {
+     "dsc_qualificador": "Rubrica caracterização 2.99.2",
+     "dsc_qualificador_pai": "Rubrica caracterização 2.99",
+     "num_qualificador": "2.99.2",
+     "num_qualificador_pai": "2.99",
+     "percentual": "17.91",
+     "valor": "120.00"
+    }
+   ],
+   "top_receitas": [
+    {
+     "dsc_qualificador": "Rubrica caracterização 1.99.1",
+     "dsc_qualificador_pai": "Rubrica caracterização 1.99",
+     "num_qualificador": "1.99.1",
+     "num_qualificador_pai": "1.99",
+     "percentual": "82.61",
+     "valor": "1900.00"
+    },
+    {
+     "dsc_qualificador": "Rubrica caracterização 1.99.2",
+     "dsc_qualificador_pai": "Rubrica caracterização 1.99",
+     "num_qualificador": "1.99.2",
+     "num_qualificador_pai": "1.99",
+     "percentual": "17.39",
+     "valor": "400.00"
+    }
+   ]
+  },
+  "evolucao": [
+   {
+    "ano": 2018,
+    "despesa": "0.00",
+    "mes": 10,
+    "parcial": false,
+    "receita": "0.00"
+   },
+   {
+    "ano": 2018,
+    "despesa": "0.00",
+    "mes": 11,
+    "parcial": false,
+    "receita": "0.00"
+   },
+   {
+    "ano": 2018,
+    "despesa": "0.00",
+    "mes": 12,
+    "parcial": false,
+    "receita": "0.00"
+   },
+   {
+    "ano": 2018,
+    "despesa": "0.00",
+    "mes": 4,
+    "parcial": false,
+    "receita": "0.00"
+   },
+   {
+    "ano": 2018,
+    "despesa": "0.00",
+    "mes": 5,
+    "parcial": false,
+    "receita": "0.00"
+   },
+   {
+    "ano": 2018,
+    "despesa": "0.00",
+    "mes": 6,
+    "parcial": false,
+    "receita": "0.00"
+   },
+   {
+    "ano": 2018,
+    "despesa": "0.00",
+    "mes": 7,
+    "parcial": false,
+    "receita": "0.00"
+   },
+   {
+    "ano": 2018,
+    "despesa": "0.00",
+    "mes": 8,
+    "parcial": false,
+    "receita": "0.00"
+   },
+   {
+    "ano": 2018,
+    "despesa": "0.00",
+    "mes": 9,
+    "parcial": false,
+    "receita": "0.00"
+   },
+   {
+    "ano": 2019,
+    "despesa": "0.00",
+    "mes": 1,
+    "parcial": false,
+    "receita": "0.00"
+   },
+   {
+    "ano": 2019,
+    "despesa": "0.00",
+    "mes": 2,
+    "parcial": false,
+    "receita": "0.00"
+   },
+   {
+    "ano": 2019,
+    "despesa": "420.00",
+    "mes": 3,
+    "parcial": true,
+    "receita": "1500.00"
+   }
+  ],
+  "filtros": {
+   "cod_banco": null,
+   "data_fim": "2019-12-31",
+   "data_inicio": "2019-01-01",
+   "data_referencia": "2019-03-10",
+   "recorte_sem_conta": false
+  },
+  "receita_despesa": {
+   "despesa": "670.00",
+   "percentual": "29.13",
+   "receita": "2300.00",
+   "resultado": "1630.00"
+  },
+  "saldo_por_conta": [
+   {
+    "aplicacoes": "0.00",
+    "cod_banco": "901",
+    "delta": "200.00",
+    "dsc_conta": "Conta caracterização CARACT-1",
+    "num_agencia": "0001",
+    "num_conta": "CARACT-1",
+    "percentual": "70.59",
+    "resgates": "0.00",
+    "saldo": "1200.00",
+    "saldo_d1": "1000.00"
+   },
+   {
+    "aplicacoes": "0.00",
+    "cod_banco": "902",
+    "delta": null,
+    "dsc_conta": "Conta caracterização CARACT-2",
+    "num_agencia": "0002",
+    "num_conta": "CARACT-2",
+    "percentual": "29.41",
+    "resgates": "0.00",
+    "saldo": "500.00",
+    "saldo_d1": null
+   }
+  ],
+  "saldos": {
+   "consolidado": "1700.00",
+   "consolidado_d1": "1000.00",
+   "por_banco": [
+    {
+     "cod_banco": "901",
+     "valor": "1200.00"
+    },
+    {
+     "cod_banco": "902",
+     "valor": "500.00"
+    }
+   ],
+   "rendimento": "1650.00",
+   "variacao_d1": "700.00"
+  }
+ },
+ "ldo": {
+  "comparativo": [
+   {
+    "categoria": "Rubrica caracterização 1.99.1",
+    "percentual_execucao": "0.00",
+    "tipo": "receita",
+    "valor_loa": "0.00",
+    "valor_realizado": "1900.00"
+   },
+   {
+    "categoria": "Rubrica caracterização 1.99.2",
+    "percentual_execucao": "0.00",
+    "tipo": "receita",
+    "valor_loa": "0.00",
+    "valor_realizado": "400.00"
+   },
+   {
+    "categoria": "Rubrica caracterização 2.99.1",
+    "percentual_execucao": "0.00",
+    "tipo": "despesa",
+    "valor_loa": "0.00",
+    "valor_realizado": "550.00"
+   },
+   {
+    "categoria": "Rubrica caracterização 2.99.2",
+    "percentual_execucao": "0.00",
+    "tipo": "despesa",
+    "valor_loa": "0.00",
+    "valor_realizado": "120.00"
+   }
+  ],
+  "distribuicao_orcamento": [],
+  "kpis": {
+   "percentual_execucao": "0.00",
+   "saldo_loa": "-2970.00",
+   "total_loa": "0.00",
+   "total_realizado": "2970.00"
+  },
+  "metas_fiscais": [
+   {
+    "base": "Despesa total",
+    "meta": "≥ 15%",
+    "nome": "Aplicação em Saúde",
+    "percentual": "0.00",
+    "realizado": "0.0%",
+    "status": "ATENÇÃO",
+    "val_realizado": "0.00"
+   },
+   {
+    "base": "Despesa total",
+    "meta": "≥ 25%",
+    "nome": "Aplicação em Educação",
+    "percentual": "0.00",
+    "realizado": "0.0%",
+    "status": "ATENÇÃO",
+    "val_realizado": "0.00"
+   },
+   {
+    "base": "RCL",
+    "meta": "≤ 60%",
+    "nome": "Despesa com Pessoal",
+    "percentual": "0.00",
+    "realizado": "0.0%",
+    "status": "DENTRO DA META",
+    "val_realizado": "0.00"
+   },
+   {
+    "meta": "não informada",
+    "nome": "Superávit Primário",
+    "percentual": 0,
+    "realizado": "R$ 1.6 K",
+    "status": "SEM META",
+    "val_meta": null,
+    "val_realizado": "1630.00"
+   }
+  ]
+ },
+ "previsao_realizado": {
+  "diferenca": {
+   "final": [
+    "0.00",
+    "0.00",
+    "0.00"
+   ],
+   "inicial": [
+    "0.00",
+    "0.00",
+    "0.00"
+   ],
+   "labels": [
+    2017,
+    2018,
+    2019
+   ]
+  },
+  "evolucao": {
+   "labels": [
+    "JAN",
+    "FEV",
+    "MAR",
+    "ABR",
+    "MAI",
+    "JUN",
+    "JUL",
+    "AGO",
+    "SET",
+    "OUT",
+    "NOV",
+    "DEZ"
+   ],
+   "previsao": [
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00"
+   ],
+   "realizado": [
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00"
+   ]
+  },
+  "tabela": [
+   {
+    "descricao": "Rubrica caracterização 1.99.1",
+    "previsao_final": "R$ 0.00",
+    "previsao_inicial": "R$ 0.00",
+    "realizado": "R$ 1,900.00"
+   },
+   {
+    "descricao": "Rubrica caracterização 1.99.2",
+    "previsao_final": "R$ 0.00",
+    "previsao_inicial": "R$ 0.00",
+    "realizado": "R$ 400.00"
+   },
+   {
+    "descricao": "Rubrica caracterização 2.99.1",
+    "previsao_final": "R$ 0.00",
+    "previsao_inicial": "R$ 0.00",
+    "realizado": "R$ -550.00"
+   },
+   {
+    "descricao": "Rubrica caracterização 2.99.2",
+    "previsao_final": "R$ 0.00",
+    "previsao_inicial": "R$ 0.00",
+    "realizado": "R$ -120.00"
+   },
+   {
+    "descricao": "Total",
+    "previsao_final": "R$ 0.00",
+    "previsao_inicial": "R$ 0.00",
+    "realizado": "R$ 1,630.00"
+   }
+  ]
+ },
+ "resumo": {
+  "cash_flow_data": {
+   "despesas": [
+    "0.00",
+    "0.00",
+    "420.00",
+    "0.00",
+    "0.00",
+    "250.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00"
+   ],
+   "labels": [
+    "Jan",
+    "Fev",
+    "Mar",
+    "Abr",
+    "Mai",
+    "Jun",
+    "Jul",
+    "Ago",
+    "Set",
+    "Out",
+    "Nov",
+    "Dez"
+   ],
+   "meses_projetados": [
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false,
+    false
+   ],
+   "receitas": [
+    "0.00",
+    "0.00",
+    "1500.00",
+    "0.00",
+    "0.00",
+    "800.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00"
+   ],
+   "saldo_final": [
+    "0.00",
+    "0.00",
+    "1080.00",
+    "1080.00",
+    "1080.00",
+    "1630.00",
+    "1630.00",
+    "1630.00",
+    "1630.00",
+    "1630.00",
+    "1630.00",
+    "1630.00"
+   ],
+   "saldo_inicial_mensal": [
+    "0.00",
+    "0.00",
+    "0.00",
+    "1080.00",
+    "1080.00",
+    "1080.00",
+    "1630.00",
+    "1630.00",
+    "1630.00",
+    "1630.00",
+    "1630.00",
+    "1630.00"
+   ],
+   "saldos": [
+    "0.00",
+    "0.00",
+    "1080.00",
+    "0.00",
+    "0.00",
+    "550.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00",
+    "0.00"
+   ]
+  },
+  "disponibilidade_periodo": "1630.00",
+  "meses_nomes": {
+   "1": "Janeiro",
+   "10": "Outubro",
+   "11": "Novembro",
+   "12": "Dezembro",
+   "2": "Fevereiro",
+   "3": "Março",
+   "4": "Abril",
+   "5": "Maio",
+   "6": "Junho",
+   "7": "Julho",
+   "8": "Agosto",
+   "9": "Setembro"
+  },
+  "saldo_final_conta": "1630.00",
+  "saldo_inicial_conta": "0.00",
+  "total_entradas_periodo": "2300.00",
+  "total_saidas_periodo": "670.00"
+ },
+ "saldos_diarios_agregado": {
+  "evolucao_labels": [
+   "2019-02-09",
+   "2019-02-10",
+   "2019-02-11",
+   "2019-02-12",
+   "2019-02-13",
+   "2019-02-14",
+   "2019-02-15",
+   "2019-02-16",
+   "2019-02-17",
+   "2019-02-18",
+   "2019-02-19",
+   "2019-02-20",
+   "2019-02-21",
+   "2019-02-22",
+   "2019-02-23",
+   "2019-02-24",
+   "2019-02-25",
+   "2019-02-26",
+   "2019-02-27",
+   "2019-02-28",
+   "2019-03-01",
+   "2019-03-02",
+   "2019-03-03",
+   "2019-03-04",
+   "2019-03-05",
+   "2019-03-06",
+   "2019-03-07",
+   "2019-03-08",
+   "2019-03-09",
+   "2019-03-10"
+  ],
+  "evolucao_saldos": [
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "1000.00",
+   "1700.00"
+  ],
+  "rows": [
+   {
+    "conta": "<ContaBancaria CARACT-1>",
+    "divergencia": "-550.00",
+    "entradas_dia": "1000.00",
+    "origem_consolidada": "Manual",
+    "rendimento_dia": "200.00",
+    "saidas_dia": "300.00",
+    "saldo_exato": true,
+    "saldo_final": "1700.00",
+    "saldo_inicial": "1000.00",
+    "saldo_registrado": "1200.00"
+   },
+   {
+    "conta": "<ContaBancaria CARACT-2>",
+    "divergencia": null,
+    "entradas_dia": "400.00",
+    "origem_consolidada": "Manual",
+    "rendimento_dia": "500.00",
+    "saidas_dia": "0.00",
+    "saldo_exato": false,
+    "saldo_final": "400.00",
+    "saldo_inicial": null,
+    "saldo_registrado": "500.00"
+   }
+  ],
+  "rows_fundo": [],
+  "totais": {
+   "entradas": "1400.00",
+   "rendimento": "700.00",
+   "saidas": "300.00",
+   "saldo_anterior": "1000.00",
+   "saldo_final": "2100.00",
+   "saldo_registrado": "1700.00"
+  },
+  "totais_fundo": {
+   "aplicacoes": "0.00",
+   "rendimento": "0.00",
+   "resgates": "0.00",
+   "saldo": "0.00"
+  },
+  "visao": "agregado"
+ },
+ "saldos_diarios_fundo": {
+  "evolucao_labels": [
+   "2019-02-09",
+   "2019-02-10",
+   "2019-02-11",
+   "2019-02-12",
+   "2019-02-13",
+   "2019-02-14",
+   "2019-02-15",
+   "2019-02-16",
+   "2019-02-17",
+   "2019-02-18",
+   "2019-02-19",
+   "2019-02-20",
+   "2019-02-21",
+   "2019-02-22",
+   "2019-02-23",
+   "2019-02-24",
+   "2019-02-25",
+   "2019-02-26",
+   "2019-02-27",
+   "2019-02-28",
+   "2019-03-01",
+   "2019-03-02",
+   "2019-03-03",
+   "2019-03-04",
+   "2019-03-05",
+   "2019-03-06",
+   "2019-03-07",
+   "2019-03-08",
+   "2019-03-09",
+   "2019-03-10"
+  ],
+  "evolucao_saldos": [
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "0.00",
+   "1000.00",
+   "1700.00"
+  ],
+  "rows": [],
+  "rows_fundo": [
+   {
+    "aplicacoes": "0.00",
+    "conta": "<ContaBancaria CARACT-1>",
+    "fundo": "<Fundo 9990>",
+    "origem": "Manual",
+    "rendimento": "200.00",
+    "resgates": "0.00",
+    "saldo": "1200.00",
+    "saldo_inicial": "1000.00"
+   },
+   {
+    "aplicacoes": "0.00",
+    "conta": "<ContaBancaria CARACT-2>",
+    "fundo": "<Fundo 9990>",
+    "origem": "Manual",
+    "rendimento": "500.00",
+    "resgates": "0.00",
+    "saldo": "500.00",
+    "saldo_inicial": "0.00"
+   }
+  ],
+  "totais": {
+   "entradas": "0.00",
+   "rendimento": "0.00",
+   "saidas": "0.00",
+   "saldo_anterior": "0.00",
+   "saldo_final": "0.00",
+   "saldo_registrado": "0.00"
+  },
+  "totais_fundo": {
+   "aplicacoes": "0.00",
+   "rendimento": "700.00",
+   "resgates": "0.00",
+   "saldo": "1700.00"
+  },
+  "visao": "fundo"
+ }
+}

@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div class="flex items-center">
+        <a href="{{ url_for('mapeamentos') }}" class="text-gray-500 hover:text-gray-700">
+            <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+        </a>
+        <div class="ml-4">
+            <h2 class="text-2xl font-bold text-gray-800">Processamento de Mapeamentos</h2>
+            <p class="text-sm text-gray-500">Classificação da staging em lançamentos
+                automáticos. Editar uma regra ressincroniza só o qualificador dela.</p>
+        </div>
+    </div>
+    {% if tem_permissao(request, 'FC_EXEC_MAPEAMENTO') and mapeamentos %}
+    <div class="flex items-center gap-2">
+        <select id="mapeamento-alvo" data-testid="mapeamento-alvo"
+            class="border rounded px-2 py-2 text-sm">
+            {% for m in mapeamentos %}
+            <option value="{{ m.seq_mapeamento }}">{{ m.dsc_mapeamento }}</option>
+            {% endfor %}
+        </select>
+        <form method="post" id="form-processar">
+            <button type="submit" data-testid="processar-mapeamento"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg inline-flex items-center">
+                <i data-lucide="play" class="w-5 h-5 mr-2"></i><span>Processar agora</span>
+            </button>
+        </form>
+    </div>
+    {% endif %}
+</div>
+
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+    <table class="min-w-full text-sm" data-testid="tabela-execucoes-mapeamento">
+        <thead class="bg-gray-50 text-gray-600 text-xs uppercase">
+            <tr>
+                <th class="px-4 py-3 text-left">Mapeamento</th>
+                <th class="px-4 py-3 text-left">Tipo</th>
+                <th class="px-4 py-3 text-left">Situação</th>
+                <th class="px-4 py-3 text-left">Disparo</th>
+                <th class="px-4 py-3 text-left">Início</th>
+                <th class="px-4 py-3 text-right">Duração</th>
+                <th class="px-4 py-3 text-right">Gerados</th>
+                <th class="px-4 py-3 text-right">Erros</th>
+                <th class="px-4 py-3 text-right">Removidos</th>
+                <th class="px-4 py-3 text-left">Detalhe</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for e in execucoes %}
+            <tr data-testid="execucao-mapeamento-linha-{{ e.seq_execucao_mapeamento }}">
+                <td class="px-4 py-3 font-medium text-gray-800">{{ e.mapeamento }}</td>
+                <td class="px-4 py-3 text-gray-600">{{ e.tipo }}</td>
+                <td class="px-4 py-3">
+                    <span data-testid="execucao-mapeamento-status-{{ e.seq_execucao_mapeamento }}"
+                        class="text-xs font-bold px-2 py-0.5 rounded-full
+                        {% if e.cod_status == 'SUCESSO' %}bg-green-100 text-green-800
+                        {% elif e.cod_status == 'PARCIAL' %}bg-amber-100 text-amber-800
+                        {% elif e.cod_status == 'ERRO' %}bg-red-100 text-red-800
+                        {% else %}bg-gray-100 text-gray-700{% endif %}">{{ e.cod_status }}</span>
+                </td>
+                <td class="px-4 py-3 text-gray-500 text-xs">{{ e.cod_disparo }}</td>
+                <td class="px-4 py-3 text-gray-500 text-xs">
+                    {{ e.dat_inicio_execucao.strftime('%d/%m/%Y %H:%M') if e.dat_inicio_execucao else '—' }}
+                </td>
+                <td class="px-4 py-3 text-right text-gray-500 text-xs">
+                    {{ '%.3f'|format(e.num_duracao_segundos) if e.num_duracao_segundos is not none else '—' }}s
+                </td>
+                <td class="px-4 py-3 text-right font-medium text-gray-800">
+                    {{ e.qtd_lancamentos_gerados }}</td>
+                <td class="px-4 py-3 text-right {% if e.qtd_linhas_erro %}text-red-600 font-bold{% else %}text-gray-500{% endif %}">
+                    {{ e.qtd_linhas_erro }}</td>
+                <td class="px-4 py-3 text-right {% if e.qtd_lancamentos_removidos %}text-amber-600 font-bold{% else %}text-gray-400{% endif %}">
+                    {{ e.qtd_lancamentos_removidos }}</td>
+                <td class="px-4 py-3 text-gray-500 text-xs max-w-xs">
+                    {% if e.txt_detalhe_erros %}
+                    <details data-testid="execucao-mapeamento-detalhe-{{ e.seq_execucao_mapeamento }}">
+                        <summary class="cursor-pointer text-blue-600">ver</summary>
+                        <pre class="whitespace-pre-wrap break-all mt-1">{{ e.txt_detalhe_erros }}</pre>
+                    </details>
+                    {% else %}—{% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="10" class="px-4 py-8 text-center text-gray-400"
+                    data-testid="execucoes-mapeamento-vazio">
+                Nenhum processamento registrado.
+            </td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if tem_permissao(request, 'FC_EXEC_MAPEAMENTO') and mapeamentos %}
+<script>
+    // a ação posta para o mapeamento escolhido no seletor
+    document.getElementById('form-processar').addEventListener('submit', function (ev) {
+        this.action = `/mapeamentos/processar/${document.getElementById('mapeamento-alvo').value}`;
+    });
+</script>
+{% endif %}
+{% endblock %}

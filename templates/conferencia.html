@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center justify-between">
+        <div class="flex items-center">
+            <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-700">
+                <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+            </a>
+            <div class="ml-4">
+                <h2 class="text-2xl font-bold text-slate-800">Conferência</h2>
+                <p class="text-slate-500 mt-1">Validação e conciliação de dados financeiros</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Table Card -->
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-slate-200">
+                <thead class="bg-slate-50">
+                    <tr>
+                        <th scope="col"
+                            class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Data
+                        </th>
+                        <th scope="col"
+                            class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                            Saldo Anterior</th>
+                        <th scope="col"
+                            class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                            Liberações</th>
+                        <th scope="col"
+                            class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                            Conf. Liberações</th>
+                        <th scope="col"
+                            class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">S.
+                            Ant + Lib.</th>
+                        <th scope="col"
+                            class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                            Pagamentos</th>
+                        <th scope="col"
+                            class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                            Conf. Pagamentos</th>
+                        <th scope="col"
+                            class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
+                            Saldo Final</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-slate-200">
+                    {% for r in registros %}
+                    <tr
+                        class="hover:bg-slate-50 transition-colors {% if r.val_liberacoes != r.val_conf_liberacoes or r.val_pagamentos != r.val_conf_pagamentos %}bg-red-50{% endif %}">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">
+                            {{ r.dat_conferencia }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-600">
+                            {{ '%.2f'|format(r.val_saldo_anterior) }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-600">
+                            {{ '%.2f'|format(r.val_liberacoes) }}
+                        </td>
+                        <td
+                            class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium {% if r.val_liberacoes != r.val_conf_liberacoes %}text-red-600{% else %}text-emerald-600{% endif %}">
+                            {{ '%.2f'|format(r.val_conf_liberacoes) }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-600">
+                            {{ '%.2f'|format(r.val_soma_anter_liberacoes) }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-600">
+                            {{ '%.2f'|format(r.val_pagamentos) }}
+                        </td>
+                        <td
+                            class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium {% if r.val_pagamentos != r.val_conf_pagamentos %}text-red-600{% else %}text-emerald-600{% endif %}">
+                            {{ '%.2f'|format(r.val_conf_pagamentos) }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-slate-800">
+                            {{ '%.2f'|format(r.val_saldo_final) }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+{% endblock %}

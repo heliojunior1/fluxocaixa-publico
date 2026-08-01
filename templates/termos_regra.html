@@ -1,0 +1,174 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div class="flex items-center">
+        <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-700">
+            <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+        </a>
+        <div class="ml-4">
+            <h2 class="text-2xl font-bold text-gray-800">Termos de Regra</h2>
+            <p class="text-sm text-gray-500">Vocabulário das regras de classificação —
+                cada termo aponta para um campo da staging.</p>
+        </div>
+    </div>
+    {% if tem_permissao(request, 'FC_MANT_TERMO_REGRA') %}
+    <button type="button" data-testid="novo-termo" onclick="abrirTermo()"
+        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg inline-flex items-center">
+        <i data-lucide="plus" class="w-5 h-5 mr-2"></i><span>Novo Termo</span>
+    </button>
+    {% endif %}
+</div>
+
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+    <table class="min-w-full text-sm" data-testid="tabela-termos">
+        <thead class="bg-gray-50 text-gray-600 text-xs uppercase">
+            <tr>
+                <th class="px-4 py-3 text-left">Termo</th>
+                <th class="px-4 py-3 text-left">Origem</th>
+                <th class="px-4 py-3 text-left">Campo</th>
+                <th class="px-4 py-3 text-left">Tipo</th>
+                <th class="px-4 py-3 text-left">Situação</th>
+                <th class="px-4 py-3 text-right">Ações</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for t in termos %}
+            <tr data-testid="termo-linha-{{ t.seq_termo_regra }}"
+                class="{% if t.ind_status != 'A' %}opacity-50{% endif %}">
+                <td class="px-4 py-3 font-medium text-gray-800">{{ t.nom_termo }}</td>
+                <td class="px-4 py-3 text-gray-600">{{ t.cod_origem_campo }}</td>
+                <td class="px-4 py-3 text-gray-600 font-mono text-xs">{{ t.nom_campo }}</td>
+                <td class="px-4 py-3 text-gray-600">{{ t.cod_tipo }}</td>
+                <td class="px-4 py-3">
+                    <span class="text-xs font-bold px-2 py-0.5 rounded-full
+                        {% if t.ind_status == 'A' %}bg-green-100 text-green-800
+                        {% else %}bg-gray-100 text-gray-700{% endif %}">
+                        {{ 'Ativo' if t.ind_status == 'A' else 'Inativo' }}</span>
+                </td>
+                <td class="px-4 py-3 text-right">
+                    {% if t.ind_status == 'A' and tem_permissao(request, 'FC_MANT_TERMO_REGRA') %}
+                    <button type="button" data-testid="editar-{{ t.seq_termo_regra }}"
+                        class="text-blue-600 hover:text-blue-800 mr-3"
+                        onclick='abrirTermo({{ {"seq": t.seq_termo_regra, "nom_termo": t.nom_termo,
+                                               "cod_origem_campo": t.cod_origem_campo,
+                                               "nom_campo": t.nom_campo,
+                                               "cod_tipo": t.cod_tipo} | tojson }})'>
+                        <i data-lucide="pencil" class="w-4 h-4"></i>
+                    </button>
+                    <form method="post" class="inline"
+                        action="{{ url_for('inativar_termo_regra', seq_termo_regra=t.seq_termo_regra) }}"
+                        onsubmit="return confirm('Inativar o termo {{ t.nom_termo }}?')">
+                        <input type="hidden" name="confirmado" value="true">
+                        <button type="submit" data-testid="inativar-{{ t.seq_termo_regra }}"
+                            class="text-red-600 hover:text-red-800">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400"
+                    data-testid="termos-vazio">
+                Nenhum termo cadastrado. Sem termos, as regras não têm vocabulário.
+            </td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{% if tem_permissao(request, 'FC_MANT_TERMO_REGRA') %}
+<div id="modal-termo" data-testid="modal-termo"
+    class="hidden fixed inset-0 bg-black/40 items-center justify-center z-50">
+    <div class="bg-white rounded-xl shadow-lg w-full max-w-lg p-6">
+        <h3 class="text-lg font-bold text-gray-800 mb-4" id="modal-titulo">Novo Termo</h3>
+        <form method="post" id="form-termo" data-testid="form-termo">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Termo</label>
+            <input type="text" name="nom_termo" id="f-nom-termo" required
+                data-testid="campo-nom-termo" placeholder="Ex.: Unidade Gestora"
+                class="w-full border rounded px-3 py-2 mb-3">
+
+            <label class="block text-sm font-medium text-gray-700 mb-1">Origem do campo</label>
+            <select name="cod_origem_campo" id="f-origem" data-testid="campo-origem"
+                onchange="trocarOrigem()" class="w-full border rounded px-3 py-2 mb-3">
+                {% for o in origens %}<option value="{{ o }}">{{ o }}</option>{% endfor %}
+            </select>
+
+            <div id="bloco-coluna" class="hidden">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Coluna</label>
+                <select name="nom_campo" id="f-coluna" data-testid="campo-coluna"
+                    onchange="tipoDaColuna()" class="w-full border rounded px-3 py-2 mb-3">
+                    {% for col in colunas_permitidas %}<option value="{{ col }}">{{ col }}</option>{% endfor %}
+                </select>
+            </div>
+            <div id="bloco-atributo">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Chave do atributo</label>
+                <input type="text" name="nom_campo" id="f-atributo" data-testid="campo-atributo"
+                    placeholder="Ex.: ug" class="w-full border rounded px-3 py-2 mb-3">
+            </div>
+
+            <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+            <select name="cod_tipo" id="f-tipo" data-testid="campo-tipo"
+                class="w-full border rounded px-3 py-2 mb-4">
+                {% for t in tipos %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+            </select>
+
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="fecharTermo()"
+                    class="px-4 py-2 rounded border">Cancelar</button>
+                <button type="submit" data-testid="salvar-termo"
+                    class="px-4 py-2 rounded bg-blue-600 text-white font-bold">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Whitelist e tipos vêm do servidor: a tela não hardcoda vocabulário.
+    const COLUNAS = {{ colunas_permitidas | tojson }};
+    const ORIGEM_COLUNA = {{ origem_coluna | tojson }};
+
+    function trocarOrigem() {
+        const ehColuna = document.getElementById('f-origem').value === ORIGEM_COLUNA;
+        document.getElementById('bloco-coluna').classList.toggle('hidden', !ehColuna);
+        document.getElementById('bloco-atributo').classList.toggle('hidden', ehColuna);
+        // só o campo visível é submetido (os dois se chamam nom_campo)
+        document.getElementById('f-coluna').disabled = !ehColuna;
+        document.getElementById('f-atributo').disabled = ehColuna;
+        if (ehColuna) tipoDaColuna();
+    }
+
+    function tipoDaColuna() {
+        // a coluna já define o tipo — evita cadastrar tipo incompatível
+        const tipo = COLUNAS[document.getElementById('f-coluna').value];
+        if (tipo) document.getElementById('f-tipo').value = tipo;
+    }
+
+    function abrirTermo(t) {
+        const form = document.getElementById('form-termo');
+        form.action = t ? `/termos-regra/edit/${t.seq}` : '/termos-regra/add';
+        document.getElementById('modal-titulo').textContent = t ? 'Editar Termo' : 'Novo Termo';
+        document.getElementById('f-nom-termo').value = t ? t.nom_termo : '';
+        document.getElementById('f-origem').value = t ? t.cod_origem_campo : 'ATRIBUTO';
+        trocarOrigem();
+        if (t && t.cod_origem_campo === ORIGEM_COLUNA) {
+            document.getElementById('f-coluna').value = t.nom_campo;
+        } else if (t) {
+            document.getElementById('f-atributo').value = t.nom_campo;
+        } else {
+            document.getElementById('f-atributo').value = '';
+        }
+        document.getElementById('f-tipo').value = t ? t.cod_tipo : 'TEXTO';
+        const m = document.getElementById('modal-termo');
+        m.classList.remove('hidden'); m.classList.add('flex');
+    }
+
+    function fecharTermo() {
+        const m = document.getElementById('modal-termo');
+        m.classList.add('hidden'); m.classList.remove('flex');
+    }
+
+    trocarOrigem();
+</script>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,292 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center mb-6">
+    <a href="{{ url_for('mapeamentos') }}" class="text-gray-500 hover:text-gray-700">
+        <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+    </a>
+    <h2 class="text-2xl font-bold text-gray-800 ml-4">
+        {{ 'Editar Mapeamento' if mapeamento else 'Novo Mapeamento' }}
+    </h2>
+</div>
+
+<form method="post" action="{{ url_for('mapeamento_salvar') }}"
+    data-testid="mapeamento-form" class="space-y-6">
+    {% if mapeamento %}
+    <input type="hidden" name="seq_mapeamento" value="{{ mapeamento.seq_mapeamento }}">
+    {% endif %}
+    {# itens repetíveis viajam como um hidden com JSON — padrão json_layout_raw #}
+    <input type="hidden" name="itens_raw" id="itens-raw">
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <h3 class="font-bold text-gray-800 mb-4">Cabeçalho</h3>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Ano</label>
+                <input type="number" name="num_ano_exercicio" required
+                    data-testid="campo-ano" class="w-full border rounded px-3 py-2"
+                    value="{{ mapeamento.num_ano_exercicio if mapeamento else '' }}">
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
+                <select name="ind_tipo" id="campo-tipo" data-testid="campo-tipo"
+                    onchange="trocarTipo()" class="w-full border rounded px-3 py-2">
+                    {% for valor, rotulo in tipos %}
+                    <option value="{{ valor }}"
+                        {% if mapeamento and mapeamento.ind_tipo == valor %}selected{% endif %}>
+                        {{ rotulo }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Sistema de Origem</label>
+                <select name="seq_sistema_origem" id="campo-origem" data-testid="campo-origem"
+                    class="w-full border rounded px-3 py-2">
+                    {% for s in sistemas %}
+                    <option value="{{ s.seq_sistema_origem }}"
+                        {% if mapeamento and mapeamento.seq_sistema_origem == s.seq_sistema_origem %}selected{% endif %}>
+                        {{ s.txt_sigla }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+                <input type="text" name="dsc_mapeamento" required
+                    data-testid="campo-descricao" class="w-full border rounded px-3 py-2"
+                    value="{{ mapeamento.dsc_mapeamento if mapeamento else '' }}">
+            </div>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold text-gray-800">Itens</h3>
+            <button type="button" data-testid="add-item" onclick="addItem()"
+                class="text-blue-600 hover:text-blue-800 text-sm font-semibold flex items-center gap-1">
+                <i data-lucide="plus" class="w-4 h-4"></i> Adicionar item
+            </button>
+        </div>
+        <div id="itens" class="space-y-4"></div>
+    </div>
+
+    <div class="flex justify-end gap-2">
+        <a href="{{ url_for('mapeamentos') }}" class="px-4 py-2 rounded border">Cancelar</a>
+        <button type="submit" data-testid="salvar-mapeamento"
+            class="px-4 py-2 rounded bg-blue-600 text-white font-bold">Salvar</button>
+    </div>
+</form>
+
+{# Estado das regras: quem decide builder × avançado é o SERVIDOR, usando o
+   mesmo parser da gramática (services/regra/builder.py::regra_para_builder). #}
+<script type="application/json" id="regras-estado">{{ itens | tojson }}</script>
+<script>
+    const ITENS_SALVOS = JSON.parse(document.getElementById('regras-estado').textContent);
+    const TERMOS = {{ termos | tojson }};
+    const OPERADORES = {{ operadores | tojson }};
+    const QUALIF = {
+        '1': {{ qualificadores_receita | map(attribute='seq_qualificador') | list | tojson }},
+        '2': {{ qualificadores_despesa | map(attribute='seq_qualificador') | list | tojson }},
+    };
+    const QUALIF_ROTULO = {
+        {% for q in qualificadores_receita %}{{ q.seq_qualificador }}: {{ (q.num_qualificador ~ ' — ' ~ q.dsc_qualificador) | tojson }},{% endfor %}
+        {% for q in qualificadores_despesa %}{{ q.seq_qualificador }}: {{ (q.num_qualificador ~ ' — ' ~ q.dsc_qualificador) | tojson }},{% endfor %}
+    };
+
+    function opcoesQualificador(tipo, selecionado) {
+        return (QUALIF[tipo] || []).map(seq =>
+            `<option value="${seq}" ${String(seq) === String(selecionado) ? 'selected' : ''}>${QUALIF_ROTULO[seq]}</option>`
+        ).join('');
+    }
+    const opcoesTermo = (sel) => TERMOS.map(t =>
+        `<option value="${t.nom_termo}" ${t.nom_termo === sel ? 'selected' : ''}>${t.nom_termo}</option>`).join('');
+    const opcoesOperador = (sel) => OPERADORES.map(o =>
+        `<option value="${o.valor}" ${o.valor === sel ? 'selected' : ''}>${o.rotulo}</option>`).join('');
+
+    function addLinhaRegra(item, linha) {
+        const tbody = item.querySelector('.regra-linhas');
+        const tr = document.createElement('tr');
+        tr.className = 'regra-linha';
+        tr.dataset.testid = 'regra-linha';
+        tr.innerHTML = `
+            <td class="pr-2 py-1"><select class="l-termo border rounded px-2 py-1 text-sm w-full"
+                data-testid="regra-termo">${opcoesTermo(linha && linha.nom_termo)}</select></td>
+            <td class="pr-2 py-1"><select class="l-operador border rounded px-2 py-1 text-sm w-full"
+                data-testid="regra-operador">${opcoesOperador(linha && linha.operador)}</select></td>
+            <td class="pr-2 py-1"><input class="l-valor border rounded px-2 py-1 text-sm w-full"
+                data-testid="regra-valor"
+                placeholder="valor" value="${linha ? String(linha.valor).replace(/"/g, '&quot;') : ''}"></td>
+            <td class="py-1"><button type="button" class="text-red-500 text-xs"
+                data-testid="remover-condicao"
+                onclick="this.closest('tr').remove()">remover</button></td>`;
+        tbody.appendChild(tr);
+    }
+
+    function addItem(dados) {
+        const cont = document.getElementById('itens');
+        const div = document.createElement('div');
+        div.className = 'item-mapeamento border rounded-lg p-4 bg-gray-50';
+        div.dataset.testid = 'item-mapeamento';
+        div.dataset.modo = (dados && dados.modo) || 'builder';
+        if (dados && dados.seq_item_mapeamento) div.dataset.seq = dados.seq_item_mapeamento;
+        div.innerHTML = `
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                <div class="md:col-span-2">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Qualificador (folha)</label>
+                    <select class="i-qualificador border rounded px-2 py-1 text-sm w-full"
+                        data-testid="item-qualificador">${opcoesQualificador(document.getElementById('campo-tipo').value, dados && dados.seq_qualificador)}</select>
+                </div>
+                <div class="flex items-end gap-3">
+                    <label class="flex items-center gap-2 text-sm text-gray-700">
+                        <input type="checkbox" class="i-inversao" data-testid="item-inversao"
+                            ${dados && dados.ind_inversao_sinal === '1' ? 'checked' : ''}> Inverter sinal
+                    </label>
+                    <button type="button" class="text-red-500 text-xs ml-auto"
+                        data-testid="remover-item" onclick="this.closest('.item-mapeamento').remove()">remover item</button>
+                </div>
+            </div>
+
+            <div class="modo-builder ${(dados && dados.modo) === 'avancado' ? 'hidden' : ''}">
+                <table class="w-full text-sm mb-2"><tbody class="regra-linhas"></tbody></table>
+                <div class="flex items-center gap-3">
+                    <button type="button" class="text-blue-600 text-xs font-semibold"
+                        data-testid="add-condicao">+ condição</button>
+                    <label class="text-xs text-gray-600">unir com
+                        <select class="i-conectivo border rounded px-1 py-0.5 text-xs ml-1">
+                            <option value="e">e</option><option value="ou">ou</option>
+                        </select></label>
+                    <button type="button" class="text-gray-600 text-xs underline ml-auto"
+                        data-testid="ir-avancado">modo avançado</button>
+                </div>
+            </div>
+
+            <div class="modo-avancado ${(dados && dados.modo) === 'avancado' ? '' : 'hidden'}">
+                <textarea class="i-regra border rounded px-2 py-1 text-sm w-full font-mono" rows="2"
+                    data-testid="item-regra" placeholder="Ex.: Natureza começa com '1112' e não (Valor > 100)">${dados && dados.txt_regra ? dados.txt_regra : ''}</textarea>
+                <button type="button" class="text-gray-600 text-xs underline mt-1"
+                    data-testid="ir-builder">voltar ao builder</button>
+            </div>
+
+            <div class="flex items-center gap-3 mt-3">
+                <button type="button" class="text-xs px-2 py-1 border rounded"
+                    data-testid="validar-regra">Validar</button>
+                <button type="button" class="text-xs px-2 py-1 border rounded"
+                    data-testid="preview-regra">Preview</button>
+                <span class="i-resultado text-xs text-gray-600" data-testid="regra-resultado"></span>
+            </div>`;
+        cont.appendChild(div);
+
+        div.querySelector('[data-testid="add-condicao"]').onclick = () => addLinhaRegra(div, null);
+        div.querySelector('[data-testid="ir-avancado"]').onclick = () => trocarModo(div, 'avancado');
+        div.querySelector('[data-testid="ir-builder"]').onclick = () => trocarModo(div, 'builder');
+        div.querySelector('[data-testid="validar-regra"]').onclick = () => validar(div);
+        div.querySelector('[data-testid="preview-regra"]').onclick = () => preview(div);
+
+        if (dados && dados.conectivo) div.querySelector('.i-conectivo').value = dados.conectivo;
+        const linhas = (dados && dados.linhas) || [];
+        if (linhas.length) linhas.forEach(l => addLinhaRegra(div, l));
+        else if (div.dataset.modo === 'builder') addLinhaRegra(div, null);
+        return div;
+    }
+
+    function trocarModo(item, modo) {
+        if (modo === 'avancado') {
+            // leva o que está no builder para o texto (o texto é a verdade)
+            const txt = textoDoBuilder(item);
+            if (txt !== null) item.querySelector('.i-regra').value = txt;
+        }
+        item.dataset.modo = modo;
+        item.querySelector('.modo-builder').classList.toggle('hidden', modo !== 'builder');
+        item.querySelector('.modo-avancado').classList.toggle('hidden', modo === 'builder');
+    }
+
+    function textoDoBuilder(item) {
+        const conectivo = item.querySelector('.i-conectivo').value;
+        const partes = [];
+        for (const tr of item.querySelectorAll('.regra-linha')) {
+            const termo = tr.querySelector('.l-termo').value;
+            const op = tr.querySelector('.l-operador').value;
+            const valor = tr.querySelector('.l-valor').value.trim();
+            if (!termo || !valor) continue;
+            if (valor.includes("'")) {
+                mostrar(item, "O valor não pode conter apóstrofo", true);
+                return null;
+            }
+            const rotulo = (OPERADORES.find(o => o.valor === op) || {}).rotulo;
+            if (op === 'EM') {
+                const lista = valor.split(',').map(v => literal(v.trim())).filter(Boolean).join(', ');
+                partes.push(`${termo} em (${lista})`);
+            } else {
+                partes.push(`${termo} ${rotulo} ${literal(valor)}`);
+            }
+        }
+        return partes.join(` ${conectivo} `);
+    }
+
+    const literal = (v) => (v !== '' && !isNaN(Number(v))) ? v : `'${v}'`;
+
+    function regraDoItem(item) {
+        return item.dataset.modo === 'avancado'
+            ? item.querySelector('.i-regra').value.trim()
+            : textoDoBuilder(item);
+    }
+
+    function mostrar(item, msg, erro) {
+        const el = item.querySelector('.i-resultado');
+        el.textContent = msg;
+        el.className = `i-resultado text-xs ${erro ? 'text-red-600' : 'text-green-700'}`;
+    }
+
+    async function validar(item) {
+        const txt = regraDoItem(item);
+        if (txt === null) return;
+        const fd = new FormData(); fd.append('txt_regra', txt);
+        const r = await fetch('/mapeamentos/validar-regra', { method: 'POST', body: fd });
+        const d = await r.json();
+        if (!r.ok) return mostrar(item, d.detail || 'Falha na validação', true);
+        mostrar(item, d.ok ? 'Regra válida' : d.erro, !d.ok);
+    }
+
+    async function preview(item) {
+        const txt = regraDoItem(item);
+        if (txt === null) return;
+        const fd = new FormData();
+        fd.append('txt_regra', txt);
+        fd.append('seq_sistema_origem', document.getElementById('campo-origem').value);
+        fd.append('num_ano_exercicio', document.querySelector('[data-testid="campo-ano"]').value || '');
+        const r = await fetch('/mapeamentos/preview-regra', { method: 'POST', body: fd });
+        const d = await r.json();
+        if (!r.ok) return mostrar(item, d.detail || 'Falha no preview', true);
+        mostrar(item, `${d.total} linha(s) da staging casam com esta regra`, false);
+    }
+
+    function trocarTipo() {
+        // qualificador folha depende do tipo (receita × despesa)
+        const tipo = document.getElementById('campo-tipo').value;
+        for (const item of document.querySelectorAll('.item-mapeamento')) {
+            const sel = item.querySelector('.i-qualificador');
+            sel.innerHTML = opcoesQualificador(tipo, sel.value);
+        }
+    }
+
+    document.querySelector('[data-testid="mapeamento-form"]').addEventListener('submit', (ev) => {
+        const itens = [];
+        for (const item of document.querySelectorAll('.item-mapeamento')) {
+            const txt = regraDoItem(item);
+            if (txt === null) { ev.preventDefault(); return; }
+            const dados = {
+                seq_qualificador: Number(item.querySelector('.i-qualificador').value),
+                txt_regra: txt,
+                ind_inversao_sinal: item.querySelector('.i-inversao').checked ? '1' : '0',
+            };
+            // a PK viaja junto: é ela que preserva dat_ultima_execucao no serviço
+            if (item.dataset.seq) dados.seq_item_mapeamento = Number(item.dataset.seq);
+            itens.push(dados);
+        }
+        document.getElementById('itens-raw').value = JSON.stringify(itens);
+    });
+
+    (function init() {
+        if (ITENS_SALVOS.length) ITENS_SALVOS.forEach(addItem);
+        else addItem(null);
+    })();
+</script>
+{% endblock %}

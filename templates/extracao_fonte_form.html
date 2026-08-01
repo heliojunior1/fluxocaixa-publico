@@ -1,0 +1,356 @@
+{% extends 'base.html' %}
+{% block content %}
+{% set edicao = fonte is not none %}
+<div class="flex items-center mb-6">
+    <a href="{{ url_for('extracao_fontes') }}" class="text-gray-500 hover:text-gray-700">
+        <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+    </a>
+    <h2 class="text-2xl font-bold text-gray-800 ml-4">
+        {{ 'Editar Fonte' if edicao else 'Nova Fonte de Extração' }}
+    </h2>
+</div>
+
+<form method="POST" data-testid="fonte-form"
+    action="{% if edicao %}/extracao/fontes/{{ fonte.seq_fonte_extracao }}/editar{% else %}/extracao/fontes{% endif %}"
+    class="bg-white p-6 rounded-lg shadow-md max-w-2xl space-y-4">
+
+    <input type="hidden" name="cod_tipo_conector" value="{{ tipo }}">
+
+    <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Nome da fonte</label>
+        <input type="text" name="nom_fonte" data-testid="fonte-nome" required maxlength="120"
+            value="{{ fonte.nom_fonte if edicao else '' }}"
+            class="w-full border rounded px-3 py-2">
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Conector</label>
+            <input type="text" value="{{ tipo }}" disabled class="w-full border rounded px-3 py-2 bg-gray-100">
+        </div>
+        <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Sistema de origem</label>
+            {% if edicao %}
+            <input type="text" value="{{ fonte.sistema_origem }}" disabled
+                class="w-full border rounded px-3 py-2 bg-gray-100">
+            {% else %}
+            <select name="sigla_sistema" data-testid="fonte-sistema" required class="w-full border rounded px-3 py-2">
+                {% for s in sistemas %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+            </select>
+            {% endif %}
+        </div>
+    </div>
+
+    <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Agenda (cron, opcional)</label>
+        <input type="text" name="txt_cron" data-testid="fonte-cron" placeholder="0 6 * * *"
+            value="{{ fonte.txt_cron if edicao else '' }}"
+            class="w-full border rounded px-3 py-2 font-mono text-sm">
+        <p class="text-xs text-gray-500 mt-1">5 campos (min hora dia mês dia-semana). Vazio = só execução manual.</p>
+    </div>
+
+    <fieldset class="border rounded p-4">
+        <legend class="text-sm font-semibold text-gray-700 px-2">Configuração do conector</legend>
+        {% for campo in formulario.campos %}
+        <div class="mb-3">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">
+                {{ campo.rotulo }}{% if campo.obrigatorio %} <span class="text-red-500">*</span>{% endif %}
+            </label>
+            {% if campo.tipo_html == 'checkbox' %}
+            <input type="checkbox" name="{{ campo.nome }}" data-testid="config-{{ campo.nome }}"
+                {% if config.get(campo.nome) %}checked{% endif %}>
+            {% else %}
+            <input type="{{ campo.tipo_html }}" name="{{ campo.nome }}" data-testid="config-{{ campo.nome }}"
+                {% if campo.obrigatorio and not campo.secreto %}required{% endif %}
+                value="{% if not campo.secreto %}{{ config.get(campo.nome, '') }}{% endif %}"
+                {% if campo.secreto %}placeholder="{{ '•••• (definido — deixe vazio p/ manter)' if edicao else 'referencie por ${VAR}' }}"{% endif %}
+                class="w-full border rounded px-3 py-2">
+            {% endif %}
+            {% if campo.ajuda %}<p class="text-xs text-gray-500 mt-1">{{ campo.ajuda }}</p>{% endif %}
+        </div>
+        {% endfor %}
+        {% if formulario.fallback_json %}
+        <div class="mb-1">
+            <label class="block text-sm font-semibold text-gray-700 mb-1">Configuração avançada (JSON)</label>
+            <textarea name="json_config_raw" data-testid="config-json" rows="4"
+                class="w-full border rounded px-3 py-2 font-mono text-xs"></textarea>
+        </div>
+        {% endif %}
+    </fieldset>
+
+    {% if layout_kind == 'ARQUIVO' %}
+    <fieldset class="border rounded p-4" data-testid="secao-layout">
+        <legend class="text-sm font-semibold text-gray-700 px-2">Layout do arquivo</legend>
+        <input type="hidden" name="json_layout_raw" id="json-layout-raw">
+
+        <div class="grid grid-cols-3 gap-3 mb-4">
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Separador</label>
+                <input type="text" id="lay-separador" data-testid="lay-separador" value=";"
+                    class="w-full border rounded px-2 py-1 font-mono">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Encoding</label>
+                <select id="lay-encoding" data-testid="lay-encoding" class="w-full border rounded px-2 py-1">
+                    {% for e in encodings_layout %}<option value="{{ e }}">{{ e }}</option>{% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Formato decimal</label>
+                <select id="lay-decimal" data-testid="lay-decimal" class="w-full border rounded px-2 py-1">
+                    <option value="PT_BR">PT_BR (1.234,56)</option>
+                    <option value="US">US (1,234.56)</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-gray-600 mb-1">Formato de data</label>
+                <input type="text" id="lay-data" data-testid="lay-data" value="%d/%m/%Y"
+                    class="w-full border rounded px-2 py-1 font-mono">
+            </div>
+            <label class="flex items-center gap-2 text-sm text-gray-700 mt-5">
+                <input type="checkbox" id="lay-tem-header" data-testid="lay-tem-header" checked>
+                Tem header
+            </label>
+        </div>
+
+        <div class="mb-4">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">
+                Header esperado (opcional, itens separados por <code>;</code>)</label>
+            <input type="text" id="lay-header-esperado" data-testid="lay-header-esperado"
+                placeholder="Banco;Agência;Conta;Data;Descrição;Saldo"
+                class="w-full border rounded px-2 py-1 font-mono text-sm">
+            <p class="text-xs text-gray-500 mt-1">Vazio = sem validação estrita de header.</p>
+        </div>
+
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Colunas</label>
+        <table class="w-full text-sm mb-2">
+            <thead class="text-gray-500 text-left text-xs">
+                <tr><th class="py-1">Origem (índice/nome)</th><th>Destino</th><th>Transformação</th><th></th></tr>
+            </thead>
+            <tbody id="lay-colunas" data-testid="lay-colunas"></tbody>
+        </table>
+        <button type="button" data-testid="lay-add-coluna" onclick="addColuna()"
+            class="text-blue-600 hover:text-blue-800 text-sm font-semibold">+ Adicionar coluna</button>
+
+        <div class="mt-4 border-t pt-3">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Prever parsing (arquivo de amostra)</label>
+            <div class="flex items-center gap-2">
+                <input type="file" id="lay-preview-arquivo" data-testid="lay-preview-arquivo"
+                    class="text-sm">
+                <button type="button" data-testid="lay-preview-btn" onclick="preverLayout()"
+                    class="bg-slate-600 hover:bg-slate-700 text-white text-sm font-bold py-1 px-3 rounded">Prever</button>
+            </div>
+            <div id="lay-preview-resultado" data-testid="lay-preview-resultado"
+                class="mt-2 text-xs font-mono"></div>
+        </div>
+    </fieldset>
+    {% endif %}
+
+    {% if layout_kind == 'MAPEAMENTO' %}
+    <fieldset class="border rounded p-4" data-testid="secao-mapeamento">
+        <legend class="text-sm font-semibold text-gray-700 px-2">Mapeamento da resposta</legend>
+        <input type="hidden" name="json_layout_raw" id="json-layout-raw">
+
+        <div class="mb-4">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">
+                Caminho da lista (opcional)</label>
+            <input type="text" id="map-lista-path" data-testid="map-lista-path"
+                placeholder="ex.: listaFundosInvestimento"
+                class="w-full border rounded px-2 py-1 font-mono text-sm">
+            <p class="text-xs text-gray-500 mt-1">
+                Vazio = a resposta é um único item (ou cada linha SQL é um registro).</p>
+        </div>
+
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Campos</label>
+        <table class="w-full text-sm mb-2">
+            <thead class="text-gray-500 text-left text-xs">
+                <tr><th class="py-1">Caminho (coluna/campo)</th><th>Destino</th><th>Transformação</th><th></th></tr>
+            </thead>
+            <tbody id="map-campos" data-testid="map-campos"></tbody>
+        </table>
+        <button type="button" data-testid="map-add-campo" onclick="addCampo()"
+            class="text-blue-600 hover:text-blue-800 text-sm font-semibold">+ Adicionar campo</button>
+
+        <div class="mt-4 border-t pt-3">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Prever mapeamento (amostra JSON)</label>
+            <textarea id="map-amostra" data-testid="map-amostra" rows="4"
+                placeholder='{"listaFundosInvestimento":[{"codigoFundoInvestimento":87,"valorSaldoBruto":100.0}]}'
+                class="w-full border rounded px-2 py-1 font-mono text-xs"></textarea>
+            <button type="button" data-testid="map-preview-btn" onclick="preverMapeamento()"
+                class="mt-1 bg-slate-600 hover:bg-slate-700 text-white text-sm font-bold py-1 px-3 rounded">Prever</button>
+            <div id="map-preview-resultado" data-testid="map-preview-resultado" class="mt-2 text-xs font-mono"></div>
+        </div>
+    </fieldset>
+    {% endif %}
+
+    <div class="flex justify-end gap-2">
+        <a href="{{ url_for('extracao_fontes') }}"
+            class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</a>
+        <button type="submit" data-testid="fonte-salvar"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Salvar</button>
+    </div>
+</form>
+{% if layout_kind == 'ARQUIVO' %}
+<script>
+    const DESTINOS = {{ destinos_layout | tojson }};
+    const TRANSFORMACOES = {{ transformacoes_arquivo | tojson }};
+    const LAYOUT_SALVO = {{ layout | tojson }};
+
+    function optionsHtml(lista, selecionado, incluirVazio) {
+        let html = incluirVazio ? '<option value="">—</option>' : '';
+        for (const v of lista) {
+            html += `<option value="${v}"${v === selecionado ? ' selected' : ''}>${v}</option>`;
+        }
+        return html;
+    }
+
+    function addColuna(col) {
+        col = col || {};
+        const tr = document.createElement('tr');
+        tr.className = 'coluna-linha';
+        tr.setAttribute('data-testid', 'lay-coluna');
+        tr.innerHTML = `
+            <td class="py-1 pr-2"><input type="text" class="col-origem w-full border rounded px-2 py-1"
+                data-testid="lay-col-origem" value="${col.origem !== undefined ? col.origem : ''}"></td>
+            <td class="pr-2"><select class="col-destino w-full border rounded px-2 py-1" data-testid="lay-col-destino">
+                ${optionsHtml(DESTINOS, col.destino, false)}</select></td>
+            <td class="pr-2"><select class="col-transf w-full border rounded px-2 py-1" data-testid="lay-col-transf">
+                ${optionsHtml(TRANSFORMACOES, col.transformacao, true)}</select></td>
+            <td><button type="button" class="text-red-600 text-sm" onclick="this.closest('tr').remove()">remover</button></td>`;
+        document.getElementById('lay-colunas').appendChild(tr);
+    }
+
+    function montarLayout() {
+        const colunas = [];
+        for (const tr of document.querySelectorAll('#lay-colunas .coluna-linha')) {
+            const origemRaw = tr.querySelector('.col-origem').value.trim();
+            const origem = /^\d+$/.test(origemRaw) ? parseInt(origemRaw, 10) : origemRaw;
+            const col = { origem, destino: tr.querySelector('.col-destino').value };
+            const transf = tr.querySelector('.col-transf').value;
+            if (transf) col.transformacao = transf;
+            colunas.push(col);
+        }
+        const headerRaw = document.getElementById('lay-header-esperado').value.trim();
+        const layout = {
+            separador: document.getElementById('lay-separador').value,
+            encoding: document.getElementById('lay-encoding').value,
+            tem_header: document.getElementById('lay-tem-header').checked,
+            formato_data: document.getElementById('lay-data').value,
+            formato_decimal: document.getElementById('lay-decimal').value,
+            colunas,
+        };
+        if (headerRaw) layout.header_esperado = headerRaw.split(';').map(s => s.trim());
+        return layout;
+    }
+
+    // Pré-popular na edição
+    (function initLayout() {
+        const L = LAYOUT_SALVO || {};
+        if (L.separador) document.getElementById('lay-separador').value = L.separador;
+        if (L.encoding) document.getElementById('lay-encoding').value = L.encoding;
+        if (L.formato_data) document.getElementById('lay-data').value = L.formato_data;
+        if (L.formato_decimal) document.getElementById('lay-decimal').value = L.formato_decimal;
+        if (L.tem_header === false) document.getElementById('lay-tem-header').checked = false;
+        if (Array.isArray(L.header_esperado)) document.getElementById('lay-header-esperado').value = L.header_esperado.join(';');
+        const cols = Array.isArray(L.colunas) && L.colunas.length ? L.colunas : [{}];
+        cols.forEach(addColuna);
+    })();
+
+    // Serializar no submit
+    document.querySelector('[data-testid="fonte-form"]').addEventListener('submit', () => {
+        document.getElementById('json-layout-raw').value = JSON.stringify(montarLayout());
+    });
+
+    async function preverLayout() {
+        const arq = document.getElementById('lay-preview-arquivo').files[0];
+        const out = document.getElementById('lay-preview-resultado');
+        if (!arq) { out.textContent = 'Selecione um arquivo de amostra.'; return; }
+        const fd = new FormData();
+        fd.append('arquivo', arq);
+        fd.append('json_layout_raw', JSON.stringify(montarLayout()));
+        const r = await fetch('/extracao/fontes/preview-layout', { method: 'POST', body: fd });
+        const d = await r.json();
+        if (!r.ok) { out.innerHTML = `<span class="text-red-600">${d.detail || 'Falha no preview'}</span>`; return; }
+        if (d.rejeitado) { out.innerHTML = `<span class="text-red-600">Arquivo rejeitado: ${d.mensagem}</span>`; return; }
+        let html = `<div class="text-green-700">${d.linhas.length} linha(s) · ${d.erros.length} erro(s)</div>`;
+        for (const l of d.linhas) html += `<div>${l.num_conta} · fundo ${l.cod_fundo} · ${l.val_saldo}</div>`;
+        for (const e of d.erros) html += `<div class="text-red-600">linha ${e.linha}: ${e.mensagem}</div>`;
+        out.innerHTML = html;
+    }
+</script>
+{% endif %}
+
+{% if layout_kind == 'MAPEAMENTO' %}
+<script>
+    const DESTINOS = {{ destinos_layout | tojson }};
+    const TRANSFORMACOES = {{ transformacoes_mapeamento | tojson }};
+    const LAYOUT_SALVO = {{ layout | tojson }};
+
+    function optionsHtml(lista, selecionado, incluirVazio) {
+        let html = incluirVazio ? '<option value="">—</option>' : '';
+        for (const v of lista) {
+            html += `<option value="${v}"${v === selecionado ? ' selected' : ''}>${v}</option>`;
+        }
+        return html;
+    }
+
+    function addCampo(c) {
+        c = c || {};
+        const tr = document.createElement('tr');
+        tr.className = 'campo-linha';
+        tr.setAttribute('data-testid', 'map-campo');
+        tr.innerHTML = `
+            <td class="py-1 pr-2"><input type="text" class="campo-caminho w-full border rounded px-2 py-1"
+                data-testid="map-campo-caminho" value="${c.caminho || ''}"></td>
+            <td class="pr-2"><select class="campo-destino w-full border rounded px-2 py-1" data-testid="map-campo-destino">
+                ${optionsHtml(DESTINOS, c.destino, false)}</select></td>
+            <td class="pr-2"><select class="campo-transf w-full border rounded px-2 py-1" data-testid="map-campo-transf">
+                ${optionsHtml(TRANSFORMACOES, c.transformacao, true)}</select></td>
+            <td><button type="button" class="text-red-600 text-sm" onclick="this.closest('tr').remove()">remover</button></td>`;
+        document.getElementById('map-campos').appendChild(tr);
+    }
+
+    function montarMapeamento() {
+        const campos = [];
+        for (const tr of document.querySelectorAll('#map-campos .campo-linha')) {
+            const caminho = tr.querySelector('.campo-caminho').value.trim();
+            if (!caminho) continue;
+            const campo = { caminho, destino: tr.querySelector('.campo-destino').value };
+            const transf = tr.querySelector('.campo-transf').value;
+            if (transf) campo.transformacao = transf;
+            campos.push(campo);
+        }
+        const layout = { campos };
+        const lp = document.getElementById('map-lista-path').value.trim();
+        if (lp) layout.lista_path = lp;
+        return layout;
+    }
+
+    (function initMapeamento() {
+        const L = LAYOUT_SALVO || {};
+        if (L.lista_path) document.getElementById('map-lista-path').value = L.lista_path;
+        const campos = Array.isArray(L.campos) && L.campos.length ? L.campos : [{}];
+        campos.forEach(addCampo);
+    })();
+
+    document.querySelector('[data-testid="fonte-form"]').addEventListener('submit', () => {
+        document.getElementById('json-layout-raw').value = JSON.stringify(montarMapeamento());
+    });
+
+    async function preverMapeamento() {
+        const out = document.getElementById('map-preview-resultado');
+        const fd = new FormData();
+        fd.append('amostra_json', document.getElementById('map-amostra').value);
+        fd.append('json_layout_raw', JSON.stringify(montarMapeamento()));
+        const r = await fetch('/extracao/fontes/preview-mapeamento', { method: 'POST', body: fd });
+        const d = await r.json();
+        if (!r.ok) { out.innerHTML = `<span class="text-red-600">${d.detail || 'Falha no preview'}</span>`; return; }
+        let html = `<div class="text-green-700">${d.linhas.length} linha(s) · ${d.erros.length} erro(s)</div>`;
+        for (const l of d.linhas) html += `<div>fundo ${l.cod_fundo} · ${l.val_saldo}</div>`;
+        for (const e of d.erros) html += `<div class="text-red-600">item ${e.item}: ${e.mensagem}</div>`;
+        out.innerHTML = html;
+    }
+</script>
+{% endif %}
+<script>if (window.lucide) lucide.createIcons();</script>
+{% endblock %}

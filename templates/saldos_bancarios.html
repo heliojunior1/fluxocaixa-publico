@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div class="flex items-center">
+        <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-700">
+            <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+        </a>
+        <h2 class="text-2xl font-bold text-gray-800 ml-4">Saldos Bancários</h2>
+    </div>
+    <div class="flex items-center gap-3">
+        <!-- Toggle Agregado / Por fundo -->
+        <div class="inline-flex rounded-lg border border-gray-300 overflow-hidden" data-testid="toggle-visao">
+            <a href="/saldos-bancarios?visao=agregado"
+               class="px-4 py-2 text-sm font-medium {% if visao != 'fundo' %}bg-blue-600 text-white{% else %}bg-white text-gray-700{% endif %}"
+               data-testid="visao-agregado">Agregado</a>
+            <a href="/saldos-bancarios?visao=fundo"
+               class="px-4 py-2 text-sm font-medium {% if visao == 'fundo' %}bg-blue-600 text-white{% else %}bg-white text-gray-700{% endif %}"
+               data-testid="visao-fundo">Por fundo</a>
+        </div>
+        {% if visao == 'fundo' and tem_permissao(request, 'FC_INS_SALDO_BANCARIO') %}
+        <button id="novo-saldo-btn" data-testid="novo-saldo"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center">
+            <i data-lucide="plus" class="w-5 h-5 mr-2"></i><span>Novo Saldo</span>
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Import CSV de transição -->
+{% if tem_permissao(request, 'FC_IMP_SALDO_BANCARIO') %}
+<form action="{{ url_for('import_saldos_bancarios') }}" method="post" enctype="multipart/form-data"
+    class="bg-white p-4 rounded-lg shadow-md mb-6 flex items-center gap-4" data-testid="importar-saldos">
+    <span class="text-sm text-gray-600">Importar CSV (Data;Conta;Valor) → fundo GERAL:</span>
+    <input type="file" name="file" accept=".csv,.xlsx" class="border rounded px-2 py-1" required>
+    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Importar</button>
+</form>
+{% endif %}
+
+<!-- Tabela -->
+<div class="bg-white rounded-lg shadow-md overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-50 text-left text-gray-600">
+            <tr>
+                <th class="px-4 py-3 font-semibold">Conta</th>
+                {% if visao == 'fundo' %}<th class="px-4 py-3 font-semibold">Fundo</th>{% endif %}
+                <th class="px-4 py-3 font-semibold">Data</th>
+                <th class="px-4 py-3 font-semibold text-right">Saldo</th>
+                {% if visao == 'fundo' %}
+                <th class="px-4 py-3 font-semibold text-right">Aplicações</th>
+                <th class="px-4 py-3 font-semibold text-right">Resgates</th>
+                <th class="px-4 py-3 font-semibold text-right">Ações</th>
+                {% else %}
+                <th class="px-4 py-3 font-semibold">Origem</th>
+                {% endif %}
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for l in linhas %}
+            <tr>
+                <td class="px-4 py-3 text-gray-800">{{ l.conta.display() if l.conta else '—' }}</td>
+                {% if visao == 'fundo' %}<td class="px-4 py-3 text-gray-700">{{ l.fundo.cod_fundo if l.fundo else '—' }}</td>{% endif %}
+                <td class="px-4 py-3 text-gray-600">{{ l.dat_saldo.strftime('%d/%m/%Y') }}</td>
+                <td class="px-4 py-3 text-right font-medium">{{ l.val_saldo | format_currency }}</td>
+                {% if visao == 'fundo' %}
+                <td class="px-4 py-3 text-right text-gray-600">{{ l.val_aplicacoes | format_currency }}</td>
+                <td class="px-4 py-3 text-right text-gray-600">{{ l.val_resgates | format_currency }}</td>
+                <td class="px-4 py-3 text-right whitespace-nowrap">
+                    {% if tem_permissao(request, 'FC_ALT_SALDO_BANCARIO') %}
+                    <button type="button" title="Editar"
+                        data-testid="editar-saldo-{{ l.seq_conta }}-{{ l.seq_fundo }}"
+                        onclick="abrirEdicao({{ l.seq_conta }}, {{ l.seq_fundo }}, '{{ l.dat_saldo.isoformat() }}', '{{ l.val_saldo }}', '{{ l.val_aplicacoes }}', '{{ l.val_resgates }}')"
+                        class="text-blue-600 hover:text-blue-800 p-1"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
+                    {% endif %}
+                    {% if tem_permissao(request, 'FC_DEL_SALDO_BANCARIO') %}
+                    <form action="/saldos-bancarios/inativar" method="POST" class="inline-block"
+                          onsubmit="return confirm('Inativar este saldo?');">
+                        <input type="hidden" name="seq_conta" value="{{ l.seq_conta }}">
+                        <input type="hidden" name="seq_fundo" value="{{ l.seq_fundo }}">
+                        <input type="hidden" name="dat_saldo" value="{{ l.dat_saldo.isoformat() }}">
+                        <button type="submit" title="Inativar"
+                            data-testid="inativar-saldo-{{ l.seq_conta }}-{{ l.seq_fundo }}"
+                            class="text-red-600 hover:text-red-800 p-1"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    </form>
+                    {% endif %}
+                </td>
+                {% else %}
+                <td class="px-4 py-3 text-gray-600">{{ l.origem or '—' }}</td>
+                {% endif %}
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="px-4 py-6 text-center text-gray-400">Nenhum saldo encontrado</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal criar/editar (visão por fundo) -->
+<div id="saldo-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50">
+    <div class="relative top-20 mx-auto p-6 border w-full max-w-md shadow-lg rounded-md bg-white">
+        <h3 class="text-lg font-bold text-gray-800 mb-4" id="saldo-modal-titulo">Novo Saldo</h3>
+        <form id="saldo-form" method="POST" data-testid="saldo-form">
+            <div class="grid grid-cols-2 gap-3">
+                <div class="col-span-2">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Conta</label>
+                    <select name="seq_conta" id="saldo-conta" data-testid="saldo-conta" class="w-full border rounded px-3 py-2" required>
+                        {% for c in contas %}<option value="{{ c.seq_conta }}">{{ c.display() }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Fundo</label>
+                    <select name="seq_fundo" id="saldo-fundo" data-testid="saldo-fundo" class="w-full border rounded px-3 py-2" required>
+                        {% for f in fundos %}<option value="{{ f.seq_fundo }}">{{ f.cod_fundo }} — {{ f.dsc_fundo }}</option>{% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Data</label>
+                    <input type="date" name="dat_saldo" id="saldo-data" data-testid="saldo-data" class="w-full border rounded px-3 py-2" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Saldo</label>
+                    <input type="number" step="0.01" name="val_saldo" id="saldo-valor" data-testid="saldo-valor" class="w-full border rounded px-3 py-2" required>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Aplicações</label>
+                    <input type="number" step="0.01" name="val_aplicacoes" id="saldo-apl" value="0" class="w-full border rounded px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Resgates</label>
+                    <input type="number" step="0.01" name="val_resgates" id="saldo-resg" value="0" class="w-full border rounded px-3 py-2">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-4">
+                <button type="button" onclick="document.getElementById('saldo-modal').classList.add('hidden')"
+                    class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</button>
+                <button type="submit" data-testid="saldo-salvar"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const novoBtn = document.getElementById('novo-saldo-btn');
+    function bloquearChaves(bloq) {
+        for (const id of ['saldo-conta', 'saldo-fundo', 'saldo-data'])
+            document.getElementById(id).disabled = bloq;
+    }
+    if (novoBtn) novoBtn.addEventListener('click', () => {
+        document.getElementById('saldo-modal-titulo').textContent = 'Novo Saldo';
+        document.getElementById('saldo-form').action = '/saldos-bancarios/adicionar';
+        bloquearChaves(false);
+        document.getElementById('saldo-valor').value = '';
+        document.getElementById('saldo-modal').classList.remove('hidden');
+    });
+    function abrirEdicao(conta, fundo, dat, val, apl, resg) {
+        document.getElementById('saldo-modal-titulo').textContent = 'Editar Saldo';
+        const form = document.getElementById('saldo-form');
+        form.action = '/saldos-bancarios/editar';
+        document.getElementById('saldo-conta').value = conta;
+        document.getElementById('saldo-fundo').value = fundo;
+        document.getElementById('saldo-data').value = dat;
+        bloquearChaves(true);
+        // selects disabled não são enviados: reinclui as chaves como hidden
+        for (const [n, v] of [['seq_conta', conta], ['seq_fundo', fundo], ['dat_saldo', dat]]) {
+            let h = form.querySelector('input[type=hidden][name=' + n + ']');
+            if (!h) { h = document.createElement('input'); h.type = 'hidden'; h.name = n; form.appendChild(h); }
+            h.value = v;
+        }
+        document.getElementById('saldo-valor').value = val;
+        document.getElementById('saldo-apl').value = apl;
+        document.getElementById('saldo-resg').value = resg;
+        document.getElementById('saldo-modal').classList.remove('hidden');
+    }
+    if (window.lucide) lucide.createIcons();
+</script>
+{% endblock %}

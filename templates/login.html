@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entrar — Fluxo de Caixa</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cartao {
+            background: #fff;
+            border-radius: 12px;
+            padding: 40px 36px;
+            width: 100%;
+            max-width: 380px;
+            box-shadow: 0 20px 50px rgba(0,0,0,.35);
+        }
+        .logo { text-align: center; margin-bottom: 8px; font-size: 28px; }
+        h1 { font-size: 20px; text-align: center; color: #0f172a; margin-bottom: 4px; }
+        .subtitulo { text-align: center; color: #64748b; font-size: 13px; margin-bottom: 24px; }
+        label { display: block; font-size: 13px; font-weight: 600; color: #334155; margin: 14px 0 4px; }
+        input {
+            width: 100%; padding: 10px 12px; font-size: 14px;
+            border: 1px solid #cbd5e1; border-radius: 8px; outline: none;
+        }
+        input:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.15); }
+        button {
+            width: 100%; margin-top: 22px; padding: 11px; font-size: 14px; font-weight: 600;
+            color: #fff; background: #2563eb; border: none; border-radius: 8px; cursor: pointer;
+        }
+        button:hover { background: #1d4ed8; }
+        .erro {
+            background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;
+            border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-bottom: 6px;
+        }
+        .demo {
+            background: #eff6ff; color: #1e40af; border: 1px solid #bfdbfe;
+            border-radius: 8px; padding: 12px; font-size: 13px; margin-bottom: 14px;
+            text-align: left; line-height: 1.5;
+        }
+        .demo strong { display: block; margin-bottom: 4px; }
+        .demo code {
+            background: #dbeafe; padding: 1px 6px; border-radius: 4px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="cartao">
+        <div class="logo">💰</div>
+        <h1>Fluxo de Caixa</h1>
+        <p class="subtitulo">Acesso restrito — identifique-se</p>
+
+        {% if modo_demo() %}
+        <div class="demo" data-testid="login-aviso-demo">
+            <strong>Ambiente de demonstração</strong>
+            Entre com <code>admin</code> / <code>admin</code>. Os dados são
+            fictícios e servem apenas para conhecer o sistema.
+        </div>
+        {% endif %}
+
+        {% if erro %}
+        <div class="erro" data-testid="login-erro">{{ erro }}</div>
+        {% endif %}
+
+        <form method="post" action="/login?next={{ next | urlencode }}" data-testid="login-form">
+            <label for="usuario">Usuário</label>
+            <input type="text" id="usuario" name="usuario" autofocus autocomplete="username"
+                   required data-testid="login-usuario">
+
+            <label for="senha">Senha</label>
+            <input type="password" id="senha" name="senha" autocomplete="current-password"
+                   required data-testid="login-senha">
+
+            <button type="submit" data-testid="login-submit">Entrar</button>
+        </form>
+    </div>
+</body>
+</html>

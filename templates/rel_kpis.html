@@ -1,0 +1,352 @@
+{% extends 'base.html' %}
+{% block content %}
+
+<div class="space-y-6">
+    <!-- Header -->
+    <div class="flex items-center mb-6">
+        <a href="{{ url_for('relatorios') }}" class="text-gray-500 hover:text-gray-700">
+            <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+        </a>
+        <div class="ml-4">
+            <h2 class="text-2xl font-bold text-slate-800">KPIs</h2>
+            <p class="text-slate-500 mt-1">Painel gerencial: saldos, receita × despesa, composição e defasagem da extração</p>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 items-end">
+            <div>
+                <label for="filtro-referencia" class="block text-sm font-medium text-gray-700 mb-1">Data de referência</label>
+                <input type="date" id="filtro-referencia" data-testid="filtro-referencia" value="{{ hoje }}"
+                       class="w-full rounded-lg border-slate-300 text-sm">
+            </div>
+            <div>
+                <label for="filtro-inicio" class="block text-sm font-medium text-gray-700 mb-1">Período — início</label>
+                <input type="date" id="filtro-inicio" data-testid="filtro-inicio"
+                       class="w-full rounded-lg border-slate-300 text-sm">
+            </div>
+            <div>
+                <label for="filtro-fim" class="block text-sm font-medium text-gray-700 mb-1">Período — fim</label>
+                <input type="date" id="filtro-fim" data-testid="filtro-fim"
+                       class="w-full rounded-lg border-slate-300 text-sm">
+            </div>
+            <div>
+                <label for="filtro-banco" class="block text-sm font-medium text-gray-700 mb-1">Banco</label>
+                <select id="filtro-banco" data-testid="filtro-banco" class="w-full rounded-lg border-slate-300 text-sm">
+                    <option value="">Todos</option>
+                    {% for banco in bancos %}
+                    <option value="{{ banco }}">{{ banco }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="filtro-conta" class="block text-sm font-medium text-gray-700 mb-1">Conta</label>
+                <select id="filtro-conta" data-testid="filtro-conta" class="w-full rounded-lg border-slate-300 text-sm">
+                    <option value="">Todas</option>
+                    {% for conta in contas %}
+                    <option value="{{ conta.seq_conta }}">{{ conta.cod_banco }}/{{ conta.num_agencia }}/{{ conta.num_conta }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <button id="btn-aplicar" data-testid="btn-aplicar-filtros"
+                        class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-lg">
+                    Aplicar
+                </button>
+            </div>
+        </div>
+        <p id="aviso-recorte" data-testid="aviso-recorte" class="hidden mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            O recorte por banco/conta não cobre lançamentos sem conta bancária vinculada (ex.: lançamentos automáticos).
+        </p>
+    </div>
+
+    <!-- Bloco 1: Saldos -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <p class="text-sm text-slate-500">Saldo consolidado</p>
+            <p class="text-2xl font-bold text-slate-800" data-testid="kpi-consolidado" id="kpi-consolidado">—</p>
+            <p class="text-xs text-slate-500 mt-1" id="kpi-variacao" data-testid="kpi-variacao">variação vs D-1: —</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <p class="text-sm text-slate-500">Rendimento de fundos no período</p>
+            <p class="text-2xl font-bold text-emerald-600" id="kpi-rendimento" data-testid="kpi-rendimento">—</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 sm:col-span-2">
+            <p class="text-sm text-slate-500 mb-2">Saldo por banco</p>
+            <div id="kpi-por-banco" data-testid="kpi-por-banco" class="space-y-1 text-sm"></div>
+        </div>
+    </div>
+
+    <!-- Bloco 2: Receita × Despesa -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <p class="text-sm text-slate-500">Receita do período</p>
+            <p class="text-2xl font-bold text-blue-600" id="kpi-receita" data-testid="kpi-receita">—</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <p class="text-sm text-slate-500">Despesa do período</p>
+            <p class="text-2xl font-bold text-rose-600" id="kpi-despesa" data-testid="kpi-despesa">—</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <p class="text-sm text-slate-500">Resultado</p>
+            <p class="text-2xl font-bold text-slate-800" id="kpi-resultado" data-testid="kpi-resultado">—</p>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <p class="text-sm text-slate-500">Despesa / Receita</p>
+            <p class="text-2xl font-bold text-slate-800" id="kpi-percentual" data-testid="kpi-percentual">—</p>
+        </div>
+    </div>
+
+    <!-- Bloco 6: Defasagem da extração -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200" data-testid="card-defasagem-saldo">
+            <div class="flex items-center justify-between">
+                <p class="text-sm text-slate-500">Defasagem da extração — saldos</p>
+                <span id="semaforo-saldo" data-testid="semaforo-saldo" data-estado=""
+                      class="px-2 py-1 rounded-full text-xs font-semibold">—</span>
+            </div>
+            <p class="text-sm text-slate-600 mt-2" id="defasagem-saldo-detalhe"></p>
+            <p class="text-xs text-slate-400 mt-1" id="defasagem-saldo-inclusao"></p>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200" data-testid="card-defasagem-lancamento">
+            <div class="flex items-center justify-between">
+                <p class="text-sm text-slate-500">Defasagem da extração — lançamentos</p>
+                <span id="semaforo-lancamento" data-testid="semaforo-lancamento" data-estado=""
+                      class="px-2 py-1 rounded-full text-xs font-semibold">—</span>
+            </div>
+            <p class="text-sm text-slate-600 mt-2" id="defasagem-lancamento-detalhe"></p>
+            <p class="text-xs text-slate-400 mt-1" id="defasagem-lancamento-inclusao"></p>
+        </div>
+    </div>
+
+    <!-- Bloco 3: Evolução mensal -->
+    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+        <h4 class="text-lg font-semibold text-slate-800 mb-3">Evolução mensal (12 meses)</h4>
+        <div class="relative h-72">
+            <canvas id="grafico-evolucao" data-testid="grafico-evolucao"></canvas>
+        </div>
+        <p class="text-xs text-slate-400 mt-2">O mês da data de referência é parcial (barra mais clara).</p>
+    </div>
+
+    <!-- Bloco 5: Composição -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <h4 class="text-lg font-semibold text-slate-800 mb-3">Top-5 receitas</h4>
+            <div id="kpi-top-receitas" data-testid="kpi-top-receitas" class="space-y-2 text-sm"></div>
+            <p class="text-sm text-slate-500 mt-3">Outras receitas: <span id="kpi-outras-receitas" data-testid="kpi-outras-receitas">—</span></p>
+        </div>
+        <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+            <h4 class="text-lg font-semibold text-slate-800 mb-3">Top-5 despesas</h4>
+            <div id="kpi-top-despesas" data-testid="kpi-top-despesas" class="space-y-2 text-sm"></div>
+            <p class="text-sm text-slate-500 mt-3">Outras despesas: <span id="kpi-outras-despesas" data-testid="kpi-outras-despesas">—</span></p>
+        </div>
+    </div>
+
+    <!-- Bloco 4: Saldo por conta -->
+    <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 overflow-x-auto">
+        <h4 class="text-lg font-semibold text-slate-800 mb-3">Saldo por conta</h4>
+        <table class="min-w-full text-sm" data-testid="tabela-saldo-conta">
+            <thead>
+                <tr class="text-left text-slate-500 border-b border-slate-200">
+                    <th class="py-2 pr-4">Conta</th>
+                    <th class="py-2 pr-4 text-right">Saldo</th>
+                    <th class="py-2 pr-4 text-right">D-1</th>
+                    <th class="py-2 pr-4 text-right">Δ</th>
+                    <th class="py-2 pr-4 text-right">Aplicações</th>
+                    <th class="py-2 pr-4 text-right">Resgates</th>
+                    <th class="py-2 pr-4 text-right">% do total</th>
+                </tr>
+            </thead>
+            <tbody id="corpo-saldo-conta"></tbody>
+        </table>
+        <p id="saldo-conta-vazio" class="hidden text-sm text-slate-400 mt-3">Nenhuma conta com saldo na data de referência.</p>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    const fmtBRL = (s) => s === null || s === undefined ? '—'
+        : new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(parseFloat(s));
+    const texto = (id, v) => { document.getElementById(id).textContent = v; };
+
+    const CORES_SEMAFORO = {
+        'OK': 'bg-emerald-100 text-emerald-700',
+        'AMARELO': 'bg-amber-100 text-amber-700',
+        'VERMELHO': 'bg-rose-100 text-rose-700',
+        'SEM_FONTE': 'bg-slate-100 text-slate-500',
+    };
+    const ROTULO_SEMAFORO = {
+        'OK': 'OK', 'AMARELO': 'Atenção', 'VERMELHO': 'Crítico', 'SEM_FONTE': 'Sem fonte',
+    };
+
+    let graficoEvolucao = null;
+
+    function aplicarSemaforo(prefixo, dados) {
+        const badge = document.getElementById('semaforo-' + prefixo);
+        badge.className = 'px-2 py-1 rounded-full text-xs font-semibold ' +
+            (CORES_SEMAFORO[dados.estado] || CORES_SEMAFORO['SEM_FONTE']);
+        badge.dataset.estado = dados.estado;
+        badge.textContent = ROTULO_SEMAFORO[dados.estado] || dados.estado;
+
+        const detalhe = document.getElementById('defasagem-' + prefixo + '-detalhe');
+        if (dados.estado === 'SEM_FONTE') {
+            detalhe.textContent = 'Nenhuma fonte de extração configurada para este destino.';
+        } else if (dados.horas === null) {
+            detalhe.textContent = 'Nenhuma execução concluída registrada.';
+        } else {
+            detalhe.textContent = `Última execução há ${dados.horas}h (${dados.ultima_execucao}).`;
+        }
+        const inclusao = document.getElementById('defasagem-' + prefixo + '-inclusao');
+        inclusao.textContent = dados.ultima_inclusao
+            ? `Último dado incluído em ${dados.ultima_inclusao.split('-').reverse().join('/')}.`
+            : '';
+    }
+
+    function renderComposicao(idLista, itens) {
+        const alvo = document.getElementById(idLista);
+        alvo.innerHTML = '';
+        if (!itens.length) {
+            alvo.innerHTML = '<p class="text-slate-400">Sem movimento no período.</p>';
+            return;
+        }
+        for (const item of itens) {
+            const linha = document.createElement('div');
+            const pai = item.num_qualificador_pai ? `<span class="text-slate-400">${item.num_qualificador_pai} ›</span> ` : '';
+            linha.innerHTML =
+                `<div class="flex justify-between gap-2">` +
+                `<span>${pai}${item.num_qualificador} — ${item.dsc_qualificador}</span>` +
+                `<span class="font-medium whitespace-nowrap">${fmtBRL(item.valor)} <span class="text-slate-400">(${item.percentual}%)</span></span>` +
+                `</div>` +
+                `<div class="h-1.5 bg-slate-100 rounded-full mt-1"><div class="h-1.5 bg-blue-500 rounded-full" style="width:${Math.min(100, parseFloat(item.percentual))}%"></div></div>`;
+            alvo.appendChild(linha);
+        }
+    }
+
+    function renderEvolucao(pontos) {
+        const rotulos = pontos.map(p => `${String(p.mes).padStart(2, '0')}/${p.ano}` + (p.parcial ? ' *' : ''));
+        const receitas = pontos.map(p => parseFloat(p.receita));
+        const despesas = pontos.map(p => parseFloat(p.despesa));
+        const opacidade = (cor) => pontos.map(p => p.parcial ? cor.replace('1)', '0.45)') : cor);
+        const ctx = document.getElementById('grafico-evolucao').getContext('2d');
+        if (graficoEvolucao) graficoEvolucao.destroy();
+        graficoEvolucao = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: rotulos,
+                datasets: [
+                    {
+                        label: 'Receita',
+                        data: receitas,
+                        backgroundColor: opacidade('rgba(59, 130, 246, 1)'), // Blue 500
+                    },
+                    {
+                        label: 'Despesa',
+                        data: despesas,
+                        backgroundColor: opacidade('rgba(244, 63, 94, 1)'), // Rose 500
+                    },
+                ],
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                        callbacks: {
+                            label: (item) => `${item.dataset.label}: ${fmtBRL(String(item.parsed.y))}`,
+                        },
+                    },
+                },
+                scales: {
+                    y: { ticks: { callback: (v) => fmtBRL(String(v)) } },
+                },
+            },
+        });
+    }
+
+    function renderSaldoPorConta(linhas) {
+        const corpo = document.getElementById('corpo-saldo-conta');
+        corpo.innerHTML = '';
+        document.getElementById('saldo-conta-vazio').classList.toggle('hidden', linhas.length > 0);
+        for (const l of linhas) {
+            const tr = document.createElement('tr');
+            tr.className = 'border-b border-slate-100';
+            tr.dataset.testid = 'linha-conta-' + l.cod_banco + '-' + l.num_conta;
+            const delta = l.delta === null ? '—' : fmtBRL(l.delta);
+            const corDelta = l.delta === null ? 'text-slate-400'
+                : (parseFloat(l.delta) < 0 ? 'text-rose-600' : 'text-emerald-600');
+            tr.innerHTML =
+                `<td class="py-2 pr-4">${l.cod_banco}/${l.num_agencia}/${l.num_conta}` +
+                (l.dsc_conta ? ` <span class="text-slate-400">— ${l.dsc_conta}</span>` : '') + `</td>` +
+                `<td class="py-2 pr-4 text-right font-medium">${fmtBRL(l.saldo)}</td>` +
+                `<td class="py-2 pr-4 text-right">${l.saldo_d1 === null ? '—' : fmtBRL(l.saldo_d1)}</td>` +
+                `<td class="py-2 pr-4 text-right ${corDelta}">${delta}</td>` +
+                `<td class="py-2 pr-4 text-right">${fmtBRL(l.aplicacoes)}</td>` +
+                `<td class="py-2 pr-4 text-right">${fmtBRL(l.resgates)}</td>` +
+                `<td class="py-2 pr-4 text-right">${l.percentual}%</td>`;
+            corpo.appendChild(tr);
+        }
+    }
+
+    async function carregar() {
+        const params = new URLSearchParams();
+        const campos = {
+            data_referencia: 'filtro-referencia',
+            data_inicio: 'filtro-inicio',
+            data_fim: 'filtro-fim',
+            cod_banco: 'filtro-banco',
+            seq_conta: 'filtro-conta',
+        };
+        for (const [chave, id] of Object.entries(campos)) {
+            const valor = document.getElementById(id).value;
+            if (valor) params.set(chave, valor);
+        }
+        const resp = await fetch(`{{ url_for('relatorio_kpis_data') }}?${params.toString()}`);
+        if (!resp.ok) {
+            const erro = await resp.json().catch(() => ({}));
+            alert(erro.detail || 'Erro ao carregar os KPIs.');
+            return;
+        }
+        const d = await resp.json();
+
+        document.getElementById('aviso-recorte').classList.toggle('hidden', !d.filtros.recorte_sem_conta);
+
+        texto('kpi-consolidado', fmtBRL(d.saldos.consolidado));
+        texto('kpi-variacao', 'variação vs D-1: ' + (d.saldos.variacao_d1 === null ? '—' : fmtBRL(d.saldos.variacao_d1)));
+        texto('kpi-rendimento', fmtBRL(d.saldos.rendimento));
+        const porBanco = document.getElementById('kpi-por-banco');
+        porBanco.innerHTML = d.saldos.por_banco.length
+            ? '' : '<p class="text-slate-400">Nenhum saldo na data de referência.</p>';
+        for (const b of d.saldos.por_banco) {
+            const linha = document.createElement('div');
+            linha.className = 'flex justify-between';
+            linha.dataset.testid = 'banco-' + b.cod_banco;
+            linha.innerHTML = `<span>Banco ${b.cod_banco}</span><span class="font-medium">${fmtBRL(b.valor)}</span>`;
+            porBanco.appendChild(linha);
+        }
+
+        texto('kpi-receita', fmtBRL(d.receita_despesa.receita));
+        texto('kpi-despesa', fmtBRL(d.receita_despesa.despesa));
+        texto('kpi-resultado', fmtBRL(d.receita_despesa.resultado));
+        texto('kpi-percentual', d.receita_despesa.percentual === null ? '—' : d.receita_despesa.percentual + '%');
+
+        renderEvolucao(d.evolucao);
+        renderSaldoPorConta(d.saldo_por_conta);
+        renderComposicao('kpi-top-receitas', d.composicao.top_receitas);
+        renderComposicao('kpi-top-despesas', d.composicao.top_despesas);
+        texto('kpi-outras-receitas', fmtBRL(d.composicao.outras_receitas));
+        texto('kpi-outras-despesas', fmtBRL(d.composicao.outras_despesas));
+
+        aplicarSemaforo('saldo', d.defasagem.saldo);
+        aplicarSemaforo('lancamento', d.defasagem.lancamento);
+    }
+
+    document.getElementById('btn-aplicar').addEventListener('click', carregar);
+    carregar();
+})();
+</script>
+{% endblock %}

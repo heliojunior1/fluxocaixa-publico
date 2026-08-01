@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div class="flex items-center">
+        <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-700">
+            <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+        </a>
+        <div class="ml-4">
+            <h2 class="text-2xl font-bold text-gray-800">Mapeamentos</h2>
+            <p class="text-sm text-gray-500">Regras que classificam os lançamentos da
+                staging por qualificador.</p>
+        </div>
+    </div>
+    <div class="flex items-center gap-3">
+        {% if tem_permissao(request, 'FC_CONS_TERMO_REGRA') %}
+        <a href="{{ url_for('termos_regra') }}" data-testid="ir-termos"
+            class="text-blue-600 hover:text-blue-800 font-semibold text-sm flex items-center gap-1">
+            <i data-lucide="book-open" class="w-4 h-4"></i> Termos
+        </a>
+        {% endif %}
+        {% if tem_permissao(request, 'FC_CONS_EXECUCAO_MAPEAMENTO') %}
+        <a href="{{ url_for('execucoes_mapeamento') }}" data-testid="ir-execucoes-mapeamento"
+            class="text-blue-600 hover:text-blue-800 font-semibold text-sm flex items-center gap-1">
+            <i data-lucide="history" class="w-4 h-4"></i> Processamento
+        </a>
+        {% endif %}
+        {% if tem_permissao(request, 'FC_INS_MAPEAMENTO') %}
+        <a href="{{ url_for('mapeamento_novo') }}" data-testid="novo-mapeamento"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg inline-flex items-center">
+            <i data-lucide="plus" class="w-5 h-5 mr-2"></i><span>Novo Mapeamento</span>
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+    <table class="min-w-full text-sm" data-testid="tabela-mapeamentos">
+        <thead class="bg-gray-50 text-gray-600 text-xs uppercase">
+            <tr>
+                <th class="px-4 py-3 text-left">Descrição</th>
+                <th class="px-4 py-3 text-left">Ano</th>
+                <th class="px-4 py-3 text-left">Tipo</th>
+                <th class="px-4 py-3 text-left">Origem</th>
+                <th class="px-4 py-3 text-left">Itens</th>
+                <th class="px-4 py-3 text-right">Ações</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for m in mapeamentos %}
+            <tr data-testid="mapeamento-linha-{{ m.seq_mapeamento }}">
+                <td class="px-4 py-3 font-medium text-gray-800">{{ m.dsc_mapeamento }}</td>
+                <td class="px-4 py-3 text-gray-600">{{ m.num_ano_exercicio }}</td>
+                <td class="px-4 py-3 text-gray-600">{{ m.tipo }}</td>
+                <td class="px-4 py-3 text-gray-600">{{ m.origem }}</td>
+                <td class="px-4 py-3 text-gray-600">{{ m.qtd_itens }}</td>
+                <td class="px-4 py-3 text-right">
+                    {% if tem_permissao(request, 'FC_ALT_MAPEAMENTO') %}
+                    <a href="{{ url_for('mapeamento_editar', seq_mapeamento=m.seq_mapeamento) }}"
+                        data-testid="editar-{{ m.seq_mapeamento }}"
+                        class="text-blue-600 hover:text-blue-800 mr-3 inline-block">
+                        <i data-lucide="pencil" class="w-4 h-4"></i>
+                    </a>
+                    {% endif %}
+                    {% if tem_permissao(request, 'FC_DEL_MAPEAMENTO') %}
+                    <form method="post" class="inline"
+                        action="{{ url_for('mapeamento_inativar', seq_mapeamento=m.seq_mapeamento) }}"
+                        onsubmit="return confirm('Inativar este mapeamento?')">
+                        <input type="hidden" name="confirmado" value="true">
+                        <button type="submit" data-testid="inativar-{{ m.seq_mapeamento }}"
+                            class="text-red-600 hover:text-red-800">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="px-4 py-8 text-center text-gray-400"
+                    data-testid="mapeamentos-vazio">
+                Nenhum mapeamento cadastrado.
+            </td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

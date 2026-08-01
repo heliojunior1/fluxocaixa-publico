@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div class="flex items-center">
+        <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-700">
+            <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+        </a>
+        <h2 class="text-2xl font-bold text-gray-800 ml-4">Fontes de Extração</h2>
+    </div>
+    <div class="flex items-center gap-3">
+        <a href="{{ url_for('extracao_execucoes') }}" data-testid="ir-execucoes"
+            class="text-blue-600 hover:text-blue-800 font-semibold text-sm flex items-center gap-1">
+            <i data-lucide="history" class="w-4 h-4"></i> Execuções
+        </a>
+        {% if tipos_conector and tem_permissao(request, 'FC_MANT_FONTE_EXTRACAO') %}
+        <div class="relative">
+            <select id="tipo-nova" data-testid="tipo-nova"
+                class="border rounded px-2 py-2 text-sm">
+                {% for t in tipos_conector %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+            </select>
+            <button type="button" data-testid="nova-fonte" onclick="irNovaFonte()"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg inline-flex items-center ml-1">
+                <i data-lucide="plus" class="w-5 h-5 mr-2"></i><span>Nova Fonte</span>
+            </button>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if not tipos_conector %}
+<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg p-4 mb-6"
+    data-testid="fontes-sem-conector">
+    Nenhum conector de extração disponível nesta instalação. Instale/registre um
+    conector para cadastrar fontes.
+</div>
+{% endif %}
+
+<form method="get" action="{{ url_for('extracao_fontes') }}"
+    class="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-wrap items-end gap-4">
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Nome</label>
+        <input type="text" name="nome" value="{{ filtros.nome }}" class="border rounded px-2 py-1">
+    </div>
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Tipo</label>
+        <input type="text" name="tipo" value="{{ filtros.tipo }}" class="border rounded px-2 py-1">
+    </div>
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Status</label>
+        <select name="status" class="border rounded px-2 py-1">
+            <option value="">Todos</option>
+            <option value="ativo" {% if filtros.status == 'ativo' %}selected{% endif %}>Ativo</option>
+            <option value="inativo" {% if filtros.status == 'inativo' %}selected{% endif %}>Inativo</option>
+        </select>
+    </div>
+    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Filtrar</button>
+</form>
+
+<div class="bg-white rounded-lg shadow-md overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-50 text-left text-gray-600">
+            <tr>
+                <th class="px-4 py-3 font-semibold">Nome</th>
+                <th class="px-4 py-3 font-semibold">Conector</th>
+                <th class="px-4 py-3 font-semibold">Sistema</th>
+                <th class="px-4 py-3 font-semibold">Agenda</th>
+                <th class="px-4 py-3 font-semibold">Última execução</th>
+                <th class="px-4 py-3 font-semibold">Status</th>
+                <th class="px-4 py-3 font-semibold text-right">Ações</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for f in fontes %}
+            <tr data-testid="fonte-linha-{{ f.seq_fonte_extracao }}">
+                <td class="px-4 py-3 font-medium text-gray-800">{{ f.nom_fonte }}</td>
+                <td class="px-4 py-3 text-gray-600">{{ f.cod_tipo_conector }}</td>
+                <td class="px-4 py-3 text-gray-600">{{ f.sistema_origem }}</td>
+                <td class="px-4 py-3 text-gray-500 font-mono text-xs">{{ f.txt_cron or '—' }}</td>
+                <td class="px-4 py-3 text-gray-500 text-xs">
+                    {{ f.ultima_em.strftime('%d/%m/%Y %H:%M') if f.ultima_em else '—' }}
+                </td>
+                <td class="px-4 py-3">
+                    {% if f.ultima_status %}
+                    <span data-testid="fonte-status-{{ f.seq_fonte_extracao }}"
+                        class="text-xs font-bold px-2 py-0.5 rounded-full
+                        {% if f.ultima_status == 'SUCESSO' %}bg-green-100 text-green-800
+                        {% elif f.ultima_status == 'PARCIAL' %}bg-amber-100 text-amber-800
+                        {% elif f.ultima_status == 'ERRO' %}bg-red-100 text-red-800
+                        {% else %}bg-gray-100 text-gray-700{% endif %}">{{ f.ultima_status }}</span>
+                    {% else %}<span class="text-gray-400 text-xs">nunca executada</span>{% endif %}
+                    <span class="ml-1 {% if f.ativo %}text-green-700{% else %}text-gray-400{% endif %} text-xs">
+                        {{ 'ativa' if f.ativo else 'inativa' }}</span>
+                </td>
+                <td class="px-4 py-3 text-right whitespace-nowrap">
+                    {% if tem_permissao(request, 'FC_EXEC_EXTRACAO') and f.ativo %}
+                    <button type="button" data-testid="executar-{{ f.seq_fonte_extracao }}"
+                        onclick="executarAgora({{ f.seq_fonte_extracao }})"
+                        class="text-blue-600 hover:text-blue-800 p-1" title="Executar agora">
+                        <i data-lucide="play" class="w-4 h-4"></i></button>
+                    {% endif %}
+                    {% if tem_permissao(request, 'FC_MANT_FONTE_EXTRACAO') %}
+                    <button type="button" data-testid="testar-{{ f.seq_fonte_extracao }}"
+                        onclick="testarConexao({{ f.seq_fonte_extracao }})"
+                        class="text-slate-600 hover:text-slate-800 p-1" title="Testar conexão">
+                        <i data-lucide="plug" class="w-4 h-4"></i></button>
+                    <a href="/extracao/fontes/{{ f.seq_fonte_extracao }}/editar"
+                        data-testid="editar-{{ f.seq_fonte_extracao }}"
+                        class="text-indigo-600 hover:text-indigo-800 p-1 inline-block" title="Editar">
+                        <i data-lucide="pencil" class="w-4 h-4"></i></a>
+                    {% if f.ativo %}
+                    <button type="button" data-testid="inativar-{{ f.seq_fonte_extracao }}"
+                        onclick="abrirInativar({{ f.seq_fonte_extracao }}, '{{ f.nom_fonte|e }}')"
+                        class="text-red-600 hover:text-red-800 p-1" title="Inativar">
+                        <i data-lucide="ban" class="w-4 h-4"></i></button>
+                    {% endif %}
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="px-4 py-6 text-center text-gray-400">Nenhuma fonte cadastrada</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Resultado de teste/execução -->
+<div id="extracao-toast" data-testid="extracao-toast"
+    class="hidden fixed bottom-6 right-6 max-w-sm bg-white border shadow-lg rounded-lg p-4 z-50 text-sm"></div>
+
+<!-- Modal inativar -->
+<div id="inativar-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50">
+    <div class="relative top-24 mx-auto p-6 border w-96 shadow-lg rounded-md bg-white">
+        <h3 class="text-lg font-bold text-gray-800 mb-4">Inativar Fonte</h3>
+        <p class="text-sm text-gray-600 mb-4" id="inativar-msg"></p>
+        <form id="inativar-form" method="POST" data-testid="inativar-form">
+            <input type="hidden" name="confirmado" value="true">
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="fecharModal('inativar-modal')"
+                    class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</button>
+                <button type="submit" data-testid="inativar-confirmar"
+                    class="bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded">Inativar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function fecharModal(id) { document.getElementById(id).classList.add('hidden'); }
+    function irNovaFonte() {
+        const tipo = document.getElementById('tipo-nova').value;
+        window.location = '/extracao/fontes/nova?tipo=' + encodeURIComponent(tipo);
+    }
+    function abrirInativar(seq, nome) {
+        document.getElementById('inativar-form').action = '/extracao/fontes/' + seq + '/inativar';
+        document.getElementById('inativar-msg').textContent = 'Inativar a fonte "' + nome + '"?';
+        document.getElementById('inativar-modal').classList.remove('hidden');
+    }
+    function mostrarToast(ok, msg) {
+        const t = document.getElementById('extracao-toast');
+        t.textContent = msg;
+        t.className = 'fixed bottom-6 right-6 max-w-sm border shadow-lg rounded-lg p-4 z-50 text-sm '
+            + (ok ? 'bg-green-50 border-green-300 text-green-800' : 'bg-red-50 border-red-300 text-red-800');
+        t.classList.remove('hidden');
+        setTimeout(() => t.classList.add('hidden'), 6000);
+    }
+    async function testarConexao(seq) {
+        const r = await fetch('/extracao/fontes/' + seq + '/testar-conexao', { method: 'POST' });
+        const d = await r.json();
+        mostrarToast(r.ok && d.ok, d.mensagem || d.detail || 'Falha no teste');
+    }
+    async function executarAgora(seq) {
+        const r = await fetch('/api/extracao/fontes/' + seq + '/executar',
+            { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+        const d = await r.json();
+        if (r.ok) { mostrarToast(true, 'Execução: ' + d.codStatus + ' (' + d.qtdLinhasInseridas + ' inseridas)');
+            setTimeout(() => window.location.reload(), 1200); }
+        else mostrarToast(false, d.detail || 'Falha na execução');
+    }
+    if (window.lucide) lucide.createIcons();
+</script>
+{% endblock %}

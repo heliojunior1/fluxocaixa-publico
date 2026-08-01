@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: fluxocaixa
+    env: python
+    buildCommand: "pip install -r requirements.txt"
+    # --preload: o app (migrações Alembic + seeds + SECRET_KEY) inicializa UMA vez
+    # no master antes do fork — evita migração/seed concorrente entre workers e
+    # garante a mesma chave de sessão quando SECRET_KEY não é definida.
+    # --workers 1: o agendador de extração embutido (EXTRACAO_SCHEDULER) roda no
+    # lifespan de cada worker — com N workers as fontes executariam N vezes.
+    # Para escalar workers, desabilite EXTRACAO_SCHEDULER e dispare via API.
+    startCommand: "gunicorn src.fluxocaixa.main:app --preload --workers 1 --worker-class uvicorn.workers.UvicornWorker --bind 0.0.0.0:$PORT"
+    envVars:
+      - key: PYTHONPATH
+        value: src
+      - key: DATABASE_URL
+        value: sqlite:///./instance/fluxo.db
+      - key: PYTHON_VERSION # O código usa sintaxe PEP 604 (int | None): requer >= 3.10
+        value: "3.10"
+      # AUTO_MIGRATE (default true): aplica migrações Alembic no boot.
+      # SEED_DEMO_DATA (default true): mantém os dados de demonstração da demo hospedada.
+      # Em instalação com dados reais (ex.: SEFAZ), defina SEED_DEMO_DATA=false.
+      # - key: AUTO_MIGRATE
+      #   value: "true"
+      # - key: SEED_DEMO_DATA
+      #   value: "true"
+      # DEMO_MODE (default false): instância de demonstração pública — exibe as
+      # credenciais na tela de login, dispensa a troca de senha obrigatória do
+      # admin e recusa a troca de senha (senão o 1º visitante tranca os demais).
+      # NUNCA ligar em instalação com dados reais.
+      # - key: DEMO_MODE
+      #   value: "true"
+      # Autenticação: defina SECRET_KEY (sessões sobrevivem a restarts) e,
+      # opcionalmente, ADMIN_INITIAL_PASSWORD (senha inicial do admin; troca
+      # obrigatória no primeiro login). APP_ENV=prod liga cookie Secure.
+      # - key: SECRET_KEY
+      #   sync: false
+      # - key: ADMIN_INITIAL_PASSWORD
+      #   sync: false
+      # - key: APP_ENV
+      #   value: "prod"
+

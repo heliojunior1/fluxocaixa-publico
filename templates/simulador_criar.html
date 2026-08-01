@@ -1,0 +1,1763 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="bg-white p-6 rounded-lg shadow-md border">
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center">
+            <a href="{{ url_for('simulador_menu') }}" class="text-blue-600 hover:text-blue-800 mr-4">
+                <i data-lucide="arrow-left-circle" class="h-6 w-6"></i>
+            </a>
+            <h2 class="text-2xl font-semibold text-gray-700">
+                {% if modo == 'editar' %}Editar Cenário{% else %}Novo Cenário{% endif %}
+            </h2>
+        </div>
+    </div>
+
+    <form
+        action="{% if modo == 'editar' %}/simulador/{{ simulador.seq_simulador_cenario }}/atualizar{% else %}/simulador/criar{% endif %}"
+        method="POST" id="form-cenario"
+        data-cenario='{{ cenario_completo | tojson | safe if cenario_completo else "" }}'>
+
+        <!-- 1. Dados Básicos -->
+        <div class="mb-8 p-4 bg-gray-50 rounded-lg border">
+            <h3 class="text-lg font-medium text-gray-800 mb-4 flex items-center gap-2">
+                <i data-lucide="file-text" class="h-5 w-5 text-blue-600"></i>
+                Dados Básicos
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nome do Cenário</label>
+                    <input type="text" name="nom_cenario" required
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                        value="{{ simulador.nom_cenario if simulador else '' }}">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Descrição</label>
+                    <input type="text" name="dsc_cenario"
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                        value="{{ simulador.dsc_cenario if simulador else '' }}">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Ano Base</label>
+                    <input type="number" name="ano_base" id="input_ano_base" required
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                        value="{{ simulador.ano_base if simulador else current_year }}">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Periodicidade</label>
+                    <select name="cod_periodicidade" id="cod_periodicidade"
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                        onchange="onPeriodicidadeChange()">
+                        <option value="ANUAL" {% if simulador and simulador.cod_periodicidade == 'ANUAL' %}selected{% endif %}>Anual</option>
+                        <option value="MENSAL" {% if not simulador or simulador.cod_periodicidade == 'MENSAL' %}selected{% endif %}>Mensal</option>
+                        <option value="QUINZENAL" {% if simulador and simulador.cod_periodicidade == 'QUINZENAL' %}selected{% endif %}>Quinzenal</option>
+                        <option value="SEMANAL" {% if simulador and simulador.cod_periodicidade == 'SEMANAL' %}selected{% endif %}>Semanal</option>
+                    </select>
+                </div>
+                <div>
+                    <label id="label_periodos" class="block text-sm font-medium text-gray-700 mb-1">Meses de Projeção</label>
+                    <input type="number" name="num_periodos" id="input_periodos" required min="1" max="60"
+                        class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 p-2 border"
+                        value="{{ simulador.num_periodos if simulador else 12 }}">
+                </div>
+            </div>
+        </div>
+
+        <!-- 1.5. Configuração da Base Histórica -->
+        <div class="mb-8 p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+            <h3 class="text-lg font-medium text-indigo-800 mb-4 flex items-center gap-2">
+                <i data-lucide="database" class="h-5 w-5"></i>
+                Configuração da Base Histórica
+            </h3>
+            <p class="text-xs text-indigo-600 mb-4">Define como o valor base será calculado a partir dos dados históricos. Esta configuração é usada para projeções que dependem de dados passados.</p>
+
+            <!-- Método -->
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Método de Cálculo</label>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <label class="relative cursor-pointer">
+                        <input type="radio" name="cod_metodo_base" value="MEDIA_SIMPLES"
+                            {% if not simulador or simulador.cod_metodo_base == 'MEDIA_SIMPLES' %}checked{% endif %}
+                            class="peer sr-only" onchange="toggleMetodoBaseCenario()">
+                        <div class="p-3 border-2 border-gray-200 rounded-xl peer-checked:border-indigo-500 peer-checked:bg-indigo-50 transition-all">
+                            <p class="text-sm font-medium text-gray-700">Média Simples</p>
+                            <p class="text-xs text-gray-400 mt-0.5">Média aritmética dos anos selecionados</p>
+                        </div>
+                    </label>
+                    <label class="relative cursor-pointer">
+                        <input type="radio" name="cod_metodo_base" value="MEDIA_PONDERADA"
+                            {% if simulador and simulador.cod_metodo_base == 'MEDIA_PONDERADA' %}checked{% endif %}
+                            class="peer sr-only" onchange="toggleMetodoBaseCenario()">
+                        <div class="p-3 border-2 border-gray-200 rounded-xl peer-checked:border-indigo-500 peer-checked:bg-indigo-50 transition-all">
+                            <p class="text-sm font-medium text-gray-700">Média Ponderada</p>
+                            <p class="text-xs text-gray-400 mt-0.5">Com pesos configuráveis por ano</p>
+                        </div>
+                    </label>
+                    <label class="relative cursor-pointer">
+                        <input type="radio" name="cod_metodo_base" value="VALOR_FIXO"
+                            {% if simulador and simulador.cod_metodo_base == 'VALOR_FIXO' %}checked{% endif %}
+                            class="peer sr-only" onchange="toggleMetodoBaseCenario()">
+                        <div class="p-3 border-2 border-gray-200 rounded-xl peer-checked:border-indigo-500 peer-checked:bg-indigo-50 transition-all">
+                            <p class="text-sm font-medium text-gray-700">Valor Fixo</p>
+                            <p class="text-xs text-gray-400 mt-0.5">Informado manualmente</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Seleção de Anos (para MEDIA_SIMPLES e MEDIA_PONDERADA) -->
+            <div id="secao_anos_cenario">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Selecione os Anos Históricos</label>
+                <div id="anos_checkboxes_cenario" class="flex flex-wrap gap-3">
+                    {% for ano in anos_disponiveis %}
+                    <label class="relative cursor-pointer">
+                        <input type="checkbox" value="{{ ano }}"
+                            class="peer sr-only ano-cenario-checkbox"
+                            onchange="atualizarAnosCenario()">
+                        <div class="px-4 py-2.5 border-2 border-gray-200 rounded-xl text-sm font-medium text-gray-600
+                            peer-checked:border-indigo-500 peer-checked:bg-indigo-50 peer-checked:text-indigo-700 transition-all">
+                            {{ ano }}
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+                <input type="hidden" name="anos_selecionados_cenario" id="anos_selecionados_cenario" value="[]">
+            </div>
+
+            <!-- Pesos (para MEDIA_PONDERADA) -->
+            <div id="secao_pesos_cenario" class="hidden mt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Pesos por Ano</label>
+                <div id="pesos_inputs_cenario" class="grid grid-cols-2 sm:grid-cols-4 gap-3"></div>
+            </div>
+
+            <!-- Valor Fixo -->
+            <div id="secao_valor_fixo_cenario" class="hidden mt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Valor Fixo da Base (R$)</label>
+                <input type="number" name="valor_fixo_cenario" step="0.01" placeholder="150000.00"
+                    class="w-full max-w-xs px-4 py-2.5 bg-white border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none">
+            </div>
+        </div>
+
+        <!-- 2. Configuração de Receita -->
+        <div class="mb-8 p-4 bg-green-50 rounded-lg border border-green-100">
+            <h3 class="text-lg font-medium text-green-800 mb-4 flex items-center gap-2">
+                <i data-lucide="trending-up" class="h-5 w-5"></i>
+                Projeção de Receita
+            </h3>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Método de Projeção</label>
+                <select name="tipo_cenario_receita" id="tipo_receita"
+                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 p-2 border"
+                    onchange="toggleReceitaFields()">
+                    <option value="MANUAL" {% if cenario_completo and
+                        cenario_completo.receita.config.cod_tipo_cenario=='MANUAL' %}selected{% endif %}>Manual (Ajustes
+                        Mensais)</option>
+                    <option value="HOLT_WINTERS" {% if cenario_completo and
+                        cenario_completo.receita.config.cod_tipo_cenario=='HOLT_WINTERS' %}selected{% endif %}>
+                        Holt-Winters (Sazonalidade + Tendência)</option>
+                    <option value="ARIMA" {% if cenario_completo and
+                        cenario_completo.receita.config.cod_tipo_cenario=='ARIMA' %}selected{% endif %}>ARIMA
+                        (Auto-Regressivo)</option>
+                    <option value="SARIMA" {% if cenario_completo and
+                        cenario_completo.receita.config.cod_tipo_cenario=='SARIMA' %}selected{% endif %}>SARIMA (ARIMA
+                        Sazonal)</option>
+                    <option value="REGRESSAO" {% if cenario_completo and
+                        cenario_completo.receita.config.cod_tipo_cenario=='REGRESSAO' %}selected{% endif %}>Regressão
+                        Linear Múltipla</option>
+                    <option value="XGBOOST" {% if cenario_completo and
+                        cenario_completo.receita.config.cod_tipo_cenario=='XGBOOST' %}selected{% endif %}>XGBoost
+                        (Gradient Boosting)</option>
+                    <option value="LIGHTGBM" {% if cenario_completo and
+                        cenario_completo.receita.config.cod_tipo_cenario=='LIGHTGBM' %}selected{% endif %}>LightGBM
+                        (Microsoft Gradient Boosting)</option>
+                    <option value="FORMULA" {% if cenario_completo and
+                        cenario_completo.receita.config.cod_tipo_cenario=='FORMULA' %}selected{% endif %}>Fórmula
+                        Parametrizável</option>
+                    <option value="CRESCIMENTO_ANO" {% if cenario_completo and
+                        cenario_completo.receita.config.cod_tipo_cenario=='CRESCIMENTO_ANO' %}selected{% endif %}>Crescimento
+                        do Último Ano</option>
+                    <option value="MEDIA_CRESCIMENTO" {% if cenario_completo and
+                        cenario_completo.receita.config.cod_tipo_cenario=='MEDIA_CRESCIMENTO' %}selected{% endif %}>Média
+                        de Crescimento (Anos Selecionados)</option>
+                </select>
+            </div>
+
+            <!-- Campos Específicos de Modelo (Receita) -->
+            <div id="receita_model_fields" class="mb-4 hidden space-y-4 p-4 bg-white rounded border">
+                <h4 class="font-medium text-gray-700">Configuração do Modelo</h4>
+
+                <!-- Seleção de Qualificadores para aplicar o Modelo -->
+                <div id="common_model_params">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        Selecione os Qualificadores para Projeção
+                        <span class="text-xs text-gray-500 ml-2">(cada um será calculado com seus próprios dados históricos)</span>
+                    </label>
+                    
+                    <!-- Botões de seleção rápida -->
+                    <div class="flex gap-2 mb-2">
+                        <button type="button" onclick="toggleTodosQualificadores(true)" 
+                            class="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200">
+                            Selecionar Todos
+                        </button>
+                        <button type="button" onclick="toggleTodosQualificadores(false)" 
+                            class="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+                            Desmarcar Todos
+                        </button>
+                    </div>
+                    
+                    <!-- Lista de qualificadores com checkboxes -->
+                    <div id="qualificadores_list" class="max-h-48 overflow-y-auto border rounded p-2 bg-gray-50 grid grid-cols-2 md:grid-cols-3 gap-1">
+                        {% for q in qualificadores_receita %}
+                        <label class="flex items-center gap-2 p-1 hover:bg-gray-100 rounded cursor-pointer text-sm">
+                            <input type="checkbox" class="qualificador-checkbox" value="{{ q.seq_qualificador }}" 
+                                data-nome="{{ q.dsc_qualificador }}">
+                            <span class="truncate" title="{{ q.dsc_qualificador }}">{{ q.dsc_qualificador }}</span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    
+                    <p class="text-xs text-gray-500 mt-1">
+                        <span id="qualificadores_count">0</span> qualificador(es) selecionado(s)
+                    </p>
+                    
+                    <!-- Hidden input para seq_qualificadores -->
+                    <input type="hidden" name="receita_config_seq_qualificadores" id="receita_seq_qualificadores_hidden">
+                </div>
+
+                <!-- Parâmetros Holt-Winters -->
+                <div id="hw_params" class="model-params hidden">
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">Período Sazonal</label>
+                            <input type="number" name="receita_config_seasonal_periods" value="12"
+                                class="w-full border rounded p-1" min="2" max="24">
+                            <p class="text-xs text-gray-400 mt-1">Normalmente 12 para dados mensais</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">Tendência</label>
+                            <select name="receita_config_trend" class="w-full border rounded p-1">
+                                <option value="add">Aditiva</option>
+                                <option value="mul">Multiplicativa</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">Sazonalidade</label>
+                            <select name="receita_config_seasonal" class="w-full border rounded p-1">
+                                <option value="add">Aditiva</option>
+                                <option value="mul">Multiplicativa</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">Amortecimento</label>
+                            <select name="receita_config_damped_trend" class="w-full border rounded p-1">
+                                <option value="false">Não</option>
+                                <option value="true">Sim</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Parâmetros ARIMA -->
+                <div id="arima_params" class="model-params hidden">
+                    <p class="text-xs text-gray-500 mb-2">ARIMA(p,d,q) - Modelo Auto-Regressivo Integrado de Média Móvel</p>
+                    <div class="grid grid-cols-3 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">p (Auto-Regressivo)</label>
+                            <input type="number" name="receita_config_p" value="1" min="0" max="5"
+                                class="w-full border rounded p-1">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">d (Diferenciação)</label>
+                            <input type="number" name="receita_config_d" value="1" min="0" max="2"
+                                class="w-full border rounded p-1">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">q (Média Móvel)</label>
+                            <input type="number" name="receita_config_q" value="1" min="0" max="5"
+                                class="w-full border rounded p-1">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">Auto-seleção</label>
+                            <select name="receita_config_auto_order" class="w-full border rounded p-1">
+                                <option value="false">Manual</option>
+                                <option value="true">Automático</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Parâmetros SARIMA -->
+                <div id="sarima_params" class="model-params hidden">
+                    <p class="text-xs text-gray-500 mb-2">SARIMA(p,d,q)(P,D,Q,s) - ARIMA Sazonal</p>
+                    <div class="grid grid-cols-3 md:grid-cols-4 gap-4 mb-3">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">p (AR)</label>
+                            <input type="number" name="receita_config_p" value="1" min="0" max="3"
+                                class="w-full border rounded p-1">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">d (I)</label>
+                            <input type="number" name="receita_config_d" value="1" min="0" max="2"
+                                class="w-full border rounded p-1">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">q (MA)</label>
+                            <input type="number" name="receita_config_q" value="1" min="0" max="3"
+                                class="w-full border rounded p-1">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">s (Período)</label>
+                            <input type="number" name="receita_config_s" value="12" min="2" max="24"
+                                class="w-full border rounded p-1">
+                        </div>
+                    </div>
+                    <p class="text-xs text-gray-500 mb-2">Parâmetros Sazonais:</p>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">P (AR Sazonal)</label>
+                            <input type="number" name="receita_config_P" value="1" min="0" max="2"
+                                class="w-full border rounded p-1">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">D (I Sazonal)</label>
+                            <input type="number" name="receita_config_D" value="1" min="0" max="1"
+                                class="w-full border rounded p-1">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">Q (MA Sazonal)</label>
+                            <input type="number" name="receita_config_Q" value="1" min="0" max="2"
+                                class="w-full border rounded p-1">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Parâmetros Regressão Linear -->
+                <div id="regressao_params" class="model-params hidden space-y-3">
+                    <p class="text-sm text-gray-600 font-mono bg-gray-50 p-2 rounded">Fórmula: Receita = β0 + (β1 × PIB)
+                        + (β2 × Inflação)</p>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">β0 (Intercepto)</label>
+                            <input type="number" step="0.0001" name="receita_config_beta0" id="reg_beta0"
+                                class="w-full border rounded p-1" placeholder="0.00">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">β1 (PIB)</label>
+                            <input type="number" step="0.0001" name="receita_config_beta1" id="reg_beta1"
+                                class="w-full border rounded p-1" placeholder="0.00">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">β2 (Inflação)</label>
+                            <input type="number" step="0.0001" name="receita_config_beta2" id="reg_beta2"
+                                class="w-full border rounded p-1" placeholder="0.00">
+                        </div>
+                    </div>
+                    <!-- Inputs para valores projetados das variáveis -->
+                    <div class="mt-2">
+                        <label class="block text-xs font-medium text-gray-600 mb-1">Valores Projetados (Média
+                            Mensal)</label>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="text-xs text-gray-500">PIB</label>
+                                <input type="number" step="0.01" name="receita_config_val_pib" id="reg_val_pib"
+                                    class="w-full border rounded p-1" placeholder="Valor PIB">
+                            </div>
+                            <div>
+                                <label class="text-xs text-gray-500">Inflação</label>
+                                <input type="number" step="0.01" name="receita_config_val_inflacao"
+                                    id="reg_val_inflacao" class="w-full border rounded p-1"
+                                    placeholder="Valor Inflação">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Parâmetros XGBoost -->
+                <div id="xgboost_params" class="model-params hidden">
+                    <p class="text-xs text-gray-500 mb-2">XGBoost — Gradient Boosting com features de lag, sazonalidade e tendência</p>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">Nº Árvores (n_estimators)</label>
+                            <input type="number" name="receita_config_n_estimators" value="100" min="10" max="1000"
+                                class="w-full border rounded p-1">
+                            <p class="text-xs text-gray-400 mt-1">Mais árvores = mais precisão, mais lento</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">Profundidade Máx. (max_depth)</label>
+                            <input type="number" name="receita_config_max_depth" value="6" min="1" max="15"
+                                class="w-full border rounded p-1">
+                            <p class="text-xs text-gray-400 mt-1">Controla complexidade do modelo</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">Taxa de Aprendizado (learning_rate)</label>
+                            <input type="number" step="0.01" name="receita_config_learning_rate" value="0.1" min="0.01" max="1.0"
+                                class="w-full border rounded p-1">
+                            <p class="text-xs text-gray-400 mt-1">Menor = mais conservador</p>
+                        </div>
+                    </div>
+                </div>
+
+
+                <!-- Parâmetros LightGBM -->
+                <div id="lightgbm_params" class="model-params hidden">
+                    <p class="text-xs text-gray-500 mb-2">LightGBM — Gradient Boosting otimizado (Microsoft), mais rápido e eficiente</p>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">Nº Árvores (n_estimators)</label>
+                            <input type="number" name="receita_config_n_estimators" value="100" min="10" max="1000"
+                                class="w-full border rounded p-1">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">Profundidade Máx. (max_depth)</label>
+                            <input type="number" name="receita_config_max_depth" value="-1" min="-1" max="15"
+                                class="w-full border rounded p-1">
+                            <p class="text-xs text-gray-400 mt-1">-1 = sem limite</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">Taxa de Aprendizado</label>
+                            <input type="number" step="0.01" name="receita_config_learning_rate" value="0.1" min="0.01" max="1.0"
+                                class="w-full border rounded p-1">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600">Nº Folhas (num_leaves)</label>
+                            <input type="number" name="receita_config_num_leaves" value="31" min="2" max="256"
+                                class="w-full border rounded p-1">
+                            <p class="text-xs text-gray-400 mt-1">Principal param de complexidade</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mt-4 flex justify-end gap-2">
+                    <span id="projecao_status" class="text-sm text-gray-500 self-center"></span>
+                    <button type="button" onclick="aplicarModeloReceita()"
+                        class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 text-sm flex items-center gap-2">
+                        <i data-lucide="play"></i> Calcular e Preencher Tabela
+                    </button>
+                </div>
+            </div>
+
+            <!-- Painel de Crescimento (fora de receita_model_fields) -->
+            <div id="crescimento_params" class="hidden mb-4 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                <h4 class="text-sm font-medium text-amber-800 mb-3 flex items-center gap-2">
+                    <i data-lucide="bar-chart-3" class="h-4 w-4"></i>
+                    Configuração do Método de Crescimento
+                </h4>
+
+                <!-- Mês de Referência -->
+                <div class="mb-3">
+                    <label class="block text-xs font-medium text-gray-700 mb-1">
+                        Mês de Referência
+                        <span class="text-gray-400 ml-1">(até que mês existem dados reais no ano de projeção)</span>
+                    </label>
+                    <select name="receita_config_mes_referencia" id="receita_mes_referencia"
+                        class="w-full max-w-xs px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none">
+                        <option value="1">Janeiro (1)</option>
+                        <option value="2">Fevereiro (2)</option>
+                        <option value="3">Março (3)</option>
+                        <option value="4">Abril (4)</option>
+                        <option value="5">Maio (5)</option>
+                        <option value="6" selected>Junho (6)</option>
+                        <option value="7">Julho (7)</option>
+                        <option value="8">Agosto (8)</option>
+                        <option value="9">Setembro (9)</option>
+                        <option value="10">Outubro (10)</option>
+                        <option value="11">Novembro (11)</option>
+                        <option value="12">Dezembro (12)</option>
+                    </select>
+                </div>
+
+                <!-- Info contextual -->
+                <div id="crescimento_ano_info" class="hidden text-xs text-amber-700 bg-amber-100 p-2 rounded-lg">
+                    📈 Usa a taxa de crescimento do <strong>último ano selecionado</strong> na Base Histórica acima.
+                    <br>Fórmula: <code>Projeção = (Acumulado Atual / Acumulado Ano Ref.) × Total Ano Ref.</code>
+                </div>
+                <div id="media_crescimento_info" class="hidden text-xs text-blue-700 bg-blue-100 p-2 rounded-lg">
+                    📊 Usa a média das taxas de crescimento de <strong>todos os anos selecionados</strong> na Base Histórica.
+                    Suaviza distorções de anos atípicos.
+                    <br>Fórmula: <code>Projeção = Acumulado Atual × Média(Total_i / Acum_i)</code>
+                </div>
+            </div>
+
+            <!-- Parâmetros Fórmula Parametrizável (fora de receita_model_fields para poder ser mostrado independentemente) -->
+            <div id="formula_params" class="hidden mb-4 p-4 bg-white rounded border">
+                <div class="bg-violet-50 border border-violet-200 rounded-lg p-4 mb-3">
+                    <p class="text-sm text-violet-700 font-medium mb-1">Projeção por Fórmula Parametrizável</p>
+                    <p class="text-xs text-violet-600">O sistema usará as fórmulas cadastradas para cada rubrica. Configure os valores dos parâmetros abaixo.</p>
+                </div>
+                <div id="formula_params_loading" class="text-sm text-gray-500 py-4 text-center">
+                    <i data-lucide="loader-2" class="w-5 h-5 animate-spin inline-block mr-2"></i>
+                    Carregando parâmetros...
+                </div>
+                <div id="formula_params_container" class="hidden space-y-4">
+                    <div id="formula_params_list" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
+                    <div id="formula_specific_params" class="hidden">
+                        <p class="text-xs text-orange-600 font-medium mb-2">⚠ Parâmetros específicos detectados nas fórmulas (não são globais):</p>
+                        <div id="formula_specific_list" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
+                    </div>
+                    <div class="text-xs text-gray-500 border-t pt-3">
+                        <a href="/formulas" class="text-violet-600 underline hover:text-violet-800">Gerenciar Fórmulas</a>
+                        <span class="mx-2">•</span>
+                        <a href="/parametros-globais" class="text-violet-600 underline hover:text-violet-800">Gerenciar Parâmetros</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabela de Valores Receita (Sempre Visível) -->
+            <div id="receita_manual_fields">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white text-sm border">
+                        <thead>
+                            <tr class="bg-green-100">
+                                <th class="p-2 text-left border-r min-w-[200px]">Qualificador</th>
+                                <th class="p-2 text-center border-r bg-green-200 min-w-[250px]">Aplicar a Todos</th>
+                                {% for mes_num, mes_nome in meses_nomes.items() %}
+                                <th class="p-2 text-center min-w-[100px]">{{ mes_nome[:3] }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for qualificador in qualificadores_receita %}
+                            <tr class="border-b hover:bg-gray-50" data-row-id="rec-{{ qualificador.seq_qualificador }}">
+                                <td class="p-2 font-medium border-r">{{ qualificador.dsc_qualificador }}</td>
+                                <!-- Coluna Aplicar a Todos -->
+                                <td class="p-2 border-r bg-gray-50">
+                                    <div class="flex items-center gap-1">
+                                        <select class="text-xs border rounded p-1 w-12"
+                                            id="tipo_apply_rec_{{ qualificador.seq_qualificador }}">
+                                            <option value="P">%</option>
+                                            <option value="V">R$</option>
+                                        </select>
+                                        <input type="number" step="0.01" class="text-xs border rounded p-1 w-20"
+                                            id="val_apply_rec_{{ qualificador.seq_qualificador }}" placeholder="Valor">
+                                        <button type="button"
+                                            onclick="aplicarTodos('rec', {{ qualificador.seq_qualificador }})"
+                                            class="bg-blue-100 text-blue-600 p-1 rounded hover:bg-blue-200"
+                                            title="Aplicar">
+                                            <i data-lucide="arrow-right" class="h-4 w-4"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                                <!-- Meses -->
+                                {% for mes_num, mes_nome in meses_nomes.items() %}
+                                <td class="p-1 text-center">
+                                    <div class="flex flex-col gap-1">
+                                        <select name="cod_tipo_ajuste_{{ mes_num }}_{{ qualificador.seq_qualificador }}"
+                                            class="text-[10px] border rounded p-0.5 w-full bg-gray-50">
+                                            <option value="P">%</option>
+                                            <option value="V">R$</option>
+                                        </select>
+                                        <input type="number" step="0.01"
+                                            name="val_ajuste_{{ mes_num }}_{{ qualificador.seq_qualificador }}"
+                                            class="w-full text-xs p-1 border rounded text-right" placeholder="0.00">
+                                    </div>
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3. Configuração de Despesa -->
+        <div class="mb-8 p-4 bg-red-50 rounded-lg border border-red-100">
+            <h3 class="text-lg font-medium text-red-800 mb-4 flex items-center gap-2">
+                <i data-lucide="trending-down" class="h-5 w-5"></i>
+                Projeção de Despesa
+            </h3>
+
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Método de Projeção</label>
+                <select name="tipo_cenario_despesa" id="tipo_despesa"
+                    class="w-full rounded-md border-gray-300 shadow-sm focus:border-red-500 focus:ring-red-500 p-2 border"
+                    onchange="toggleDespesaFields()">
+                    <option value="MANUAL" {% if cenario_completo and
+                        cenario_completo.despesa.config.cod_tipo_cenario=='MANUAL' %}selected{% endif %}>Manual (Ajustes
+                        Mensais)</option>
+                    <option value="LOA" {% if cenario_completo and
+                        cenario_completo.despesa.config.cod_tipo_cenario=='LOA' %}selected{% endif %}>LOA (Lei
+                        Orçamentária Anual)</option>
+                    <option value="MEDIA_HISTORICA" {% if cenario_completo and
+                        cenario_completo.despesa.config.cod_tipo_cenario=='MEDIA_HISTORICA' %}selected{% endif %}>Média
+                        Histórica Ajustada</option>
+                    <option value="FORMULA" {% if cenario_completo and
+                        cenario_completo.despesa.config.cod_tipo_cenario=='FORMULA' %}selected{% endif %}>Fórmula
+                        Parametrizável</option>
+                    <option value="CRESCIMENTO_ANO" {% if cenario_completo and
+                        cenario_completo.despesa.config.cod_tipo_cenario=='CRESCIMENTO_ANO' %}selected{% endif %}>Crescimento
+                        do Último Ano</option>
+                    <option value="MEDIA_CRESCIMENTO" {% if cenario_completo and
+                        cenario_completo.despesa.config.cod_tipo_cenario=='MEDIA_CRESCIMENTO' %}selected{% endif %}>Média
+                        de Crescimento (Anos Selecionados)</option>
+                </select>
+            </div>
+
+            <!-- Configuração LOA (Tabela Anual) -->
+            <div id="despesa_loa_fields" class="hidden mb-4 p-4 bg-white rounded border">
+                <h4 class="font-medium text-gray-700 mb-2">Valores Anuais (LOA)</h4>
+                <p class="text-xs text-gray-500 mb-4">Preencha o valor total anual para cada qualificador. O sistema
+                    distribuirá uniformemente pelos meses.</p>
+                <div class="overflow-x-auto max-h-60 mb-4">
+                    <table class="min-w-full text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th class="p-2 text-left">Qualificador</th>
+                                <th class="p-2 text-right">Valor Total Anual (R$)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for q in qualificadores_despesa %}
+                            <tr class="border-b">
+                                <td class="p-2">{{ q.dsc_qualificador }}</td>
+                                <td class="p-2">
+                                    <input type="number" step="0.01"
+                                        class="w-full border rounded p-1 text-right loa-input"
+                                        id="loa_val_{{ q.seq_qualificador }}" data-seq="{{ q.seq_qualificador }}"
+                                        placeholder="0.00">
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="flex justify-end">
+                    <button type="button" onclick="aplicarLOA()"
+                        class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm flex items-center gap-2">
+                        <i data-lucide="check"></i> Aplicar Valores LOA na Tabela
+                    </button>
+                </div>
+            </div>
+
+            <!-- Configuração Média Histórica -->
+            <div id="despesa_media_fields" class="hidden mb-4 p-4 bg-white rounded border">
+                <h4 class="font-medium text-gray-700 mb-2">Configuração Média Histórica</h4>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Período Base (Meses)</label>
+                        <input type="number" name="despesa_config_periodo_meses" value="12"
+                            class="w-full border rounded p-2">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Fator de Ajuste (ex: 1.05 =
+                            +5%)</label>
+                        <input type="number" step="0.01" name="despesa_config_fator_ajuste" value="1.00"
+                            class="w-full border rounded p-2">
+                    </div>
+                </div>
+                <div class="mt-4 flex justify-end">
+                    <button type="button" onclick="aplicarMediaHistorica()"
+                        class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 text-sm flex items-center gap-2">
+                        <i data-lucide="play"></i> Calcular e Preencher Tabela
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabela de Valores Despesa (Sempre Visível) -->
+            <div id="despesa_manual_fields">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white text-sm border">
+                        <thead>
+                            <tr class="bg-red-100">
+                                <th class="p-2 text-left border-r min-w-[200px]">Qualificador</th>
+                                <th class="p-2 text-center border-r bg-red-200 min-w-[250px]">Aplicar a Todos</th>
+                                {% for mes_num, mes_nome in meses_nomes.items() %}
+                                <th class="p-2 text-center min-w-[100px]">{{ mes_nome[:3] }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for qualificador in qualificadores_despesa %}
+                            <tr class="border-b hover:bg-gray-50"
+                                data-row-id="desp-{{ qualificador.seq_qualificador }}">
+                                <td class="p-2 font-medium border-r">{{ qualificador.dsc_qualificador }}</td>
+                                <!-- Coluna Aplicar a Todos -->
+                                <td class="p-2 border-r bg-gray-50">
+                                    <div class="flex items-center gap-1">
+                                        <select class="text-xs border rounded p-1 w-12"
+                                            id="tipo_apply_desp_{{ qualificador.seq_qualificador }}">
+                                            <option value="P">%</option>
+                                            <option value="V">R$</option>
+                                        </select>
+                                        <input type="number" step="0.01" class="text-xs border rounded p-1 w-20"
+                                            id="val_apply_desp_{{ qualificador.seq_qualificador }}" placeholder="Valor">
+                                        <button type="button"
+                                            onclick="aplicarTodos('desp', {{ qualificador.seq_qualificador }})"
+                                            class="bg-blue-100 text-blue-600 p-1 rounded hover:bg-blue-200"
+                                            title="Aplicar">
+                                            <i data-lucide="arrow-right" class="h-4 w-4"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                                {% for mes_num, mes_nome in meses_nomes.items() %}
+                                <td class="p-1">
+                                    <div class="flex flex-col gap-1">
+                                        <select
+                                            name="cod_tipo_ajuste_desp_{{ mes_num }}_{{ qualificador.seq_qualificador }}"
+                                            class="text-[10px] border rounded p-0.5 w-full bg-gray-50">
+                                            <option value="P">%</option>
+                                            <option value="V">R$</option>
+                                        </select>
+                                        <input type="number" step="0.01"
+                                            name="val_ajuste_desp_{{ mes_num }}_{{ qualificador.seq_qualificador }}"
+                                            class="w-full text-xs p-1 border rounded text-right" placeholder="0.00">
+                                    </div>
+                                </td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end gap-4">
+            <a href="{{ url_for('simulador_menu') }}"
+                class="px-6 py-2 border rounded text-gray-600 hover:bg-gray-50">Cancelar</a>
+            <button type="submit" class="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                Salvar Cenário
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+(function () {
+    let TOTAL_MESES = 12;  // Dinâmico — atualizado por reconstruirTabelaPeriodos()
+    let qualificadoresFilhos = [];  // Cache dos qualificadores filhos carregados
+
+    function getNumPeriodos() {
+        return parseInt(document.getElementById('input_periodos')?.value || 12);
+    }
+
+    function semanasNoAnoISO(ano) {
+        // 53 semanas quando 1º de janeiro é quinta, ou quando é quarta em ano
+        // bissexto — a regra ISO. Presumir 52 é o erro clássico.
+        const diaSemana = (a) => (new Date(Date.UTC(a, 0, 1))).getUTCDay();
+        const bissexto = (a) => (a % 4 === 0 && a % 100 !== 0) || a % 400 === 0;
+        return (diaSemana(ano) === 4 || (bissexto(ano) && diaSemana(ano) === 3)) ? 53 : 52;
+    }
+
+    function getLabelsPeriodicidade() {
+        const periodicidade = document.getElementById('cod_periodicidade')?.value || 'MENSAL';
+        const numPeriodos = getNumPeriodos();
+        const anoBase = parseInt(document.querySelector('input[name="ano_base"]')?.value || new Date().getFullYear());
+        const mesesAbrev = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+        if (periodicidade === 'MENSAL') {
+            return mesesAbrev.slice(0, Math.min(numPeriodos, 12));
+        } else if (periodicidade === 'ANUAL') {
+            const labels = [];
+            for (let i = 0; i < numPeriodos; i++) labels.push(`${anoBase + i}`);
+            return labels;
+        } else if (periodicidade === 'QUINZENAL') {
+            // Espelha `periodo_resolver.serie_de_datas`: a quinzena volta a 1
+            // depois da 24. Antes o rótulo ia a "Q60" — período que não existe.
+            const labels = [];
+            for (let i = 0; i < numPeriodos; i++) {
+                const ano = anoBase + Math.floor(i / 24);
+                labels.push(`Q${i % 24 + 1}` + (ano > anoBase ? `/${ano}` : ''));
+            }
+            return labels;
+        } else if (periodicidade === 'SEMANAL') {
+            // Semana ISO de verdade: o ano vira na semana 52 OU 53, conforme o
+            // ano ISO, e o rótulo tem de acompanhar (o backend grava assim).
+            const labels = [];
+            let ano = anoBase, semana = 1;
+            for (let i = 0; i < numPeriodos; i++) {
+                labels.push(`S${semana}` + (ano > anoBase ? `/${ano}` : ''));
+                if (semana >= semanasNoAnoISO(ano)) { ano += 1; semana = 1; }
+                else { semana += 1; }
+            }
+            return labels;
+        }
+        return mesesAbrev;
+    }
+
+    function reconstruirTabelaPeriodos() {
+        const labels = getLabelsPeriodicidade();
+        TOTAL_MESES = labels.length;  // Atualizar variável global
+
+        // Reconstruir tabela de receita
+        _reconstruirTabela('receita_manual_fields', 'rec', '', 'bg-green-100', labels);
+        // Reconstruir tabela de despesa
+        _reconstruirTabela('despesa_manual_fields', 'desp', 'desp_', 'bg-red-100', labels);
+    }
+
+    function _reconstruirTabela(containerId, rowPrefix, fieldPrefix, headerBg, labels) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+
+        const table = container.querySelector('table');
+        if (!table) return;
+
+        // — Reconstruir headers —
+        const thead = table.querySelector('thead tr');
+        if (thead) {
+            // Remover headers de período (tudo exceto as 2 primeiras: Qualificador + Aplicar a Todos)
+            while (thead.children.length > 2) {
+                thead.removeChild(thead.lastChild);
+            }
+            // Adicionar novos headers
+            labels.forEach(label => {
+                const th = document.createElement('th');
+                th.className = 'p-2 text-center min-w-[80px]';
+                th.textContent = label;
+                thead.appendChild(th);
+            });
+        }
+
+        // — Reconstruir células de cada linha do tbody —
+        const tbody = table.querySelector('tbody');
+        if (!tbody) return;
+
+        tbody.querySelectorAll(`tr[data-row-id^="${rowPrefix}-"]`).forEach(row => {
+            const seq = row.dataset.rowId.split('-')[1];
+
+            // Remover células de período (tudo exceto as 2 primeiras: Qualificador + Aplicar a Todos)
+            while (row.children.length > 2) {
+                row.removeChild(row.lastChild);
+            }
+
+            // Adicionar novas células
+            labels.forEach((label, index) => {
+                const periodo = index + 1;
+                const td = document.createElement('td');
+                td.className = 'p-1 text-center';
+                td.innerHTML = `
+                    <div class="flex flex-col gap-1">
+                        <select name="cod_tipo_ajuste_${fieldPrefix}${periodo}_${seq}"
+                            class="text-[10px] border rounded p-0.5 w-full bg-gray-50">
+                            <option value="P">%</option>
+                            <option value="V">R$</option>
+                        </select>
+                        <input type="number" step="0.01"
+                            name="val_ajuste_${fieldPrefix}${periodo}_${seq}"
+                            class="w-full text-xs p-1 border rounded text-right" placeholder="0.00">
+                    </div>`;
+                row.appendChild(td);
+            });
+        });
+    }
+
+    function toggleReceitaFields() {
+        const tipoSelect = document.getElementById('tipo_receita');
+        const modelFields = document.getElementById('receita_model_fields');
+        const hwParams = document.getElementById('hw_params');
+        const arimaParams = document.getElementById('arima_params');
+        const sarimaParams = document.getElementById('sarima_params');
+        const regParams = document.getElementById('regressao_params');
+        const xgboostParams = document.getElementById('xgboost_params');
+        const lightgbmParams = document.getElementById('lightgbm_params');
+        const commonParams = document.getElementById('common_model_params');
+        const filhosContainer = document.getElementById('qualificador_filhos_container');
+
+        if (!tipoSelect || !modelFields) {
+            return;
+        }
+
+        // Esconder todos os parâmetros específicos
+        [hwParams, arimaParams, sarimaParams, regParams, xgboostParams, lightgbmParams].forEach(section => {
+            if (section) {
+                section.classList.add('hidden');
+            }
+        });
+        if (commonParams) {
+            commonParams.classList.remove('hidden');
+        }
+        if (filhosContainer) {
+            filhosContainer.classList.add('hidden');
+        }
+
+        // Sempre esconder formula_params e crescimento_params primeiro (estão fora de modelFields)
+        const formulaPanel = document.getElementById('formula_params');
+        if (formulaPanel) formulaPanel.classList.add('hidden');
+        const crescimentoPanel = document.getElementById('crescimento_params');
+        if (crescimentoPanel) crescimentoPanel.classList.add('hidden');
+        const crescAnoInfo = document.getElementById('crescimento_ano_info');
+        const mediaCrescInfo = document.getElementById('media_crescimento_info');
+        if (crescAnoInfo) crescAnoInfo.classList.add('hidden');
+        if (mediaCrescInfo) mediaCrescInfo.classList.add('hidden');
+
+        if (tipoSelect.value === 'MANUAL') {
+            modelFields.classList.add('hidden');
+            // Desabilitar inputs para evitar erro de validação HTML5 em campos ocultos
+            modelFields.querySelectorAll('input, select').forEach(el => el.disabled = true);
+            return;
+        }
+        
+        if (tipoSelect.value === 'FORMULA') {
+            modelFields.classList.add('hidden');
+            modelFields.querySelectorAll('input, select').forEach(el => el.disabled = true);
+            carregarParametrosFormula();
+            return;
+        }
+
+        if (tipoSelect.value === 'CRESCIMENTO_ANO' || tipoSelect.value === 'MEDIA_CRESCIMENTO') {
+            // Mostrar seleção de qualificadores
+            modelFields.classList.remove('hidden');
+            modelFields.querySelectorAll('input, select').forEach(el => el.disabled = false);
+            // Mostrar painel de crescimento
+            if (crescimentoPanel) crescimentoPanel.classList.remove('hidden');
+            // Mostrar info contextual
+            if (tipoSelect.value === 'CRESCIMENTO_ANO' && crescAnoInfo) crescAnoInfo.classList.remove('hidden');
+            if (tipoSelect.value === 'MEDIA_CRESCIMENTO' && mediaCrescInfo) mediaCrescInfo.classList.remove('hidden');
+            return;
+        }
+
+        modelFields.classList.remove('hidden');
+        // Re-habilitar inputs ao mostrar o painel
+        modelFields.querySelectorAll('input, select').forEach(el => el.disabled = false);
+
+        if (tipoSelect.value === 'HOLT_WINTERS' && hwParams) {
+            hwParams.classList.remove('hidden');
+            if (filhosContainer) filhosContainer.classList.remove('hidden');
+        } else if (tipoSelect.value === 'ARIMA' && arimaParams) {
+            arimaParams.classList.remove('hidden');
+            if (filhosContainer) filhosContainer.classList.remove('hidden');
+        } else if (tipoSelect.value === 'SARIMA' && sarimaParams) {
+            sarimaParams.classList.remove('hidden');
+            if (filhosContainer) filhosContainer.classList.remove('hidden');
+        } else if (tipoSelect.value === 'REGRESSAO') {
+            if (regParams) {
+                regParams.classList.remove('hidden');
+            }
+            if (commonParams) {
+                commonParams.classList.add('hidden');
+            }
+        } else if (tipoSelect.value === 'XGBOOST' && xgboostParams) {
+            xgboostParams.classList.remove('hidden');
+            if (filhosContainer) filhosContainer.classList.remove('hidden');
+        } else if (tipoSelect.value === 'LIGHTGBM' && lightgbmParams) {
+            lightgbmParams.classList.remove('hidden');
+            if (filhosContainer) filhosContainer.classList.remove('hidden');
+        }
+        
+        // Atualizar lista de filhos se necessário
+        onQualificadorChange();
+    }
+
+    function toggleDespesaFields() {
+        const tipoSelect = document.getElementById('tipo_despesa');
+        const loaFields = document.getElementById('despesa_loa_fields');
+        const mediaFields = document.getElementById('despesa_media_fields');
+
+        if (!tipoSelect) {
+            return;
+        }
+
+        if (loaFields) {
+            loaFields.classList.add('hidden');
+        }
+        if (mediaFields) {
+            mediaFields.classList.add('hidden');
+        }
+
+        if (tipoSelect.value === 'LOA' && loaFields) {
+            loaFields.classList.remove('hidden');
+        }
+        if (tipoSelect.value === 'MEDIA_HISTORICA' && mediaFields) {
+            mediaFields.classList.remove('hidden');
+        }
+        if (tipoSelect.value === 'FORMULA') {
+            carregarParametrosFormula();
+        }
+    }
+
+    async function onQualificadorChange() {
+        const select = document.getElementById('receita_qualificador_select');
+        const filhosContainer = document.getElementById('qualificador_filhos_container');
+        const filhosList = document.getElementById('qualificador_filhos_list');
+        const tipoReceita = document.getElementById('tipo_receita')?.value;
+        
+        if (!select || !filhosContainer || !filhosList) return;
+        
+        // Verificar se o modelo atual suporta qualificadores filhos
+        const modelosComFilhos = ['HOLT_WINTERS', 'ARIMA', 'SARIMA', 'MEDIA_HISTORICA', 'XGBOOST', 'LIGHTGBM'];
+        if (!modelosComFilhos.includes(tipoReceita)) {
+            filhosContainer.classList.add('hidden');
+            return;
+        }
+        
+        const seqQualificador = select.value;
+        const option = select.options[select.selectedIndex];
+        const hasFilhos = option.dataset.hasFilhos === 'true';
+        
+        if (!hasFilhos) {
+            filhosContainer.classList.add('hidden');
+            return;
+        }
+        
+        filhosContainer.classList.remove('hidden');
+        
+        try {
+            const response = await fetch(`/simulador/qualificador/${seqQualificador}/filhos`);
+            const data = await response.json();
+            
+            if (data.filhos && data.filhos.length > 0) {
+                qualificadoresFilhos = data.filhos;
+                renderFilhosList(data.filhos);
+            } else {
+                filhosContainer.classList.add('hidden');
+            }
+        } catch (error) {
+            console.error('Erro ao carregar qualificadores filhos:', error);
+            filhosContainer.classList.add('hidden');
+        }
+    }
+
+    function renderFilhosList(filhos) {
+        const filhosList = document.getElementById('qualificador_filhos_list');
+        if (!filhosList) return;
+        
+        filhosList.innerHTML = `
+            <p class="text-xs text-gray-500 mb-2">Selecione os qualificadores filhos para agregar:</p>
+            <div class="space-y-1">
+                <label class="flex items-center text-xs">
+                    <input type="checkbox" id="selecionar_todos_filhos" onchange="toggleTodosFilhos(this.checked)" class="mr-2">
+                    <strong>Selecionar todos</strong>
+                </label>
+                <hr class="my-1">
+                ${filhos.map(f => `
+                    <label class="flex items-center text-xs" style="padding-left: ${(f.nivel - 1) * 12}px">
+                        <input type="checkbox" name="qualificador_filho[]" value="${f.seq_qualificador}" 
+                            class="mr-2 filho-checkbox" ${f.is_folha ? 'checked' : ''}>
+                        ${f.dsc_qualificador}
+                    </label>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    function toggleFilhosSelection() {
+        const checkbox = document.getElementById('usar_qualificadores_filhos');
+        const filhosList = document.getElementById('qualificador_filhos_list');
+        
+        if (filhosList) {
+            filhosList.classList.toggle('hidden', !checkbox.checked);
+        }
+    }
+
+    function toggleTodosFilhos(checked) {
+        document.querySelectorAll('.filho-checkbox').forEach(cb => {
+            cb.checked = checked;
+        });
+    }
+
+    function toggleTodosQualificadores(checked) {
+        document.querySelectorAll('.qualificador-checkbox').forEach(cb => {
+            cb.checked = checked;
+        });
+        atualizarContadorQualificadores();
+    }
+    
+    function atualizarContadorQualificadores() {
+        const count = document.querySelectorAll('.qualificador-checkbox:checked').length;
+        const countEl = document.getElementById('qualificadores_count');
+        if (countEl) {
+            countEl.textContent = count;
+        }
+    }
+
+    function getQualificadoresSelecionados() {
+        return Array.from(document.querySelectorAll('.qualificador-checkbox:checked'))
+            .map(cb => parseInt(cb.value));
+    }
+    
+    function preencherLinhaQualificador(seqQualificador, projecao) {
+        // Preenche APENAS a linha do qualificador especificado
+        if (!projecao || !Array.isArray(projecao)) return;
+        
+        projecao.forEach((p, index) => {
+            if (index < TOTAL_MESES) {
+                const mes = index + 1;
+                const tipoField = document.querySelector(`select[name="cod_tipo_ajuste_${mes}_${seqQualificador}"]`);
+                const valorField = document.querySelector(`input[name="val_ajuste_${mes}_${seqQualificador}"]`);
+
+                if (tipoField) tipoField.value = 'V';
+                if (valorField) valorField.value = p.valor_projetado.toFixed(2);
+            }
+        });
+    }
+
+    function aplicarTodos(type, seq) {
+        const prefix = type === 'rec' ? '' : 'desp_';
+        const tipoInput = document.getElementById(`tipo_apply_${type}_${seq}`);
+        const valorInput = document.getElementById(`val_apply_${type}_${seq}`);
+
+        if (!tipoInput || !valorInput || valorInput.value === '') {
+            return;
+        }
+
+        for (let i = 1; i <= TOTAL_MESES; i++) {
+            const tipoField = document.querySelector(`select[name="cod_tipo_ajuste_${prefix}${i}_${seq}"]`);
+            const valorField = document.querySelector(`input[name="val_ajuste_${prefix}${i}_${seq}"]`);
+
+            if (tipoField) {
+                tipoField.value = tipoInput.value;
+            }
+            if (valorField) {
+                valorField.value = valorInput.value;
+            }
+        }
+    }
+
+    function aplicarLOA() {
+        document.querySelectorAll('.loa-input').forEach(input => {
+            const seq = input.dataset.seq;
+            const total = parseFloat(input.value);
+
+            if (!seq || Number.isNaN(total)) {
+                return;
+            }
+
+            const mensal = (total / TOTAL_MESES).toFixed(2);
+            for (let i = 1; i <= TOTAL_MESES; i++) {
+                const tipoField = document.querySelector(`select[name="cod_tipo_ajuste_desp_${i}_${seq}"]`);
+                const valorField = document.querySelector(`input[name="val_ajuste_desp_${i}_${seq}"]`);
+
+                if (tipoField) {
+                    tipoField.value = 'V';
+                }
+                if (valorField) {
+                    valorField.value = mensal;
+                }
+            }
+        });
+
+        alert('Valores LOA aplicados na tabela!');
+    }
+
+    async function aplicarModeloReceita() {
+        const tipoSelect = document.getElementById('tipo_receita');
+        if (!tipoSelect) return;
+
+        const tipoModelo = tipoSelect.value;
+        const statusEl = document.getElementById('projecao_status');
+
+        if (tipoModelo === 'REGRESSAO') {
+            const beta0 = parseFloat(document.getElementById('reg_beta0')?.value) || 0;
+            const beta1 = parseFloat(document.getElementById('reg_beta1')?.value) || 0;
+            const beta2 = parseFloat(document.getElementById('reg_beta2')?.value) || 0;
+            const pib = parseFloat(document.getElementById('reg_val_pib')?.value) || 0;
+            const inflacao = parseFloat(document.getElementById('reg_val_inflacao')?.value) || 0;
+
+            const resultado = beta0 + (beta1 * pib) + (beta2 * inflacao);
+            const resultadoFormatado = resultado.toFixed(2);
+
+            preencherTabelaReceita(resultadoFormatado);
+            alert('Valores da Regressão calculados e aplicados!');
+            return;
+        }
+
+        if (['HOLT_WINTERS', 'ARIMA', 'SARIMA', 'XGBOOST', 'LIGHTGBM'].includes(tipoModelo)) {
+            const btn = document.querySelector('button[onclick="aplicarModeloReceita()"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader" class="animate-spin"></i> Calculando...';
+            btn.disabled = true;
+            if (statusEl) statusEl.textContent = 'Processando modelo...';
+            lucide.createIcons();
+
+            try {
+                const qualificadoresSelecionados = getQualificadoresSelecionados();
+                
+                if (qualificadoresSelecionados.length === 0) {
+                    throw new Error('Selecione pelo menos um qualificador para projeção');
+                }
+                
+                const mesesProjecao = document.querySelector('input[name="num_periodos"]').value;
+                const anoBase = document.querySelector('input[name="ano_base"]').value;
+                
+                let config = {};
+                
+                if (tipoModelo === 'HOLT_WINTERS') {
+                    config = {
+                        seasonal_periods: parseInt(document.querySelector('input[name="receita_config_seasonal_periods"]')?.value || 12),
+                        trend: document.querySelector('select[name="receita_config_trend"]')?.value || 'add',
+                        seasonal: document.querySelector('select[name="receita_config_seasonal"]')?.value || 'add',
+                        damped_trend: document.querySelector('select[name="receita_config_damped_trend"]')?.value === 'true'
+                    };
+                } else if (tipoModelo === 'ARIMA') {
+                    config = {
+                        p: parseInt(document.querySelector('input[name="receita_config_p"]')?.value || 1),
+                        d: parseInt(document.querySelector('input[name="receita_config_d"]')?.value || 1),
+                        q: parseInt(document.querySelector('input[name="receita_config_q"]')?.value || 1),
+                        auto_order: document.querySelector('select[name="receita_config_auto_order"]')?.value === 'true'
+                    };
+                } else if (tipoModelo === 'SARIMA') {
+                    config = {
+                        p: parseInt(document.querySelector('input[name="receita_config_p"]')?.value || 1),
+                        d: parseInt(document.querySelector('input[name="receita_config_d"]')?.value || 1),
+                        q: parseInt(document.querySelector('input[name="receita_config_q"]')?.value || 1),
+                        P: parseInt(document.querySelector('input[name="receita_config_P"]')?.value || 1),
+                        D: parseInt(document.querySelector('input[name="receita_config_D"]')?.value || 1),
+                        Q: parseInt(document.querySelector('input[name="receita_config_Q"]')?.value || 1),
+                        s: parseInt(document.querySelector('input[name="receita_config_s"]')?.value || 12)
+                    };
+                } else if (tipoModelo === 'XGBOOST') {
+                    config = {
+                        n_estimators: parseInt(document.querySelector('input[name="receita_config_n_estimators"]')?.value || 100),
+                        max_depth: parseInt(document.querySelector('input[name="receita_config_max_depth"]')?.value || 6),
+                        learning_rate: parseFloat(document.querySelector('input[name="receita_config_learning_rate"]')?.value || 0.1)
+                    };
+                } else if (tipoModelo === 'LIGHTGBM') {
+                    config = {
+                        n_estimators: parseInt(document.querySelector('input[name="receita_config_n_estimators"]')?.value || 100),
+                        max_depth: parseInt(document.querySelector('input[name="receita_config_max_depth"]')?.value || -1),
+                        learning_rate: parseFloat(document.querySelector('input[name="receita_config_learning_rate"]')?.value || 0.1),
+                        num_leaves: parseInt(document.querySelector('input[name="receita_config_num_leaves"]')?.value || 31)
+                    };
+                }
+
+                // Processar cada qualificador individualmente
+                let sucessos = 0;
+                let erros = [];
+                
+                for (const seqQualificador of qualificadoresSelecionados) {
+                    try {
+                        if (statusEl) {
+                            const nomeQual = document.querySelector(`.qualificador-checkbox[value="${seqQualificador}"]`)?.dataset.nome || seqQualificador;
+                            statusEl.textContent = `Calculando ${tipoModelo} para ${nomeQual}...`;
+                        }
+                        
+                        const response = await fetch('/simulador/calcular-projecao', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                tipo_modelo: tipoModelo,
+                                seq_qualificador: seqQualificador,  // Um qualificador por vez
+                                num_periodos: mesesProjecao,
+                                ano_base: anoBase,
+                                config: config
+                            })
+                        });
+
+                        const data = await response.json();
+
+                        if (!response.ok) {
+                            throw new Error(data.error || 'Erro ao calcular projeção');
+                        }
+
+                        // Preencher APENAS a linha do qualificador atual
+                        preencherLinhaQualificador(seqQualificador, data.projecao);
+                        sucessos++;
+                        
+                    } catch (error) {
+                        const nomeQual = document.querySelector(`.qualificador-checkbox[value="${seqQualificador}"]`)?.dataset.nome || seqQualificador;
+                        erros.push(`${nomeQual}: ${error.message}`);
+                        console.error(`Erro no qualificador ${seqQualificador}:`, error);
+                    }
+                }
+
+                // Mostrar resultado
+                if (erros.length > 0) {
+                    if (statusEl) statusEl.textContent = `✓ ${sucessos} calculado(s), ✗ ${erros.length} erro(s)`;
+                    alert(`Projeção calculada!\n\nSucessos: ${sucessos}\nErros: ${erros.length}\n\nErros:\n${erros.join('\n')}`);
+                } else {
+                    if (statusEl) statusEl.textContent = `✓ ${tipoModelo} calculado com sucesso para ${sucessos} qualificador(es)`;
+                    alert(`Projeção calculada com sucesso para ${sucessos} qualificador(es)!`);
+                }
+
+            } catch (error) {
+                console.error(error);
+                if (statusEl) statusEl.textContent = `✗ Erro: ${error.message}`;
+                alert('Erro: ' + error.message);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                lucide.createIcons();
+            }
+            return;
+        }
+
+        if (['CRESCIMENTO_ANO', 'MEDIA_CRESCIMENTO'].includes(tipoModelo)) {
+            // Estes métodos usam o mesmo fluxo de API que os modelos estatísticos
+            const btn = document.querySelector('button[onclick="aplicarModeloReceita()"]');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader" class="animate-spin"></i> Calculando...';
+            btn.disabled = true;
+            if (statusEl) statusEl.textContent = 'Processando método de crescimento...';
+            lucide.createIcons();
+
+            try {
+                const qualificadoresSelecionados = getQualificadoresSelecionados();
+                if (qualificadoresSelecionados.length === 0) {
+                    throw new Error('Selecione pelo menos um qualificador para projeção');
+                }
+
+                const mesesProjecao = document.querySelector('input[name="num_periodos"]').value;
+                const anoBase = document.querySelector('input[name="ano_base"]').value;
+
+                // Obter anos selecionados na Base Histórica
+                const anosCheckboxes = document.querySelectorAll('.ano-cenario-checkbox:checked');
+                const anosSelecionados = Array.from(anosCheckboxes).map(cb => parseInt(cb.value));
+
+                // Obter mês de referência
+                const mesRef = parseInt(document.getElementById('receita_mes_referencia')?.value || 6);
+
+                const config = { mes_referencia: mesRef };
+
+                let sucessos = 0;
+                let erros = [];
+
+                for (const seqQualificador of qualificadoresSelecionados) {
+                    try {
+                        if (statusEl) {
+                            const nomeQual = document.querySelector(`.qualificador-checkbox[value="${seqQualificador}"]`)?.dataset.nome || seqQualificador;
+                            statusEl.textContent = `Calculando crescimento para ${nomeQual}...`;
+                        }
+
+                        const response = await fetch('/simulador/calcular-projecao', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                tipo_modelo: tipoModelo,
+                                seq_qualificador: seqQualificador,
+                                num_periodos: mesesProjecao,
+                                ano_base: anoBase,
+                                config: config,
+                                anos_selecionados: anosSelecionados,
+                            })
+                        });
+
+                        const data = await response.json();
+                        if (!response.ok) throw new Error(data.error || 'Erro ao calcular projeção');
+
+                        preencherLinhaQualificador(seqQualificador, data.projecao);
+                        sucessos++;
+                    } catch (error) {
+                        const nomeQual = document.querySelector(`.qualificador-checkbox[value="${seqQualificador}"]`)?.dataset.nome || seqQualificador;
+                        erros.push(`${nomeQual}: ${error.message}`);
+                        console.error(`Erro no qualificador ${seqQualificador}:`, error);
+                    }
+                }
+
+                if (erros.length > 0) {
+                    if (statusEl) statusEl.textContent = `✓ ${sucessos} calculado(s), ✗ ${erros.length} erro(s)`;
+                    alert(`Projeção calculada!\n\nSucessos: ${sucessos}\nErros: ${erros.length}\n\nErros:\n${erros.join('\n')}`);
+                } else {
+                    if (statusEl) statusEl.textContent = `✓ ${tipoModelo} calculado com sucesso para ${sucessos} qualificador(es)`;
+                    alert(`Projeção por crescimento calculada com sucesso para ${sucessos} qualificador(es)!`);
+                }
+            } catch (error) {
+                console.error(error);
+                if (statusEl) statusEl.textContent = `✗ Erro: ${error.message}`;
+                alert('Erro: ' + error.message);
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+                lucide.createIcons();
+            }
+            return;
+        }
+
+        alert('Cálculo automático não disponível para este método.');
+    }
+
+    function preencherTabelaReceita(valorFixo) {
+        document.querySelectorAll('tr[data-row-id^="rec-"]').forEach(row => {
+            const [, seq] = row.dataset.rowId.split('-');
+            for (let i = 1; i <= TOTAL_MESES; i++) {
+                const tipoField = document.querySelector(`select[name="cod_tipo_ajuste_${i}_${seq}"]`);
+                const valorField = document.querySelector(`input[name="val_ajuste_${i}_${seq}"]`);
+
+                if (tipoField) tipoField.value = 'V';
+                if (valorField) valorField.value = valorFixo;
+            }
+        });
+    }
+
+    function preencherTabelaReceitaComArray(projecao) {
+        // projecao é array de {data: 'YYYY-MM-DD', valor_projetado: 123.45}
+        // Assumindo que a projeção começa no mês 1 do ano base
+        
+        // Agrupar valores por mês (1 a 12)
+        const valoresPorMes = {};
+        projecao.forEach((p, index) => {
+            if (index < 12) {
+                valoresPorMes[index + 1] = p.valor_projetado.toFixed(2);
+            }
+        });
+
+        document.querySelectorAll('tr[data-row-id^="rec-"]').forEach(row => {
+            const [, seq] = row.dataset.rowId.split('-');
+            for (let i = 1; i <= 12; i++) {
+                const valor = valoresPorMes[i];
+                if (valor !== undefined) {
+                    const tipoField = document.querySelector(`select[name="cod_tipo_ajuste_${i}_${seq}"]`);
+                    const valorField = document.querySelector(`input[name="val_ajuste_${i}_${seq}"]`);
+
+                    if (tipoField) tipoField.value = 'V';
+                    if (valorField) valorField.value = valor;
+                }
+            }
+        });
+    }
+
+    async function aplicarMediaHistorica() {
+        const periodoMeses = document.querySelector('input[name="despesa_config_periodo_meses"]')?.value || 12;
+        const fatorAjuste = document.querySelector('input[name="despesa_config_fator_ajuste"]')?.value || 1.0;
+        const anoBase = document.querySelector('input[name="ano_base"]')?.value;
+        const mesesProjecao = document.querySelector('input[name="num_periodos"]')?.value || 12;
+
+        // Para cada qualificador de despesa, calcular a média histórica
+        const qualificadores = document.querySelectorAll('tr[data-row-id^="desp-"]');
+        
+        for (const row of qualificadores) {
+            const [, seq] = row.dataset.rowId.split('-');
+            
+            try {
+                const response = await fetch('/simulador/calcular-projecao', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        tipo_modelo: 'MEDIA_HISTORICA',
+                        seq_qualificador: seq,
+                        num_periodos: parseInt(mesesProjecao),
+                        ano_base: parseInt(anoBase),
+                        config: {
+                            periodo_meses: parseInt(periodoMeses),
+                            fator_ajuste: parseFloat(fatorAjuste),
+                            considerar_sazonalidade: true
+                        }
+                    })
+                });
+
+                const data = await response.json();
+
+                if (response.ok && data.projecao) {
+                    data.projecao.forEach((p, index) => {
+                        if (index < 12) {
+                            const mes = index + 1;
+                            const tipoField = document.querySelector(`select[name="cod_tipo_ajuste_desp_${mes}_${seq}"]`);
+                            const valorField = document.querySelector(`input[name="val_ajuste_desp_${mes}_${seq}"]`);
+
+                            if (tipoField) tipoField.value = 'V';
+                            if (valorField) valorField.value = p.valor_projetado.toFixed(2);
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error(`Erro ao calcular média histórica para qualificador ${seq}:`, error);
+            }
+        }
+
+        alert('Média histórica calculada e aplicada!');
+    }
+
+    function carregarDadosExistentes() {
+        const form = document.getElementById('form-cenario');
+        if (!form || !form.dataset.cenario) {
+            console.log('carregarDadosExistentes: Sem dados de cenário');
+            return;
+        }
+
+        let cenarioCompleto = null;
+        try {
+            cenarioCompleto = JSON.parse(form.dataset.cenario);
+            console.log('carregarDadosExistentes: Dados carregados:', cenarioCompleto);
+        } catch (error) {
+            console.error('Erro ao interpretar dados do cenário:', error);
+            return;
+        }
+
+        if (!cenarioCompleto) {
+            return;
+        }
+
+        // Carregar configuração do modelo de receita
+        if (cenarioCompleto.receita && cenarioCompleto.receita.config) {
+            const tipoReceita = cenarioCompleto.receita.config.cod_tipo_cenario;
+            const tipoSelect = document.getElementById('tipo_receita');
+            if (tipoSelect) {
+                tipoSelect.value = tipoReceita;
+                console.log('Tipo receita definido:', tipoReceita);
+            }
+
+            // Carregar parâmetros do modelo se existirem
+            const jsonConfig = cenarioCompleto.receita.config.json_configuracao;
+            if (jsonConfig && typeof jsonConfig === 'object') {
+                carregarParametrosModelo(jsonConfig, 'receita');
+            }
+        }
+
+        // Carregar configuração do modelo de despesa
+        if (cenarioCompleto.despesa && cenarioCompleto.despesa.config) {
+            const tipoDespesa = cenarioCompleto.despesa.config.cod_tipo_cenario;
+            const tipoSelect = document.getElementById('tipo_despesa');
+            if (tipoSelect) {
+                tipoSelect.value = tipoDespesa;
+            }
+
+            const jsonConfig = cenarioCompleto.despesa.config.json_configuracao;
+            if (jsonConfig && typeof jsonConfig === 'object') {
+                carregarParametrosModelo(jsonConfig, 'despesa');
+            }
+        }
+
+        const preencher = (ajustes, prefixo) => {
+            if (!Array.isArray(ajustes)) {
+                console.log('preencher: ajustes não é array', ajustes);
+                return;
+            }
+            
+            console.log(`preencher: ${ajustes.length} ajustes para prefixo "${prefixo}"`);
+
+            ajustes.forEach(ajuste => {
+                const seqQual = ajuste.seq_qualificador;
+                const mes = ajuste.mes;
+                const tipoName = prefixo ?
+                    `cod_tipo_ajuste_${prefixo}_${mes}_${seqQual}` :
+                    `cod_tipo_ajuste_${mes}_${seqQual}`;
+                const valorName = prefixo ?
+                    `val_ajuste_${prefixo}_${mes}_${seqQual}` :
+                    `val_ajuste_${mes}_${seqQual}`;
+
+                const tipoField = document.querySelector(`select[name="${tipoName}"]`);
+                const valorField = document.querySelector(`input[name="${valorName}"]`);
+
+                if (tipoField) {
+                    tipoField.value = ajuste.cod_tipo_ajuste || 'P';
+                } else {
+                    console.log(`Campo tipo não encontrado: ${tipoName}`);
+                }
+                if (valorField) {
+                    valorField.value = ajuste.val_ajuste ?? '';
+                } else {
+                    console.log(`Campo valor não encontrado: ${valorName}`);
+                }
+            });
+        };
+
+        if (cenarioCompleto.receita && cenarioCompleto.receita.ajustes) {
+            preencher(cenarioCompleto.receita.ajustes, '');
+        }
+        if (cenarioCompleto.despesa && cenarioCompleto.despesa.ajustes) {
+            preencher(cenarioCompleto.despesa.ajustes, 'desp');
+        }
+    }
+
+    function carregarParametrosModelo(config, tipo) {
+        // Carregar parâmetros específicos do modelo
+        for (const [key, value] of Object.entries(config)) {
+            const input = document.querySelector(`[name="${tipo}_config_${key}"]`);
+            if (input) {
+                if (input.type === 'checkbox') {
+                    input.checked = value === true || value === 'true';
+                } else {
+                    input.value = value;
+                }
+            }
+        }
+
+        // Carregar qualificadores selecionados se existirem
+        if (config.seq_qualificadores && Array.isArray(config.seq_qualificadores)) {
+            config.seq_qualificadores.forEach(seq => {
+                const checkbox = document.querySelector(`.qualificador-checkbox[value="${seq}"]`);
+                if (checkbox) {
+                    checkbox.checked = true;
+                }
+            });
+            atualizarContadorQualificadores();
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        toggleReceitaFields();
+        toggleDespesaFields();
+        carregarDadosExistentes();
+        
+        // Reativar os toggles após carregar dados
+        setTimeout(() => {
+            toggleReceitaFields();
+            toggleDespesaFields();
+        }, 100);
+        
+        // Adicionar listener para atualizar contador de qualificadores
+        document.querySelectorAll('.qualificador-checkbox').forEach(cb => {
+            cb.addEventListener('change', atualizarContadorQualificadores);
+        });
+        
+        // Adicionar handler para o submit do formulário
+        const form = document.getElementById('form-cenario');
+        if (form) {
+            form.addEventListener('submit', function(e) {
+                // Atualizar o hidden input com os qualificadores selecionados
+                const seqQualificadores = getQualificadoresSelecionados();
+                const hiddenInput = document.getElementById('receita_seq_qualificadores_hidden');
+                if (hiddenInput) {
+                    hiddenInput.value = JSON.stringify(seqQualificadores);
+                }
+            });
+        }
+    });
+
+    // ==================== Fórmula Parametrizável ====================
+
+    async function carregarParametrosFormula() {
+        const formulaSection = document.getElementById('formula_params');
+        const loadingDiv = document.getElementById('formula_params_loading');
+        const containerDiv = document.getElementById('formula_params_container');
+        const paramsList = document.getElementById('formula_params_list');
+        const specificSection = document.getElementById('formula_specific_params');
+        const specificList = document.getElementById('formula_specific_list');
+
+        if (!formulaSection) return;
+
+        // Mostrar seção de fórmula
+        const modelFields = document.getElementById('receita_model_fields');
+        if (modelFields) modelFields.classList.add('hidden');
+
+        formulaSection.classList.remove('hidden');
+        if (loadingDiv) loadingDiv.classList.remove('hidden');
+        if (containerDiv) containerDiv.classList.add('hidden');
+
+        try {
+            const [paramsResp, formulasResp] = await Promise.all([
+                fetch('/api/parametros-globais'),
+                fetch('/api/formulas'),
+            ]);
+            const paramsData = await paramsResp.json();
+            const formulasData = await formulasResp.json();
+
+            const parametros = paramsData.parametros || [];
+            const formulas = formulasData.formulas || [];
+
+            // Coletar todas as variáveis de todas as fórmulas
+            const todasVariaveis = new Set();
+            formulas.forEach(f => {
+                (f.variaveis || []).forEach(v => {
+                    if (v !== 'base') todasVariaveis.add(v);
+                });
+            });
+
+            // Separar em globais e específicos
+            const nomesGlobais = new Set(parametros.map(p => p.nom_parametro));
+            const varsEspecificas = [...todasVariaveis].filter(v => !nomesGlobais.has(v));
+
+            // Renderizar parâmetros globais
+            if (paramsList) {
+                if (parametros.length > 0) {
+                    paramsList.innerHTML = parametros.map(p => {
+                        const usado = todasVariaveis.has(p.nom_parametro);
+                        return `
+                            <div class="bg-white border ${usado ? 'border-violet-200' : 'border-gray-200'} rounded-lg p-3">
+                                <label class="block text-xs font-medium ${usado ? 'text-violet-700' : 'text-gray-500'} mb-1">
+                                    ${p.nom_parametro}
+                                    ${p.cod_tipo === 'P' ? '<span class="text-gray-400">(%)</span>' : '<span class="text-gray-400">(R$)</span>'}
+                                    ${usado ? '<span class="text-violet-500 ml-1">●</span>' : ''}
+                                </label>
+                                <input type="number" step="any"
+                                    name="formula_param_${p.nom_parametro}"
+                                    class="w-full border rounded p-1.5 text-sm ${usado ? 'border-violet-300' : ''}"
+                                    placeholder="${p.cod_tipo === 'P' ? '0.045' : '0.00'}">
+                                <p class="text-[10px] text-gray-400 mt-1">${p.dsc_parametro || ''}</p>
+                            </div>
+                        `;
+                    }).join('');
+                } else {
+                    paramsList.innerHTML = `
+                        <div class="col-span-full text-center py-6 text-gray-500">
+                            <p class="text-sm mb-2">Nenhum parâmetro cadastrado.</p>
+                            <a href="/parametros-globais" class="text-violet-600 underline text-sm">Cadastrar parâmetros</a>
+                        </div>
+                    `;
+                }
+            }
+
+            // Renderizar variáveis específicas
+            if (specificList && specificSection) {
+                if (varsEspecificas.length > 0) {
+                    specificSection.classList.remove('hidden');
+                    specificList.innerHTML = varsEspecificas.map(v => `
+                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                            <label class="block text-xs font-medium text-orange-700 mb-1">${v}</label>
+                            <input type="number" step="any"
+                                name="formula_param_${v}"
+                                class="w-full border border-orange-300 rounded p-1.5 text-sm"
+                                placeholder="0.00">
+                        </div>
+                    `).join('');
+                } else {
+                    specificSection.classList.add('hidden');
+                }
+            }
+
+            if (loadingDiv) loadingDiv.classList.add('hidden');
+            if (containerDiv) containerDiv.classList.remove('hidden');
+        } catch(e) {
+            console.error('Erro ao carregar parâmetros de fórmula:', e);
+            if (loadingDiv) loadingDiv.innerHTML = '<p class="text-red-500 text-sm">Erro ao carregar parâmetros</p>';
+        }
+    }
+
+    // ==================== Periodicidade ====================
+
+    function onPeriodicidadeChange() {
+        const periodicidade = document.getElementById('cod_periodicidade').value;
+        const labelPeriodos = document.getElementById('label_periodos');
+        const inputPeriodos = document.getElementById('input_periodos');
+        const config = {
+            'ANUAL':     { label: 'Anos de Projeção', min: 1, max: 10, default: 1 },
+            'MENSAL':    { label: 'Meses de Projeção', min: 1, max: 60, default: 12 },
+            'QUINZENAL': { label: 'Quinzenas de Projeção', min: 1, max: 104, default: 24 },
+            'SEMANAL':   { label: 'Semanas de Projeção', min: 1, max: 260, default: 52 },
+        };
+        const cfg = config[periodicidade] || config['MENSAL'];
+        if (labelPeriodos) labelPeriodos.textContent = cfg.label;
+        if (inputPeriodos) { inputPeriodos.min = cfg.min; inputPeriodos.max = cfg.max; inputPeriodos.value = cfg.default; }
+        const formulaOptRec = document.querySelector('#tipo_receita option[value="FORMULA"]');
+        const formulaOptDesp = document.querySelector('#tipo_despesa option[value="FORMULA"]');
+        const isAnual = periodicidade === 'ANUAL';
+        if (formulaOptRec) { formulaOptRec.disabled = !isAnual; if (!isAnual && document.getElementById('tipo_receita').value === 'FORMULA') { document.getElementById('tipo_receita').value = 'MANUAL'; toggleReceitaFields(); } }
+        if (formulaOptDesp) { formulaOptDesp.disabled = !isAnual; if (!isAnual && document.getElementById('tipo_despesa').value === 'FORMULA') { document.getElementById('tipo_despesa').value = 'MANUAL'; toggleDespesaFields(); } }
+        
+        // Reconstruir tabelas de ajuste com novos períodos
+        reconstruirTabelaPeriodos();
+    }
+
+    function toggleMetodoBaseCenario() {
+        const metodo = document.querySelector('[name="cod_metodo_base"]:checked')?.value || 'MEDIA_SIMPLES';
+        const secaoAnos = document.getElementById('secao_anos_cenario');
+        const secaoPesos = document.getElementById('secao_pesos_cenario');
+        const secaoFixo = document.getElementById('secao_valor_fixo_cenario');
+        if (secaoAnos) secaoAnos.classList.toggle('hidden', metodo === 'VALOR_FIXO');
+        if (secaoPesos) secaoPesos.classList.toggle('hidden', metodo !== 'MEDIA_PONDERADA');
+        if (secaoFixo) secaoFixo.classList.toggle('hidden', metodo !== 'VALOR_FIXO');
+        if (metodo === 'MEDIA_PONDERADA') atualizarAnosCenario();
+    }
+
+    function atualizarAnosCenario() {
+        const checkboxes = document.querySelectorAll('.ano-cenario-checkbox:checked');
+        const anos = Array.from(checkboxes).map(cb => parseInt(cb.value));
+        const hidden = document.getElementById('anos_selecionados_cenario');
+        if (hidden) hidden.value = JSON.stringify(anos);
+        const metodo = document.querySelector('[name="cod_metodo_base"]:checked')?.value;
+        if (metodo === 'MEDIA_PONDERADA') {
+            const pesosDiv = document.getElementById('pesos_inputs_cenario');
+            if (pesosDiv) {
+                pesosDiv.innerHTML = anos.map(ano => '<div class="flex items-center gap-2"><label class="text-sm text-gray-600 font-medium w-12">' + ano + '</label><input type="number" name="peso_cenario_' + ano + '" value="1" min="0.1" step="0.1" class="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"></div>').join('');
+            }
+        }
+    }
+
+    // Expor funções globalmente
+    window.toggleReceitaFields = toggleReceitaFields;
+    window.toggleDespesaFields = toggleDespesaFields;
+    window.aplicarTodos = aplicarTodos;
+    window.aplicarLOA = aplicarLOA;
+    window.aplicarModeloReceita = aplicarModeloReceita;
+    window.aplicarMediaHistorica = aplicarMediaHistorica;
+    window.toggleTodosQualificadores = toggleTodosQualificadores;
+    window.atualizarContadorQualificadores = atualizarContadorQualificadores;
+    window.carregarParametrosFormula = carregarParametrosFormula;
+    window.onPeriodicidadeChange = onPeriodicidadeChange;
+    window.toggleMetodoBaseCenario = toggleMetodoBaseCenario;
+    window.atualizarAnosCenario = atualizarAnosCenario;
+})();
+</script>
+{% endblock %}

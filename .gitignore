@@ -1,0 +1,35 @@
+.venv/
+__pycache__/
+**/venv/
+venv/
+test.db
+.vscode/
+.vscode/settings.json
+
+# Bancos de dados locais — NUNCA versionar (contêm hashes de senha e
+# potencialmente dados reais digitados em dev; o Render cria o banco no
+# boot via migrações + seeds)
+instance/*.db
+
+# E2E (Playwright) — nunca commitar sessão/estado autenticado
+e2e/node_modules/
+e2e/.auth/
+e2e/.data/
+e2e/test-results/
+e2e/playwright-report/
+
+# Staging de pré-processamento de importações (efêmero)
+instance/uploads/
+
+# Ambiente local (nunca versionar)
+.env
+
+# Artefatos de execução de teste
+test-results/
+
+# Artefatos de planejamento (specs/changes) — mantidos fora deste repositório;
+# a entrada é uma guarda: o CLI recria a pasta se rodado aqui por engano
+openspec/
+
+# Configuração local do agente (permissões da máquina, caminhos pessoais)
+.claude/settings.local.json
