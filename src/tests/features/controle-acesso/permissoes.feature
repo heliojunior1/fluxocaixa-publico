@@ -38,6 +38,29 @@ Funcionalidade: Perfis e permissões por verbo e recurso
     Quando acessa a tela "/saldos"
     Então a página exibe o elemento "novo-lancamento"
 
+  Cenário: Item de menu oculto sem permissão
+    Dado um usuário autenticado com o perfil "EXTRACAO"
+    Quando abre qualquer tela do sistema
+    Então o item de menu "menu-loa" não é exibido
+    E o item de menu "menu-fundos" é exibido
+
+  Cenário: Cabeçalho de seção sem nenhum item permitido é ocultado
+    Dado um usuário autenticado com o perfil "EXTRACAO"
+    Quando abre qualquer tela do sistema
+    Então o cabeçalho "menu-grupo-desembolso" não é exibido
+    E o cabeçalho "menu-grupo-previsao" não é exibido
+
+  Cenário: Cabeçalho de seção com ao menos um item permitido é exibido
+    Dado um usuário autenticado com o perfil "EXTRACAO"
+    Quando abre qualquer tela do sistema
+    Então o cabeçalho "menu-grupo-integracao" é exibido
+    E o item de menu "menu-extracao-fontes" é exibido
+
+  Cenário: Administrador enxerga todas as seções
+    Dado um usuário autenticado com o perfil "ADMINISTRADOR"
+    Quando abre qualquer tela do sistema
+    Então os cabeçalhos "menu-grupo-principal", "menu-grupo-movimentacao", "menu-grupo-integracao", "menu-grupo-previsao", "menu-grupo-desembolso" e "menu-grupo-cadastros" são exibidos
+
   Cenário: init-db exige FC_ADMIN_BANCO
     Dado um usuário autenticado com o perfil "CONSULTA"
     Quando acessa a tela "/init-db"

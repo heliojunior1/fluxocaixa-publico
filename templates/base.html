@@ -139,12 +139,14 @@
         </div>
 
         <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+            {% if tem_permissao(request, 'FC_EXI_DASHBOARD') %}
             <p
-                class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-2 sidebar-section-title whitespace-nowrap">
+                class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-2 sidebar-section-title whitespace-nowrap" data-testid="menu-grupo-principal">
                 Principal</p>
+            {% endif %}
 
             {% if tem_permissao(request, 'FC_EXI_DASHBOARD') %}
-            <a href="{{ url_for('index') }}"
+            <a href="{{ url_for('index') }}" data-testid="menu-dashboard"
                 class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
                 title="Dashboard">
                 <i data-lucide="layout-dashboard"
@@ -154,7 +156,7 @@
             {% endif %}
 
             {% if tem_permissao(request, 'FC_EXI_DASHBOARD') %}
-            <a href="{{ url_for('relatorios') }}"
+            <a href="{{ url_for('relatorios') }}" data-testid="menu-relatorios"
                 class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
                 title="Relatórios">
                 <i data-lucide="bar-chart-2"
@@ -163,12 +165,16 @@
             </a>
             {% endif %}
 
+            {% if tem_permissao(request, 'FC_CONS_LANCAMENTO')
+                or tem_permissao(request, 'FC_CONS_SALDO_BANCARIO')
+                or tem_permissao(request, 'FC_CONS_FUNDO') %}
             <p
-                class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 sidebar-section-title whitespace-nowrap">
-                Gestão</p>
+                class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 sidebar-section-title whitespace-nowrap" data-testid="menu-grupo-movimentacao">
+                Movimentação</p>
+            {% endif %}
 
             {% if tem_permissao(request, 'FC_CONS_LANCAMENTO') %}
-            <a href="{{ url_for ('saldos') }}"
+            <a href="{{ url_for ('saldos') }}" data-testid="menu-lancamentos"
                 class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
                 title="Lançamentos">
                 <i data-lucide="dollar-sign"
@@ -178,7 +184,7 @@
             {% endif %}
 
             {% if tem_permissao(request, 'FC_CONS_SALDO_BANCARIO') %}
-            <a href="{{ url_for('saldos_bancarios') }}"
+            <a href="{{ url_for('saldos_bancarios') }}" data-testid="menu-saldos-bancarios"
                 class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
                 title="Saldos Bancários">
                 <i data-lucide="landmark"
@@ -188,7 +194,7 @@
             {% endif %}
 
             {% if tem_permissao(request, 'FC_CONS_FUNDO') %}
-            <a href="{{ url_for('fundos') }}"
+            <a href="{{ url_for('fundos') }}" data-testid="menu-fundos"
                 class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
                 title="Fundos">
                 <i data-lucide="briefcase"
@@ -202,13 +208,22 @@
             </a>
             {% endif %}
 
+            {% if tem_permissao(request, 'FC_CONS_FONTE_EXTRACAO')
+                or tem_permissao(request, 'FC_CONS_EXECUCAO_EXTRACAO')
+                or tem_permissao(request, 'FC_CONS_MAPEAMENTO')
+                or tem_permissao(request, 'FC_CONS_TERMO_REGRA') %}
+            <p
+                class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 sidebar-section-title whitespace-nowrap" data-testid="menu-grupo-integracao">
+                Integração</p>
+            {% endif %}
+
             {% if tem_permissao(request, 'FC_CONS_FONTE_EXTRACAO') %}
             <a href="{{ url_for('extracao_fontes') }}" data-testid="menu-extracao-fontes"
                 class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
                 title="Fontes de Extração">
                 <i data-lucide="download-cloud"
                     class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
-                <span class="sidebar-text whitespace-nowrap">Extração</span>
+                <span class="sidebar-text whitespace-nowrap">Fontes de Extração</span>
             </a>
             {% endif %}
 
@@ -222,72 +237,8 @@
             </a>
             {% endif %}
 
-            {% if tem_permissao(request, 'FC_CONS_PREVISAO') %}
-            <a href="{{ url_for('simulador_menu') }}"
-                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
-                title="Simulador de Cenários">
-                <i data-lucide="trending-up"
-                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
-                <span class="sidebar-text whitespace-nowrap">Simulador</span>
-            </a>
-            {% endif %}
-
-            {% if tem_permissao(request, 'FC_CONS_LOA') %}
-            <a href="{{ url_for('loa_list') }}"
-                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
-                title="LOA - Lei Orçamentária Anual">
-                <i data-lucide="file-spreadsheet"
-                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
-                <span class="sidebar-text whitespace-nowrap">LOA</span>
-            </a>
-            {% endif %}
-
-            {% if tem_permissao(request, 'FC_CONS_PAGAMENTO') %}
-            <a href="{{ url_for('pagamentos') }}"
-                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
-                title="Pagamentos">
-                <i data-lucide="credit-card"
-                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
-                <span class="sidebar-text whitespace-nowrap">Pagamentos</span>
-            </a>
-            {% endif %}
-
-            {% if tem_permissao(request, 'FC_CONS_CONFERENCIA') %}
-            <a href="{{ url_for('conferencia') }}"
-                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
-                title="Conferência">
-                <i data-lucide="check-circle-2"
-                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
-                <span class="sidebar-text whitespace-nowrap">Conferência</span>
-            </a>
-            {% endif %}
-
-            <p
-                class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 sidebar-section-title whitespace-nowrap">
-                Configurações</p>
-
-            {% if tem_permissao(request, 'FC_CONS_FORMULA') %}
-            <a href="{{ url_for('formulas_list') }}"
-                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
-                title="Fórmulas de Projeção">
-                <i data-lucide="function-square"
-                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
-                <span class="sidebar-text whitespace-nowrap">Fórmulas</span>
-            </a>
-            {% endif %}
-
-            {% if tem_permissao(request, 'FC_CONS_FORMULA') %}
-            <a href="{{ url_for('parametros_globais_list') }}"
-                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
-                title="Parâmetros Globais">
-                <i data-lucide="settings-2"
-                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
-                <span class="sidebar-text whitespace-nowrap">Parâmetros</span>
-            </a>
-            {% endif %}
-
             {% if tem_permissao(request, 'FC_CONS_MAPEAMENTO') %}
-            <a href="{{ url_for('mapeamentos') }}"
+            <a href="{{ url_for('mapeamentos') }}" data-testid="menu-mapeamentos"
                 class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
                 title="Mapeamentos">
                 <i data-lucide="git-branch"
@@ -297,7 +248,7 @@
             {% endif %}
 
             {% if tem_permissao(request, 'FC_CONS_TERMO_REGRA') %}
-            <a href="{{ url_for('termos_regra') }}"
+            <a href="{{ url_for('termos_regra') }}" data-testid="menu-termos-regra"
                 class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
                 title="Termos de Regra">
                 <i data-lucide="book-open"
@@ -306,8 +257,101 @@
             </a>
             {% endif %}
 
+            {% if tem_permissao(request, 'FC_CONS_PREVISAO')
+                or tem_permissao(request, 'FC_REL_BACKTEST')
+                or tem_permissao(request, 'FC_CONS_LOA')
+                or tem_permissao(request, 'FC_CONS_FORMULA') %}
+            <p
+                class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 sidebar-section-title whitespace-nowrap" data-testid="menu-grupo-previsao">
+                Previsão</p>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_CONS_PREVISAO') %}
+            <a href="{{ url_for('simulador_menu') }}" data-testid="menu-simulador"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="Simulador de Cenários">
+                <i data-lucide="trending-up"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">Simulador</span>
+            </a>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_REL_BACKTEST') %}
+            <a href="{{ url_for('relatorio_backtest') }}" data-testid="menu-backtest"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="Backtest de Modelos">
+                <i data-lucide="target"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">Backtest</span>
+            </a>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_CONS_LOA') %}
+            <a href="{{ url_for('loa_list') }}" data-testid="menu-loa"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="LOA - Lei Orçamentária Anual">
+                <i data-lucide="file-spreadsheet"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">LOA</span>
+            </a>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_CONS_FORMULA') %}
+            <a href="{{ url_for('formulas_list') }}" data-testid="menu-formulas"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="Fórmulas de Projeção">
+                <i data-lucide="function-square"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">Fórmulas</span>
+            </a>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_CONS_FORMULA') %}
+            <a href="{{ url_for('parametros_globais_list') }}" data-testid="menu-parametros"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="Parâmetros Globais">
+                <i data-lucide="settings-2"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">Parâmetros</span>
+            </a>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_CONS_PAGAMENTO')
+                or tem_permissao(request, 'FC_CONS_CONFERENCIA') %}
+            <p
+                class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 sidebar-section-title whitespace-nowrap" data-testid="menu-grupo-desembolso">
+                Desembolso</p>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_CONS_PAGAMENTO') %}
+            <a href="{{ url_for('pagamentos') }}" data-testid="menu-pagamentos"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="Pagamentos">
+                <i data-lucide="credit-card"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">Pagamentos</span>
+            </a>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_CONS_CONFERENCIA') %}
+            <a href="{{ url_for('conferencia') }}" data-testid="menu-conferencia"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="Conferência">
+                <i data-lucide="check-circle-2"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">Conferência</span>
+            </a>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_CONS_QUALIFICADOR')
+                or tem_permissao(request, 'FC_CONS_ALERTA') %}
+            <p
+                class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 sidebar-section-title whitespace-nowrap" data-testid="menu-grupo-cadastros">
+                Cadastros</p>
+            {% endif %}
+
             {% if tem_permissao(request, 'FC_CONS_QUALIFICADOR') %}
-            <a href="{{ url_for('qualificadores') }}"
+            <a href="{{ url_for('qualificadores') }}" data-testid="menu-qualificadores"
                 class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
                 title="Qualificadores">
                 <i data-lucide="tags"
@@ -317,7 +361,7 @@
             {% endif %}
 
             {% if tem_permissao(request, 'FC_CONS_ALERTA') %}
-            <a href="{{ url_for('alertas') }}"
+            <a href="{{ url_for('alertas') }}" data-testid="menu-alertas"
                 class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
                 title="Alertas">
                 <i data-lucide="bell"

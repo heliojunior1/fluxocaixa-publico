@@ -1,4 +1,5 @@
 """Steps BDD — perfis e permissões por verbo+recurso (spec controle-acesso R6–R10)."""
+import re
 from datetime import date
 
 import pytest
@@ -90,6 +91,23 @@ def acessa_tela(navegador, contexto, caminho):
     contexto["resp"] = navegador.get(caminho)
 
 
+# Telas candidatas para observar a barra lateral. A primeira que o perfil
+# alcançar serve — o menu é o mesmo em todas (vem do `base.html`).
+_TELAS_COM_MENU = ("/saldos", "/extracao/fontes", "/")
+
+
+@when("abre qualquer tela do sistema")
+def abre_tela_qualquer(navegador, contexto):
+    for caminho in _TELAS_COM_MENU:
+        resp = navegador.get(caminho)
+        if resp.status_code == 200 and "<nav" in resp.text:
+            contexto["resp"] = resp
+            return
+    raise AssertionError(
+        f"Nenhuma das telas {_TELAS_COM_MENU} foi servida com a barra lateral para este perfil"
+    )
+
+
 @when("o seed de domínio executa novamente")
 def executa_seed_dominio(app):
     from fluxocaixa.services.seed_dominio import seed_dominio
@@ -178,6 +196,42 @@ def pagina_exibe(contexto, testid):
     resp = contexto["resp"]
     assert resp.status_code == 200, resp.status_code
     assert f'data-testid="{testid}"' in resp.text
+
+
+def _tem_testid(contexto, testid):
+    resp = contexto["resp"]
+    assert resp.status_code == 200, resp.status_code
+    return f'data-testid="{testid}"' in resp.text
+
+
+@then(parsers.parse('o item de menu "{testid}" não é exibido'))
+def item_menu_oculto(contexto, testid):
+    assert not _tem_testid(contexto, testid), f"Item de menu {testid} não deveria aparecer"
+
+
+@then(parsers.parse('o item de menu "{testid}" é exibido'))
+def item_menu_visivel(contexto, testid):
+    assert _tem_testid(contexto, testid), f"Item de menu {testid} deveria aparecer"
+
+
+@then(parsers.parse('o cabeçalho "{testid}" não é exibido'))
+def cabecalho_oculto(contexto, testid):
+    assert not _tem_testid(contexto, testid), (
+        f"Cabeçalho {testid} não deveria aparecer sem nenhum item visível abaixo dele"
+    )
+
+
+@then(parsers.parse('o cabeçalho "{testid}" é exibido'))
+def cabecalho_visivel(contexto, testid):
+    assert _tem_testid(contexto, testid), f"Cabeçalho {testid} deveria aparecer"
+
+
+@then(parsers.parse('os cabeçalhos {lista} são exibidos'))
+def cabecalhos_visiveis(contexto, lista):
+    testids = re.findall(r'"([^"]+)"', lista)
+    assert testids, f"Nenhum cabeçalho citado em: {lista}"
+    faltantes = [t for t in testids if not _tem_testid(contexto, t)]
+    assert not faltantes, f"Cabeçalhos ausentes no menu: {faltantes}"
 
 
 @then(parsers.parse('o perfil "{perfil}" continua sem a permissão "{cod}"'))
