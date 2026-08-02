@@ -16,7 +16,9 @@ class PagamentoRepository:
     def list_pagamentos(self):
         return (
             self.session.query(Pagamento)
-            .options(joinedload(Pagamento.qualificador))
+            .options(joinedload(Pagamento.qualificador),
+                     joinedload(Pagamento.fonte_recurso))
+            .filter_by(ind_status='A')
             .order_by(Pagamento.dat_pagamento.desc())
             .all()
         )
@@ -128,12 +130,15 @@ class PagamentoRepository:
         return results
 
     def create(self, data: PagamentoCreate) -> Pagamento:
+        from ..auth.contexto import cod_pessoa_atual
+
         pag = Pagamento(
             dat_pagamento=data.dat_pagamento,
             cod_orgao=data.cod_orgao,
             seq_qualificador=data.seq_qualificador,
             val_pagamento=data.val_pagamento,
             dsc_pagamento=data.dsc_pagamento,
+            cod_pessoa_inclusao=cod_pessoa_atual(),
         )
         self.session.add(pag)
         self.session.commit()

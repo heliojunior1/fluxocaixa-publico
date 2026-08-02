@@ -24,6 +24,7 @@ class LancamentoRepository:
         qualificador_folha: int | None = None,
         seq_conta: int | None = None,
         cod_origem: int | None = None,
+        seq_fonte_recurso: int | None = None,
         page: int = 1,
         per_page: int = 50,
         sort_by: str = 'dat_lancamento',
@@ -35,7 +36,8 @@ class LancamentoRepository:
                 joinedload(Lancamento.qualificador),
                 joinedload(Lancamento.tipo),
                 joinedload(Lancamento.origem),
-                joinedload(Lancamento.conta)
+                joinedload(Lancamento.conta),
+                joinedload(Lancamento.fonte_recurso)
             )
             .filter_by(ind_status='A')
         )
@@ -54,6 +56,9 @@ class LancamentoRepository:
 
         if cod_origem:
             query = query.filter(Lancamento.cod_origem_lancamento == cod_origem)
+
+        if seq_fonte_recurso:
+            query = query.filter(Lancamento.seq_fonte_recurso == seq_fonte_recurso)
 
         # Ordenação dinâmica
         sort_column_map = {
@@ -631,6 +636,7 @@ class LancamentoRepository:
             cod_origem_lancamento=data.cod_origem_lancamento,
             cod_pessoa_inclusao=cod_pessoa_atual(),
             seq_conta=data.seq_conta,
+            seq_fonte_recurso=data.seq_fonte_recurso,
         )
         self.session.add(lanc)
         self.session.commit()
@@ -647,6 +653,7 @@ class LancamentoRepository:
         lanc.cod_tipo_lancamento = data.cod_tipo_lancamento
         lanc.cod_origem_lancamento = data.cod_origem_lancamento
         lanc.seq_conta = data.seq_conta
+        lanc.seq_fonte_recurso = data.seq_fonte_recurso
         self.session.commit()
         return lanc
 

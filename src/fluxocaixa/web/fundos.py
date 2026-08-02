@@ -8,6 +8,7 @@ from ..models import SistemaOrigem, TipoOrigemSaldo
 from ..services.fundo_service import (
     alterar_fundo,
     aprovar_fundo,
+    classificar_fundo,
     criar_fundo,
     inativar_fundo,
     listar_fundos,
@@ -33,6 +34,14 @@ async def fundos(request: Request):
     tipos = {t.seq_tipo_origem_saldo: t.txt_sigla for t in TipoOrigemSaldo.query.all()}
     sistemas = {s.seq_sistema_origem: s.txt_sigla for s in SistemaOrigem.query.all()}
 
+    from ..models import FonteRecurso
+    from ..services.fonte_recurso_service import listar_fontes
+    fontes_por_seq = {f.seq_fonte_recurso: f for f in FonteRecurso.query.all()}
+    fontes_ativas = [
+        {'seq': f.seq_fonte_recurso, 'rotulo': f"{f.codigo_completo} · {f.dsc_fonte_recurso}"}
+        for f in listar_fontes(status='ativo')
+    ]
+
     fundos_view = [
         {
             'seq_fundo': f.seq_fundo,
@@ -41,6 +50,9 @@ async def fundos(request: Request):
             'origem': _rotulo_origem(f, tipos, sistemas),
             'ativo': f.ind_status == 'A',
             'pendente': f.ind_pendente_revisao == 'S',
+            'seq_fonte_recurso': f.seq_fonte_recurso,
+            'fonte': (fontes_por_seq[f.seq_fonte_recurso].codigo_completo
+                      if f.seq_fonte_recurso in fontes_por_seq else None),
         }
         for f in lista
     ]
@@ -49,6 +61,7 @@ async def fundos(request: Request):
         {
             'request': request,
             'fundos': fundos_view,
+            'fontes_ativas': fontes_ativas,
             'filtros': {'cod': cod or '', 'dsc': dsc or '', 'status': status or '',
                         'pendente': pendente or False},
         },
@@ -84,4 +97,15 @@ async def aprovar_fundo_route(request: Request, seq_fundo: int):
 @handle_exceptions
 async def inativar_fundo_route(request: Request, seq_fundo: int):
     inativar_fundo(seq_fundo)
+    return RedirectResponse('/fundos', status_code=303)
+
+
+@router.post('/fundos/{seq_fundo}/classificar-fonte', name='classificar_fonte_fundo',
+             dependencies=[requer('FC_MANT_FONTE_RECURSO')])
+@handle_exceptions
+async def classificar_fonte_fundo(request: Request, seq_fundo: int):
+    """Classifica o fundo numa fonte de recursos (spec saldo-por-fundo R21)."""
+    form = await request.form()
+    raw = (form.get('seq_fonte_recurso') or '').strip()
+    classificar_fundo(seq_fundo, int(raw) if raw else None)
     return RedirectResponse('/fundos', status_code=303)

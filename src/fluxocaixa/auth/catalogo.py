@@ -64,6 +64,13 @@ PERMISSOES = [
     ("FC_INS_PREVISAO", "Criar cenário / salvar versão de projeção"),
     ("FC_ALT_PREVISAO", "Alterar cenário / publicar versão"),
     ("FC_DEL_PREVISAO", "Excluir cenário ou versão"),
+    # Repartição da projeção por fonte (percentuais-fallback)
+    ("FC_CONS_REPARTICAO_FONTE", "Consultar repartição de qualificadores por fonte"),
+    ("FC_MANT_REPARTICAO_FONTE", "Definir repartição de qualificadores por fonte"),
+    # Fontes de recurso (catálogo STN + classificação de fundos)
+    ("FC_CONS_FONTE_RECURSO", "Consultar fontes de recurso e disponibilidade por grupo"),
+    ("FC_MANT_FONTE_RECURSO", "Cadastrar/alterar/inativar fonte de recurso e classificar fundos"),
+    ("FC_IMP_FONTE_RECURSO", "Importar tabela oficial de fontes (CSV/XLSX)"),
     # Fundos de investimento
     ("FC_CONS_FUNDO", "Consultar fundos"),
     ("FC_INS_FUNDO", "Cadastrar fundo"),
@@ -79,7 +86,40 @@ PERMISSOES = [
     # Pagamentos e conferência
     ("FC_CONS_PAGAMENTO", "Consultar pagamentos"),
     ("FC_INS_PAGAMENTO", "Incluir pagamento"),
+    ("FC_ALT_PAGAMENTO", "Alterar pagamento"),
+    ("FC_DEL_PAGAMENTO", "Excluir (inativar) pagamento"),
+    ("FC_APROPRIAR_PAGAMENTO", "Apropriar/estornar pagamento em liberações"),
     ("FC_CONS_CONFERENCIA", "Consultar conferência de caixa"),
+    ("FC_MANT_CONFERENCIA", "Informar apurado externo da conferência"),
+    # Simulação de disponibilidade do desembolso
+    ("FC_EXEC_SIMULACAO_DESEMBOLSO", "Executar a simulação de disponibilidade"),
+    ("FC_MANT_PARAM_DESEMBOLSO", "Definir parâmetros do desembolso (colchão mínimo)"),
+    # Liberações do desembolso
+    ("FC_CONS_LIBERACAO", "Consultar liberações do desembolso"),
+    ("FC_MANT_LIBERACAO", "Criar/cancelar liberação (rascunho)"),
+    ("FC_CONF_LIBERACAO", "Confirmar liberação (ato distinto de manter)"),
+    # Transferências internas (registro de controle)
+    ("FC_CONS_TRANSFERENCIA", "Consultar transferências internas"),
+    ("FC_MANT_TRANSFERENCIA", "Registrar/inativar transferência interna"),
+    # Reservas financeiras e bloqueios judiciais
+    ("FC_CONS_RESERVA", "Consultar reservas financeiras e bloqueios"),
+    ("FC_MANT_RESERVA", "Constituir/movimentar reserva financeira ou bloqueio"),
+    # Programação de desembolso (cotas do decreto)
+    ("FC_CONS_PROGRAMACAO", "Consultar programação de desembolso"),
+    ("FC_MANT_PROGRAMACAO", "Registrar cotas da programação de desembolso"),
+    ("FC_IMP_PROGRAMACAO", "Importar programação de desembolso (CSV/XLSX)"),
+    ("FC_CONS_DOTACAO", "Consultar dotações e créditos adicionais"),
+    ("FC_MANT_DOTACAO", "Manter dotações e registrar créditos adicionais"),
+    ("FC_IMP_DOTACAO", "Importar dotação inicial (CSV/XLSX)"),
+    ("FC_CONS_EXECUCAO_ORCAMENTARIA", "Consultar execução orçamentária (E/L/P)"),
+    ("FC_IMP_EXECUCAO_ORCAMENTARIA", "Importar execução orçamentária (CSV/XLSX)"),
+    ("FC_REL_FUNIL", "Relatório do funil LOA→caixa e conciliação orçamento × financeiro"),
+    ("FC_REL_CONCILIACAO_FONTE", "Conciliação da disponibilidade operacional × contábil por fonte"),
+    ("FC_REL_ANALITICO_DESEMBOLSO", "Painel analítico do desembolso (liberado × pago × pendente)"),
+    ("FC_IMP_DISPONIBILIDADE_CONTABIL", "Importar disponibilidade contábil por fonte (CSV/XLSX)"),
+    # Órgãos (dimensão do desembolso)
+    ("FC_CONS_ORGAO", "Consultar órgãos"),
+    ("FC_MANT_ORGAO", "Cadastrar/alterar/inativar órgão"),
     # Backtest
     ("FC_REL_BACKTEST", "Visualizar/executar backtest de modelos"),
     ("FC_INS_BACKTEST", "Salvar recomendações do backtest"),
@@ -94,6 +134,7 @@ PERMISSOES = [
     ("FC_REL_LDO_ORCAMENTO", "Relatório LDO & Orçamento"),
     ("FC_REL_PREVISAO_REALIZADO", "Relatório previsão × realizado"),
     ("FC_REL_KPIS", "Relatório de KPIs (dashboard gerencial)"),
+    ("FC_REL_EXECUCAO_DESEMBOLSO", "Relatório de execução do desembolso (previsto × liberado × pago)"),
     # Administração
     ("FC_ADMIN_BANCO", "Inicializar/recriar o banco de dados (/init-db, /recreate-db)"),
 ]
@@ -116,7 +157,8 @@ MATRIZ_PERFIS = {
         | {
             "FC_INS_LANCAMENTO", "FC_ALT_LANCAMENTO", "FC_IMP_LANCAMENTO",
             "FC_INS_SALDO_BANCARIO", "FC_ALT_SALDO_BANCARIO", "FC_IMP_SALDO_BANCARIO",
-            "FC_INS_PAGAMENTO",
+            "FC_INS_PAGAMENTO", "FC_ALT_PAGAMENTO", "FC_APROPRIAR_PAGAMENTO",
+            "FC_MANT_LIBERACAO",
             "FC_INS_LOA", "FC_IMP_LOA",
         }
     ),

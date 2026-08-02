@@ -26,6 +26,16 @@ from .categoria_fiscal import CategoriaFiscal, MetaFiscalAno
 from .formula import RubricaFormula, ParametroGlobal, CenarioParametroValor
 from .usuario import Usuario
 from .perfil import Perfil, Permissao, PerfilPermissao, UsuarioPerfil
+from .fonte_recurso import FonteRecurso
+from .liberacao import Liberacao, LiberacaoEvento, PagamentoLiberacao
+from .qualificador_fonte import QualificadorFonte
+from .simulacao_desembolso import ParametroDesembolso, SimulacaoDesembolso
+from .transferencia import Transferencia
+from .reserva_financeira import ReservaFinanceira, ReservaEvento
+from .programacao_desembolso import ProgramacaoDesembolso
+from .dotacao import CreditoAdicional, Dotacao
+from .execucao_orcamentaria import ExecucaoEvento, ExecucaoOrcamentaria
+from .disponibilidade_contabil import DisponibilidadeContabil
 from .saldo_fundo import TipoOrigemSaldo, SistemaOrigem, Fundo, SaldoContaFundo
 from .extracao import FonteExtracao, ExecucaoExtracao
 from .etl_staging import EtlStaging
@@ -67,6 +77,22 @@ __all__ = [
     'Permissao',
     'PerfilPermissao',
     'UsuarioPerfil',
+    'FonteRecurso',
+    'Liberacao',
+    'LiberacaoEvento',
+    'PagamentoLiberacao',
+    'QualificadorFonte',
+    'ParametroDesembolso',
+    'SimulacaoDesembolso',
+    'Transferencia',
+    'ReservaFinanceira',
+    'ReservaEvento',
+    'ProgramacaoDesembolso',
+    'Dotacao',
+    'CreditoAdicional',
+    'ExecucaoOrcamentaria',
+    'ExecucaoEvento',
+    'DisponibilidadeContabil',
     'TipoOrigemSaldo',
     'SistemaOrigem',
     'Fundo',

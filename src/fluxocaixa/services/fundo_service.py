@@ -101,6 +101,28 @@ def inativar_fundo(seq_fundo: int) -> Fundo:
     return fundo
 
 
+def classificar_fundo(seq_fundo: int, seq_fonte_recurso: int | None) -> Fundo:
+    """Classifica o fundo numa fonte de recursos — ou remove a classificação
+    (spec saldo-por-fundo R21).
+
+    Fundo sem fonte é PENDENTE de classificação: fica fora do grupo livre nas
+    leituras de disponibilidade (conservador). A ponte pressupõe fundo
+    mono-fonte; fundo multi-fonte não recebe FK e permanece pendente.
+    """
+    from ..models import FonteRecurso
+
+    fundo = _get_ou_erro(seq_fundo)
+    if seq_fonte_recurso is not None:
+        fonte = FonteRecurso.query.get(seq_fonte_recurso)
+        if fonte is None or fonte.ind_status != 'A':
+            raise RegraNegocioError("Fonte de recursos inexistente ou inativa")
+    fundo.seq_fonte_recurso = seq_fonte_recurso
+    fundo.dat_alteracao = date.today()
+    fundo.cod_pessoa_alteracao = cod_pessoa_atual()
+    db.session.commit()
+    return fundo
+
+
 def listar_fundos(cod=None, dsc=None, status=None, pendente=None) -> list[Fundo]:
     """Lista filtrada (AND), ordenada por código (R7)."""
     q = Fundo.query

@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+    <div class="flex items-center">
+        <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-700">
+            <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+        </a>
+        <div class="ml-4">
+            <h2 class="text-2xl font-bold text-gray-800">Simulação de Disponibilidade
+                <span class="text-xs font-semibold uppercase bg-gray-200 text-gray-600 rounded-full px-2 py-0.5 align-middle">operacional</span>
+            </h2>
+            <p class="text-sm text-gray-500">Cabe no caixa do grupo de fonte — hoje e nos próximos meses?</p>
+        </div>
+    </div>
+</div>
+
+<!-- Parâmetros da simulação -->
+<form method="get" class="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-wrap items-end gap-4 text-sm">
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Cenário</label>
+        <select name="cenario" data-testid="sim-cenario" class="border rounded px-2 py-1.5" required>
+            <option value="">Selecione…</option>
+            {% for c in cenarios %}
+            <option value="{{ c.seq_simulador_cenario }}" {% if params.cenario_id == c.seq_simulador_cenario %}selected{% endif %}>{{ c.nom_cenario }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Ano</label>
+        <input type="number" name="ano" value="{{ params.ano }}" class="border rounded px-2 py-1.5 w-24">
+    </div>
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">A partir do mês</label>
+        <input type="number" name="mes" min="1" max="12" value="{{ params.mes_inicial }}" class="border rounded px-2 py-1.5 w-20">
+    </div>
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Grupo de fonte</label>
+        <select name="grupo" data-testid="sim-grupo" class="border rounded px-2 py-1.5">
+            <option value="L" {% if params.grupo == 'L' %}selected{% endif %}>Livres</option>
+            <option value="V" {% if params.grupo == 'V' %}selected{% endif %}>Vinculadas</option>
+        </select>
+    </div>
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Modo</label>
+        <select name="modo" data-testid="sim-modo" class="border rounded px-2 py-1.5">
+            <option value="prudente" {% if params.modo == 'prudente' %}selected{% endif %}>Prudente (autorizativo)</option>
+            <option value="informativo" {% if params.modo == 'informativo' %}selected{% endif %}>Informativo (não confirma)</option>
+        </select>
+    </div>
+    <button type="submit" data-testid="sim-executar"
+        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg">Simular</button>
+</form>
+
+{% if resultado %}
+{% if resultado.origem_projecao.ao_vivo %}
+<div class="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800" data-testid="aviso-projecao-ao-vivo-desembolso">
+    Sem versão publicada — projeção calculada ao vivo para o cenário "{{ resultado.origem_projecao.nom_cenario }}".
+</div>
+{% endif %}
+
+<!-- Insuficiência estrutural: NÃO é o lote -->
+{% if resultado.estrutural %}
+<div class="mb-4 rounded-lg border-2 border-red-400 bg-red-100 px-4 py-3 text-sm text-red-900" data-testid="alerta-estrutural">
+    <p class="font-bold">Insuficiência estrutural — não é o lote</p>
+    <p>Mesmo sem liberar nada de novo, a curva-base cai a
+        <strong>{{ resultado.estrutural.saldo_base | format_currency }}</strong> no mês
+        <strong>{{ resultado.estrutural.mes }}</strong> — faltam
+        <strong>{{ resultado.estrutural.faltante | format_currency }}</strong> para o colchão.
+        Insumo para contingenciamento / remanejamento de datas / escalonamento formal.</p>
+</div>
+{% endif %}
+
+<!-- Veredicto do lote -->
+<div class="mb-4 rounded-lg border px-4 py-3 text-sm
+    {% if resultado.veredicto == 'OK' %}border-green-300 bg-green-50 text-green-800
+    {% elif resultado.veredicto == 'ALERTA' %}border-amber-300 bg-amber-50 text-amber-800
+    {% else %}border-red-300 bg-red-50 text-red-800{% endif %}"
+    data-testid="veredicto-{{ resultado.veredicto }}">
+    <p class="font-bold">
+        {% if resultado.veredicto == 'OK' %}Cabe no caixa projetado do grupo
+        {% elif resultado.veredicto == 'ALERTA' %}Abaixo do colchão — confirmar exige justificativa
+        {% else %}Caixa insuficiente — confirmação bloqueada{% endif %}
+    </p>
+    <p>Ponto mais baixo da curva com lote: <strong>{{ resultado.minimo | format_currency }}</strong> ·
+        colchão do grupo: {{ resultado.colchao | format_currency }} ·
+        lote em rascunho: {{ resultado.total_lote | format_currency }} ({{ resultado.qtd_rascunhos }} liberações)</p>
+</div>
+
+<!-- Composição -->
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
+    <div class="bg-white rounded-lg shadow-md p-3">
+        <p class="text-xs text-gray-500 uppercase font-semibold">Saldo bruto do grupo</p>
+        <p class="font-bold text-gray-800">{{ resultado.saldo_inicial | format_currency }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-3">
+        <p class="text-xs text-gray-500 uppercase font-semibold">Reservas/bloqueios</p>
+        <p class="font-bold text-gray-800">− {{ resultado.reservas | format_currency }}</p>
+        <p class="text-[10px] text-gray-400">subtração única — chega com a F7.4</p>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-3">
+        <p class="text-xs text-amber-700 uppercase font-semibold">Receita não classificada</p>
+        <p class="font-bold text-amber-700" data-testid="nao-classificado">{{ resultado.nao_classificado | format_currency }}</p>
+        <p class="text-[10px] text-amber-600">{% if resultado.modo == 'prudente' %}FORA do veredicto — <a class="underline" href="{{ url_for('reparticao_fonte') }}">repartir</a>{% else %}incluída (modo informativo){% endif %}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-3">
+        <p class="text-xs text-gray-500 uppercase font-semibold">Modo</p>
+        <p class="font-bold {% if resultado.modo == 'prudente' %}text-green-700{% else %}text-amber-700{% endif %}">{{ resultado.modo }}</p>
+    </div>
+</div>
+
+<!-- Curva -->
+<div class="bg-white rounded-lg shadow-md overflow-x-auto mb-6">
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-50 text-left text-gray-600">
+            <tr>
+                <th class="px-4 py-2 font-semibold">Mês</th>
+                <th class="px-4 py-2 font-semibold text-right">Receitas (grupo)</th>
+                <th class="px-4 py-2 font-semibold text-right">Despesas ajustadas</th>
+                <th class="px-4 py-2 font-semibold text-right">Pendente</th>
+                <th class="px-4 py-2 font-semibold text-right">Lote</th>
+                <th class="px-4 py-2 font-semibold text-right bg-gray-100">Saldo projetado</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for p in resultado.periodos %}
+            <tr {% if p.saldo_projetado < 0 %}class="bg-red-50"{% elif p.saldo_projetado < resultado.colchao %}class="bg-amber-50"{% endif %}>
+                <td class="px-4 py-2 font-medium text-gray-700">{{ '%02d'|format(p.mes) }}/{{ p.ano }}</td>
+                <td class="px-4 py-2 text-right text-green-700">+ {{ p.receitas | format_currency }}</td>
+                <td class="px-4 py-2 text-right text-red-700">− {{ p.despesas_ajustadas | format_currency }}</td>
+                <td class="px-4 py-2 text-right text-amber-700">− {{ p.pendente | format_currency }}</td>
+                <td class="px-4 py-2 text-right text-blue-700">− {{ p.lote | format_currency }}</td>
+                <td class="px-4 py-2 text-right font-semibold bg-gray-50" data-testid="saldo-mes-{{ p.mes }}">{{ p.saldo_projetado | format_currency }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="px-4 py-2 text-xs text-gray-400 border-t">
+        Anti-dupla contagem: despesa ajustada = max(0, projeção − pendente do qualificador no mês) por (qualificador × mês × grupo).
+        Liberações não gerenciáveis já compõem a curva-base como despesa certa (o pendente/lote as inclui).
+    </p>
+</div>
+
+<!-- Confirmação do lote -->
+{% if resultado.modo == 'prudente' and resultado.qtd_rascunhos > 0 and tem_permissao(request, 'FC_CONF_LIBERACAO') %}
+<div class="bg-white rounded-lg shadow-md p-4 mb-6">
+    <h3 class="font-semibold text-gray-700 text-sm mb-2">Confirmar o lote ({{ resultado.qtd_rascunhos }} rascunhos — {{ resultado.total_lote | format_currency }})</h3>
+    <form action="/simulacao-desembolso/confirmar" method="POST" class="flex items-end gap-3 flex-wrap text-sm" data-testid="form-confirmar-lote">
+        <input type="hidden" name="cenario" value="{{ params.cenario_id }}">
+        <input type="hidden" name="ano" value="{{ params.ano }}">
+        <input type="hidden" name="grupo" value="{{ params.grupo }}">
+        <input type="hidden" name="modo" value="{{ params.modo }}">
+        <input type="hidden" name="mes" value="{{ params.mes_inicial }}">
+        {% if resultado.veredicto == 'ALERTA' %}
+        <div class="flex-1 min-w-[300px]">
+            <label class="block text-xs font-semibold text-amber-700 mb-1">Justificativa (obrigatória — abaixo do colchão)</label>
+            <input type="text" name="justificativa" data-testid="justificativa-lote"
+                class="w-full border border-amber-300 rounded px-3 py-2" maxlength="500">
+        </div>
+        {% endif %}
+        <button type="submit" data-testid="confirmar-lote"
+            {% if resultado.veredicto == 'BLOQUEIO' %}disabled{% endif %}
+            class="bg-green-600 hover:bg-green-700 disabled:opacity-40 text-white font-bold py-2 px-6 rounded-lg">
+            Confirmar lote (grava snapshot)
+        </button>
+    </form>
+</div>
+{% endif %}
+{% endif %}
+
+<!-- Parâmetros de colchão -->
+{% if tem_permissao(request, 'FC_MANT_PARAM_DESEMBOLSO') %}
+<div class="bg-white rounded-lg shadow-md p-4">
+    <h3 class="font-semibold text-gray-700 text-sm mb-2">Colchão mínimo <span class="font-normal text-gray-400">(por grupo — override vence o global)</span></h3>
+    <p class="text-xs text-gray-500 mb-3">Livres: {{ colchao_l | format_currency }} · Vinculadas: {{ colchao_v | format_currency }}</p>
+    <form action="/simulacao-desembolso/colchao" method="POST" class="flex items-end gap-3 text-sm" data-testid="form-colchao">
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Grupo</label>
+            <select name="grupo" class="border rounded px-2 py-1.5">
+                <option value="">Global (default)</option>
+                <option value="L">Livres</option>
+                <option value="V">Vinculadas</option>
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Valor (R$)</label>
+            <input type="number" step="0.01" min="0" name="valor" class="border rounded px-2 py-1.5 w-40" required>
+        </div>
+        <button type="submit" data-testid="salvar-colchao"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Definir</button>
+    </form>
+</div>
+{% endif %}
+
+<script>if (window.lucide) lucide.createIcons();</script>
+{% endblock %}

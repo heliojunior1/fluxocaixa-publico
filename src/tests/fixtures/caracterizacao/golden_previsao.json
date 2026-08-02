@@ -2409,10 +2409,6 @@
   "LOA": {
    "despesa": [
     {
-     "data": "2026-07-01",
-     "valor_projetado": "750.00"
-    },
-    {
      "data": "2026-08-01",
      "valor_projetado": "750.00"
     },
@@ -2454,6 +2450,10 @@
     },
     {
      "data": "2027-06-01",
+     "valor_projetado": "750.00"
+    },
+    {
+     "data": "2027-07-01",
      "valor_projetado": "750.00"
     }
    ],

@@ -601,3 +601,23 @@ async def relatorio_kpis_data(request: Request):
         cod_banco=cod_banco,
     )
     return JSONResponse(data)
+
+
+@router.get('/relatorios/analitico-desembolso', name="relatorio_analitico_desembolso",
+            dependencies=[requer('FC_REL_ANALITICO_DESEMBOLSO')])
+@handle_exceptions
+async def relatorio_analitico_desembolso(request: Request):
+    """Painel analítico do desembolso (spec desembolso R26) — derivado."""
+    from datetime import date as _date
+
+    from ..models import Orgao
+    from ..services.relatorio.analitico_desembolso_service import dados_analitico
+
+    ano_raw = request.query_params.get('ano') or ''
+    ano = int(ano_raw) if ano_raw.isdigit() else _date.today().year
+    return templates.TemplateResponse('rel_analitico_desembolso.html', {
+        'request': request,
+        'dados': dados_analitico(ano),
+        'nomes_orgaos': {o.cod_orgao: o.nom_orgao
+                         for o in Orgao.query.filter_by(ind_status='A').all()},
+    })

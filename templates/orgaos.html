@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div class="flex items-center">
+        <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-700">
+            <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+        </a>
+        <h2 class="text-2xl font-bold text-gray-800 ml-4">Órgãos</h2>
+    </div>
+    {% if tem_permissao(request, 'FC_MANT_ORGAO') %}
+    <button id="novo-orgao-btn" data-testid="novo-orgao"
+        class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center">
+        <i data-lucide="plus" class="w-5 h-5 mr-2"></i> Novo Órgão
+    </button>
+    {% endif %}
+</div>
+
+<p class="text-sm text-gray-500 mb-4">Órgão é dimensão <strong>somente do desembolso</strong> — qualifica liberações e pagamentos; não entra em lançamento nem projeção.</p>
+
+<div class="bg-white rounded-lg shadow-md overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-50 text-left text-gray-600">
+            <tr>
+                <th class="px-4 py-3 font-semibold">Código</th>
+                <th class="px-4 py-3 font-semibold">Nome</th>
+                <th class="px-4 py-3 font-semibold">Status</th>
+                <th class="px-4 py-3 font-semibold text-right">Ações</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for o in orgaos %}
+            <tr data-testid="orgao-{{ o.cod_orgao }}">
+                <td class="px-4 py-3 font-mono font-medium text-gray-800">{{ '%06d'|format(o.cod_orgao) }}</td>
+                <td class="px-4 py-3 text-gray-700">{{ o.nom_orgao }}</td>
+                <td class="px-4 py-3">
+                    <span class="{% if o.ind_status == 'A' %}text-green-700{% else %}text-gray-400{% endif %}">
+                        {{ 'Ativo' if o.ind_status == 'A' else 'Inativo' }}
+                    </span>
+                </td>
+                <td class="px-4 py-3 text-right whitespace-nowrap">
+                    {% if o.ind_status == 'A' and tem_permissao(request, 'FC_MANT_ORGAO') %}
+                    <button type="button" data-testid="editar-orgao-{{ o.cod_orgao }}"
+                        onclick="abrirEdicaoOrgao({{ o.cod_orgao }}, '{{ o.nom_orgao|e }}')"
+                        class="text-blue-600 hover:text-blue-800 p-1" title="Editar">
+                        <i data-lucide="edit-2" class="w-4 h-4"></i>
+                    </button>
+                    <form action="/orgaos/{{ o.cod_orgao }}/inativar" method="POST" class="inline-block"
+                        onsubmit="return confirm('Inativar este órgão?');">
+                        <button type="submit" data-testid="inativar-orgao-{{ o.cod_orgao }}"
+                            class="text-red-600 hover:text-red-800 p-1" title="Inativar">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="px-4 py-6 text-center text-gray-400">Nenhum órgão cadastrado</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal cadastro/edição -->
+<div id="orgao-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50">
+    <div class="relative top-24 mx-auto p-6 border w-96 shadow-lg rounded-md bg-white">
+        <h3 class="text-lg font-bold text-gray-800 mb-4" id="orgao-modal-titulo">Novo Órgão</h3>
+        <form id="orgao-form" method="POST" data-testid="orgao-form">
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Código orçamentário</label>
+                <input type="number" name="cod_orgao" id="orgao-cod" data-testid="orgao-cod"
+                    class="w-full border rounded px-3 py-2" placeholder="070001">
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Nome</label>
+                <input type="text" name="nom_orgao" id="orgao-nom" data-testid="orgao-nom"
+                    class="w-full border rounded px-3 py-2" maxlength="100" required>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="document.getElementById('orgao-modal').classList.add('hidden')"
+                    class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</button>
+                <button type="submit" data-testid="orgao-salvar"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const novoOrgaoBtn = document.getElementById('novo-orgao-btn');
+    if (novoOrgaoBtn) {
+        novoOrgaoBtn.addEventListener('click', () => {
+            document.getElementById('orgao-modal-titulo').textContent = 'Novo Órgão';
+            document.getElementById('orgao-form').action = '/orgaos/adicionar';
+            document.getElementById('orgao-cod').value = '';
+            document.getElementById('orgao-cod').disabled = false;
+            document.getElementById('orgao-nom').value = '';
+            document.getElementById('orgao-modal').classList.remove('hidden');
+        });
+    }
+    function abrirEdicaoOrgao(cod, nom) {
+        document.getElementById('orgao-modal-titulo').textContent = 'Editar Órgão';
+        document.getElementById('orgao-form').action = '/orgaos/' + cod + '/editar';
+        document.getElementById('orgao-cod').value = cod;
+        document.getElementById('orgao-cod').disabled = true;
+        document.getElementById('orgao-nom').value = nom;
+        document.getElementById('orgao-modal').classList.remove('hidden');
+    }
+    if (window.lucide) lucide.createIcons();
+</script>
+{% endblock %}

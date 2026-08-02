@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+    <div>
+        <h2 class="text-2xl font-bold text-gray-800">Funil LOA → Caixa — {{ ano }}</h2>
+        <p class="text-sm text-gray-500">autorizado → empenhado → liquidado → pago · tudo derivado na leitura · pagamento orçamentário e desembolso financeiro conciliados, nunca fundidos</p>
+    </div>
+    <form method="get" class="flex items-center gap-2 text-sm">
+        <input type="number" name="ano" value="{{ ano }}" class="border rounded px-2 py-1.5 w-24">
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-4 rounded">Ir</button>
+    </form>
+</div>
+
+<div class="bg-white rounded-lg shadow-md overflow-x-auto mb-6" data-testid="funil-relatorio">
+    <h3 class="px-4 pt-4 font-semibold text-gray-700 text-sm">Funil por qualificador</h3>
+    <table class="min-w-full text-sm mt-2">
+        <thead class="bg-gray-50 text-left text-gray-600 text-xs">
+            <tr>
+                <th class="px-4 py-2 font-semibold">Qualificador</th>
+                <th class="px-4 py-2 font-semibold text-right">Autorizado</th>
+                <th class="px-4 py-2 font-semibold text-right">Empenhado</th>
+                <th class="px-4 py-2 font-semibold text-right">% Emp.</th>
+                <th class="px-4 py-2 font-semibold text-right">Liquidado</th>
+                <th class="px-4 py-2 font-semibold text-right">Pago (orç.)</th>
+                <th class="px-4 py-2 font-semibold text-right">Liquidado não pago</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for linha in funil.linhas %}
+            <tr data-testid="funil-{{ linha.qualificador.num_qualificador }}">
+                <td class="px-4 py-2 font-medium text-gray-800">{{ linha.qualificador.num_qualificador }} · {{ linha.qualificador.dsc_qualificador }}</td>
+                <td class="px-4 py-2 text-right">{{ linha.autorizado | format_currency if linha.autorizado is not none else '—' }}</td>
+                <td class="px-4 py-2 text-right">{{ linha.empenhado | format_currency }}</td>
+                <td class="px-4 py-2 text-right text-xs text-gray-500">{{ linha.pct_empenhado ~ '%' if linha.pct_empenhado is not none else '—' }}</td>
+                <td class="px-4 py-2 text-right text-blue-700">{{ linha.liquidado | format_currency }}</td>
+                <td class="px-4 py-2 text-right text-green-700">{{ linha.pago | format_currency }}</td>
+                <td class="px-4 py-2 text-right font-semibold text-amber-600">{{ linha.liquidado_nao_pago | format_currency }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="7" class="px-4 py-6 text-center text-gray-400">Nenhum autorizado ou execução no ano</td></tr>
+            {% endfor %}
+        </tbody>
+        {% if funil.linhas %}
+        <tfoot class="bg-gray-50 font-bold text-xs">
+            <tr>
+                <td class="px-4 py-2">TOTAIS</td>
+                <td class="px-4 py-2 text-right">{{ funil.totais.autorizado | format_currency }}</td>
+                <td class="px-4 py-2 text-right">{{ funil.totais.empenhado | format_currency }}</td>
+                <td class="px-4 py-2"></td>
+                <td class="px-4 py-2 text-right">{{ funil.totais.liquidado | format_currency }}</td>
+                <td class="px-4 py-2 text-right">{{ funil.totais.pago | format_currency }}</td>
+                <td class="px-4 py-2 text-right text-amber-700">{{ funil.totais.liquidado_nao_pago | format_currency }}</td>
+            </tr>
+        </tfoot>
+        {% endif %}
+    </table>
+</div>
+
+<div class="bg-white rounded-lg shadow-md overflow-x-auto" data-testid="funil-conciliacao">
+    <h3 class="px-4 pt-4 font-semibold text-gray-700 text-sm">Conciliação orçamentário × financeiro (por órgão)</h3>
+    <table class="min-w-full text-sm mt-2">
+        <thead class="bg-gray-50 text-left text-gray-600 text-xs">
+            <tr>
+                <th class="px-4 py-2 font-semibold">Órgão</th>
+                <th class="px-4 py-2 font-semibold text-right">Pago orçamentário (P)</th>
+                <th class="px-4 py-2 font-semibold text-right">Desembolso financeiro</th>
+                <th class="px-4 py-2 font-semibold text-right">Diferença</th>
+                <th class="px-4 py-2 font-semibold">Leitura</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for linha in conciliacao %}
+            <tr data-testid="concil-{{ linha.cod_orgao }}">
+                <td class="px-4 py-2 font-medium text-gray-800">{{ '%06d'|format(linha.cod_orgao) }} · {{ nomes_orgaos.get(linha.cod_orgao, '?') }}</td>
+                <td class="px-4 py-2 text-right">{{ linha.pago_orcamentario | format_currency }}</td>
+                <td class="px-4 py-2 text-right">{{ linha.desembolso_financeiro | format_currency }}</td>
+                <td class="px-4 py-2 text-right font-semibold {% if linha.diferenca != 0 %}text-amber-600{% else %}text-green-700{% endif %}">{{ linha.diferenca | format_currency }}</td>
+                <td class="px-4 py-2 text-xs">
+                    {% if linha.direcao == 'conciliado' %}
+                    <span class="px-2 py-0.5 rounded bg-green-100 text-green-700 font-bold">conciliado</span>
+                    {% else %}
+                    <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-700 font-bold">{{ linha.direcao }}</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="px-4 py-6 text-center text-gray-400">Nenhum pagamento (orçamentário ou financeiro) no ano</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="px-4 py-2 text-[11px] text-gray-400 border-t">grão órgão/ano — o vínculo documento-a-documento (P alimentar o desembolso) é evolução prevista, capability própria</p>
+</div>
+
+<script>if (window.lucide) lucide.createIcons();</script>
+{% endblock %}

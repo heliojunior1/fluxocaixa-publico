@@ -20,7 +20,6 @@ from ..services import (
     list_origens_lancamento,
     list_contas_bancarias,
     list_active_qualificadores,
-    list_conferencias,
     list_alertas_ativos,
 )
 from ..models import db
@@ -86,6 +85,7 @@ async def saldos(request: Request):
     qualificador_folha = None
     seq_conta = None
     cod_origem = None
+    seq_fonte_recurso = None
     page = 1
     per_page = 50
     sort_by = 'dat_lancamento'
@@ -99,6 +99,7 @@ async def saldos(request: Request):
         qual_str = form.get('qualificador_folha')
         conta_str = form.get('seq_conta')
         origem_str = form.get('cod_origem')
+        fonte_str = form.get('seq_fonte_recurso')
         page_str = form.get('page')
         sort_by = form.get('sort_by', 'dat_lancamento')
         sort_order = form.get('sort_order', 'desc')
@@ -118,7 +119,10 @@ async def saldos(request: Request):
         
         if origem_str:
             cod_origem = int(origem_str)
-        
+
+        if fonte_str:
+            seq_fonte_recurso = int(fonte_str)
+
         if page_str:
             page = int(page_str)
     else:
@@ -136,6 +140,7 @@ async def saldos(request: Request):
         qualificador_folha=qualificador_folha,
         seq_conta=seq_conta,
         cod_origem=cod_origem,
+        seq_fonte_recurso=seq_fonte_recurso,
         page=page,
         per_page=per_page,
         sort_by=sort_by,
@@ -155,6 +160,14 @@ async def saldos(request: Request):
     origem_manual = next((o for o in origens if o.dsc_origem_lancamento == 'Manual'), None)
     cod_origem_manual = origem_manual.cod_origem_lancamento if origem_manual else 1
 
+    # Fontes de recurso ativas — campo opcional SEM default (F9.2)
+    from ..services.fonte_recurso_service import listar_fontes
+    fontes_recurso = [
+        {'seq': f.seq_fonte_recurso,
+         'rotulo': f"{f.codigo_completo} · {f.dsc_fonte_recurso}"}
+        for f in listar_fontes(status='ativo')
+    ]
+
     return templates.TemplateResponse(
         'saldos.html',
         {
@@ -172,6 +185,7 @@ async def saldos(request: Request):
             'sort_by': sort_by,
             'sort_order': sort_order,
             'cod_origem_manual': cod_origem_manual,
+            'fontes_recurso': fontes_recurso,
             'filtros': {
                 'start_date': start_date.isoformat() if start_date else '',
                 'end_date': end_date.isoformat() if end_date else '',
@@ -179,6 +193,7 @@ async def saldos(request: Request):
                 'qualificador_folha': qualificador_folha or '',
                 'seq_conta': seq_conta or '',
                 'cod_origem': cod_origem or '',
+                'seq_fonte_recurso': seq_fonte_recurso or '',
             },
         },
     )
@@ -196,6 +211,8 @@ async def add_lancamento(request: Request):
         cod_tipo_lancamento=form['cod_tipo_lancamento'],
         cod_origem_lancamento=int(form['cod_origem_lancamento']),
         seq_conta=int(form.get('seq_conta')) if form.get('seq_conta') else None,
+        seq_fonte_recurso=(int(form.get('seq_fonte_recurso'))
+                           if form.get('seq_fonte_recurso') else None),
     )
     create_lancamento(data)
     return RedirectResponse(request.url_for('saldos'), status_code=303)
@@ -251,6 +268,8 @@ async def edit_lancamento_route(request: Request, seq_lancamento: int):
         cod_tipo_lancamento=form['cod_tipo_lancamento'],
         cod_origem_lancamento=int(form['cod_origem_lancamento']),
     seq_conta=int(form.get('seq_conta')) if form.get('seq_conta') else None,
+        seq_fonte_recurso=(int(form.get('seq_fonte_recurso'))
+                           if form.get('seq_fonte_recurso') else None),
     )
     update_lancamento(seq_lancamento, data)
     return RedirectResponse(request.url_for('saldos'), status_code=303)
@@ -263,10 +282,47 @@ async def delete_lancamento_route(request: Request, seq_lancamento: int):
     return RedirectResponse(request.url_for('saldos'), status_code=303)
 
 
-@router.get('/conferencia', dependencies=[requer('FC_CONS_CONFERENCIA')])
+@router.get('/conferencia', name='conferencia', dependencies=[requer('FC_CONS_CONFERENCIA')])
 @handle_exceptions
 async def conferencia(request: Request):
-    registros = list_conferencias()
-    return templates.TemplateResponse('conferencia.html', {'request': request, 'registros': registros})
+    """Conferência do desembolso — três visões DERIVADAS (F7.1c)."""
+    from datetime import timedelta
+
+    from ..services.conferencia_desembolso_service import (
+        visao_conciliacao, visao_controle, visao_financeira)
+
+    fim_raw = request.query_params.get('fim') or ''
+    inicio_raw = request.query_params.get('inicio') or ''
+    fim = date.fromisoformat(fim_raw) if fim_raw else date.today()
+    inicio = date.fromisoformat(inicio_raw) if inicio_raw else fim - timedelta(days=13)
+
+    return templates.TemplateResponse('conferencia.html', {
+        'request': request,
+        'inicio': inicio, 'fim': fim,
+        'controle': visao_controle(inicio, fim),
+        'financeira': visao_financeira(inicio, fim),
+        'conciliacao': visao_conciliacao(inicio, fim),
+    })
+
+
+@router.post('/conferencia/apurado', name='informar_apurado_route',
+             dependencies=[requer('FC_MANT_CONFERENCIA')])
+@handle_exceptions
+async def informar_apurado_route(request: Request):
+    """Registra o apurado externo do dia (F7.1c R16)."""
+    from decimal import Decimal
+
+    from ..services.conferencia_desembolso_service import informar_apurado
+
+    form = await request.form()
+    dia = date.fromisoformat(form['dia'])
+    informar_apurado(
+        dia,
+        val_liberacoes=(Decimal(form['val_apurado_liberacoes'])
+                        if form.get('val_apurado_liberacoes') else None),
+        val_pagamentos=(Decimal(form['val_apurado_pagamentos'])
+                        if form.get('val_apurado_pagamentos') else None),
+    )
+    return RedirectResponse(f"/conferencia?fim={form.get('fim') or dia.isoformat()}", status_code=303)
 
 

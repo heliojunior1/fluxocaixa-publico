@@ -84,6 +84,56 @@ def ultimo_agregado_anterior(
     ]
 
 
+def saldo_bruto_por_grupo(data_referencia: date | None = None) -> dict:
+    """Saldo BRUTO por grupo de disponibilidade (spec fonte-recurso R5).
+
+    'L' livre / 'V' vinculado / 'P' pendente (fundo sem fonte — fora do
+    livre, conservador), derivado da vw_flc_saldo_fundo_fonte. Sem data,
+    usa a linha mais recente de cada (conta, fundo); com data, o saldo do dia.
+
+    ⚠️ Entrega o BRUTO: reservas/bloqueios (F7.4) não são subtraídos aqui —
+    a subtração acontece uma única vez, na leitura da disponibilidade
+    operacional (doc do módulo, seção 4.4).
+    """
+    if data_referencia is None:
+        sql = (
+            "SELECT cod_grupo, SUM(val_saldo) AS val_saldo "
+            "FROM vw_flc_saldo_fundo_fonte "
+            "WHERE num_ordem_recente = 1 GROUP BY cod_grupo"
+        )
+        params: dict = {}
+    else:
+        sql = (
+            "SELECT cod_grupo, SUM(val_saldo) AS val_saldo "
+            "FROM vw_flc_saldo_fundo_fonte "
+            "WHERE dat_saldo = :referencia GROUP BY cod_grupo"
+        )
+        params = {"referencia": data_referencia}
+
+    linhas = db.session.execute(text(sql), params).mappings().all()
+    grupos = {"L": _dec(0), "V": _dec(0), "P": _dec(0)}
+    for linha in linhas:
+        grupos[linha["cod_grupo"]] = _dec(linha["val_saldo"])
+    grupos["total"] = _dec(grupos["L"] + grupos["V"] + grupos["P"])
+    return grupos
+
+
+def saldo_bruto_por_fonte() -> dict:
+    """Saldo BRUTO por fonte (spec fonte-recurso R11) — mesma view do grupo,
+    grão `seq_fonte_recurso`, linha mais recente por (conta, fundo). Fundos
+    sem fonte (pendentes) ficam FORA: não há fonte para conciliar. Entrega o
+    BRUTO — reservas são subtraídas na leitura da operacional (uma vez só).
+    """
+    sql = (
+        "SELECT seq_fonte_recurso, SUM(val_saldo) AS val_saldo "
+        "FROM vw_flc_saldo_fundo_fonte "
+        "WHERE num_ordem_recente = 1 AND seq_fonte_recurso IS NOT NULL "
+        "GROUP BY seq_fonte_recurso"
+    )
+    return {linha["seq_fonte_recurso"]: _dec(linha["val_saldo"])
+            for linha in db.session.execute(text(sql)).mappings().all()}
+
+
 def agregado_por_conta(
     data_inicio: date,
     data_fim: date,

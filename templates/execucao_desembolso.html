@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div class="flex items-center">
+        <a href="{{ url_for('liberacoes') }}" class="text-gray-500 hover:text-gray-700">
+            <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+        </a>
+        <div class="ml-4">
+            <h2 class="text-2xl font-bold text-gray-800">Execução do Desembolso — {{ rel.ano }}</h2>
+            <p class="text-sm text-gray-500">Previsto (LOA) × liberado × pago por natureza · <strong>previsto por órgão não existe</strong> (a LOA é qualificador+ano; chega com a programação F7.3b)</p>
+        </div>
+    </div>
+    <form method="get" class="flex items-center gap-2 text-sm">
+        <input type="number" name="ano" value="{{ rel.ano }}" class="border rounded px-2 py-1.5 w-24">
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-4 rounded">Ir</button>
+    </form>
+</div>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 text-sm">
+    <div class="bg-white rounded-lg shadow-md p-4">
+        <p class="text-xs text-gray-500 uppercase font-semibold">Previsto (LOA despesa)</p>
+        <p class="text-lg font-bold text-gray-800" data-testid="exec-previsto">{{ rel.previsto_total | format_currency }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-4">
+        <p class="text-xs text-gray-500 uppercase font-semibold">Liberado no ano</p>
+        <p class="text-lg font-bold text-blue-700" data-testid="exec-liberado">{{ rel.total_liberado | format_currency }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-4">
+        <p class="text-xs text-gray-500 uppercase font-semibold">Pago (apropriado)</p>
+        <p class="text-lg font-bold text-green-700">{{ rel.total_pago | format_currency }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-4">
+        <p class="text-xs text-gray-500 uppercase font-semibold">% liberado / previsto</p>
+        <p class="text-lg font-bold text-gray-800">{% if rel.pct_execucao is not none %}{{ rel.pct_execucao }}%{% else %}— (sem LOA){% endif %}</p>
+    </div>
+</div>
+
+<div class="bg-white rounded-lg shadow-md overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-50 text-left text-gray-600">
+            <tr>
+                <th class="px-4 py-3 font-semibold">Natureza da obrigação</th>
+                <th class="px-4 py-3 font-semibold text-right">Liberado</th>
+                <th class="px-4 py-3 font-semibold text-right">Pago (apropriado)</th>
+                <th class="px-4 py-3 font-semibold text-right">% pago / liberado</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for natureza, linha in rel.naturezas.items() %}
+            <tr data-testid="exec-natureza-{{ natureza }}">
+                <td class="px-4 py-2 font-medium text-gray-700">{{ naturezas_rotulos.get(natureza, natureza) }}</td>
+                <td class="px-4 py-2 text-right">{{ linha.liberado | format_currency }}</td>
+                <td class="px-4 py-2 text-right">{{ linha.pago | format_currency }}</td>
+                <td class="px-4 py-2 text-right">{% if linha.liberado > 0 %}{{ ((linha.pago / linha.liberado) * 100) | round(2) }}%{% else %}—{% endif %}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" class="px-4 py-6 text-center text-gray-400">Nenhuma liberação confirmada no ano</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="px-4 py-2 text-[11px] text-gray-400 border-t">"pago" = apropriações (A−E) das liberações da natureza — o vínculo da F7.1b dá a dimensão · o recorte por órgão vale para liberado/pago; nunca para o previsto</p>
+</div>
+
+<script>if (window.lucide) lucide.createIcons();</script>
+{% endblock %}

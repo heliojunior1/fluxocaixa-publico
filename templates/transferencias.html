@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center mb-6">
+    <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-700">
+        <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+    </a>
+    <div class="ml-4">
+        <h2 class="text-2xl font-bold text-gray-800">Transferências Internas</h2>
+        <p class="text-sm text-gray-500">Registro de controle para a conciliação — não gera lançamento nem altera saldo; a fonte do recurso não muda.</p>
+    </div>
+</div>
+
+{% if tem_permissao(request, 'FC_MANT_TRANSFERENCIA') %}
+<div class="bg-white rounded-lg shadow-md p-4 mb-6">
+    <h3 class="font-semibold text-gray-700 text-sm mb-3">Registrar transferência</h3>
+    <form action="/transferencias/adicionar" method="POST" class="flex flex-wrap items-end gap-3 text-sm" data-testid="form-transferencia">
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Data</label>
+            <input type="date" name="dat_transferencia" data-testid="transf-data" required class="border rounded px-2 py-1.5">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Conta origem</label>
+            <select name="seq_conta_origem" data-testid="transf-origem" required class="border rounded px-2 py-1.5">
+                {% for c in contas %}
+                <option value="{{ c.seq_conta }}">{{ c.cod_banco }}/{{ c.num_agencia }}/{{ c.num_conta }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Conta destino</label>
+            <select name="seq_conta_destino" data-testid="transf-destino" required class="border rounded px-2 py-1.5">
+                {% for c in contas %}
+                <option value="{{ c.seq_conta }}">{{ c.cod_banco }}/{{ c.num_agencia }}/{{ c.num_conta }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Valor (R$)</label>
+            <input type="number" step="0.01" min="0" name="val_transferencia" data-testid="transf-valor" required class="border rounded px-2 py-1.5 w-32">
+        </div>
+        <div class="flex-1 min-w-[200px]">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Descrição</label>
+            <input type="text" name="dsc_transferencia" maxlength="255" class="w-full border rounded px-2 py-1.5">
+        </div>
+        <button type="submit" data-testid="transf-salvar"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Registrar</button>
+    </form>
+</div>
+{% endif %}
+
+<div class="bg-white rounded-lg shadow-md overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-50 text-left text-gray-600">
+            <tr>
+                <th class="px-4 py-3 font-semibold">Data</th>
+                <th class="px-4 py-3 font-semibold">Origem</th>
+                <th class="px-4 py-3 font-semibold">Destino</th>
+                <th class="px-4 py-3 font-semibold text-right">Valor</th>
+                <th class="px-4 py-3 font-semibold">Descrição</th>
+                <th class="px-4 py-3 font-semibold text-center">Ações</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for t in transferencias %}
+            <tr data-testid="transferencia-{{ t.seq_transferencia }}">
+                <td class="px-4 py-2 text-gray-700">{{ t.dat_transferencia.strftime('%d/%m/%Y') }}</td>
+                <td class="px-4 py-2 text-gray-600">{{ t.conta_origem.cod_banco }}/{{ t.conta_origem.num_agencia }}/{{ t.conta_origem.num_conta }}</td>
+                <td class="px-4 py-2 text-gray-600">{{ t.conta_destino.cod_banco }}/{{ t.conta_destino.num_agencia }}/{{ t.conta_destino.num_conta }}</td>
+                <td class="px-4 py-2 text-right font-medium">{{ t.val_transferencia | format_currency }}</td>
+                <td class="px-4 py-2 text-gray-600">{{ t.dsc_transferencia or '—' }}</td>
+                <td class="px-4 py-2 text-center">
+                    {% if tem_permissao(request, 'FC_MANT_TRANSFERENCIA') %}
+                    <form action="/transferencias/{{ t.seq_transferencia }}/inativar" method="POST" class="inline-block"
+                        onsubmit="return confirm('Inativar este registro?');">
+                        <button type="submit" class="text-red-600 hover:text-red-800 p-1" title="Inativar">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">Nenhuma transferência registrada</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>if (window.lucide) lucide.createIcons();</script>
+{% endblock %}

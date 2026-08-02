@@ -68,6 +68,14 @@ class Fundo(Base):
     # 'S' = auto-cadastrado por importação, aguardando aprovação (F2.2/F2.3)
     ind_pendente_revisao = Column(String(1), default='N', nullable=False)
     dat_auto_cadastro = Column(Date)
+    # Classificação por fonte de recursos (spec saldo-por-fundo R21).
+    # NULA = pendente de classificação → o saldo do fundo fica FORA do grupo
+    # livre nas leituras de disponibilidade (tratamento conservador). A ponte
+    # pressupõe fundo mono-fonte (hipótese da prova de dados da F9.1); fundo
+    # multi-fonte não recebe FK e permanece pendente.
+    seq_fonte_recurso = Column(
+        Integer, ForeignKey('flc_fonte_recurso.seq_fonte_recurso'), nullable=True
+    )
     ind_status = Column(String(1), default='A', nullable=False)
     dat_inclusao = Column(Date, default=date.today, nullable=False)
     cod_pessoa_inclusao = Column(Integer)

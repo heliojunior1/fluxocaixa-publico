@@ -82,6 +82,16 @@
                 {% endfor %}
             </select>
         </div>
+        <div>
+            <label for="seq_fonte_recurso" class="block text-sm font-medium text-gray-700">Fonte de Recursos</label>
+            <select name="seq_fonte_recurso" data-testid="filtro-fonte-recurso"
+                class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm">
+                <option value="">Todas</option>
+                {% for f in fontes_recurso %}
+                <option value="{{ f.seq }}" {% if filtros.seq_fonte_recurso == f.seq %}selected{% endif %}>{{ f.rotulo }}</option>
+                {% endfor %}
+            </select>
+        </div>
         <div class="flex items-end">
             <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg w-full">
                 Consultar
@@ -151,6 +161,7 @@
                         <i data-lucide="{% if sort_by == 'seq_conta' %}{% if sort_order == 'desc' %}chevron-down{% else %}chevron-up{% endif %}{% else %}chevrons-up-down{% endif %}" class="w-4 h-4 ml-1"></i>
                     </div>
                 </th>
+                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fonte</th>
                 <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
             </tr>
         </thead>
@@ -189,6 +200,13 @@
                     -
                     {% endif %}
                 </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                    {% if l.fonte_recurso %}
+                    <span class="font-mono" title="{{ l.fonte_recurso.dsc_fonte_recurso }}">{{ l.fonte_recurso.codigo_completo }}</span>
+                    {% else %}
+                    <span class="text-gray-400">sem fonte</span>
+                    {% endif %}
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                     <button type="button" class="edit-entry-btn text-indigo-600 hover:text-indigo-900"
                         data-seq_lancamento="{{ l.seq_lancamento }}"
@@ -196,7 +214,8 @@
                         data-seq_qualificador="{{ l.seq_qualificador }}" data-val_lancamento="{{ l.val_lancamento }}"
                         data-cod_tipo_lancamento="{{ l.cod_tipo_lancamento }}"
                         data-cod_origem_lancamento="{{ l.cod_origem_lancamento }}"
-                        data-seq_conta="{{ l.seq_conta or '' }}">
+                        data-seq_conta="{{ l.seq_conta or '' }}"
+                        data-seq_fonte_recurso="{{ l.seq_fonte_recurso or '' }}">
                         <i data-lucide="edit" class="w-5 h-5"></i>
                     </button>
                     <form action="{{ url_for('delete_lancamento', seq_lancamento=l.seq_lancamento) }}" method="POST"
@@ -343,6 +362,17 @@
                             {% endfor %}
                         </select>
                     </div>
+                    <div>
+                        <label for="seq_fonte_recurso_add" class="block text-sm font-medium text-gray-700">Fonte de Recursos</label>
+                        <select name="seq_fonte_recurso" id="seq_fonte_recurso_add" data-testid="lancamento-fonte"
+                            class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                            <option value="">— sem fonte —</option>
+                            {% for f in fontes_recurso %}
+                            <option value="{{ f.seq }}">{{ f.rotulo }}</option>
+                            {% endfor %}
+                        </select>
+                        <p class="text-xs text-gray-400 mt-1">Opcional e sem default — seleção sempre explícita.</p>
+                    </div>
                 </div>
                 <div class="flex justify-end mt-8">
                     <button type="button" id="cancel-btn"
@@ -424,6 +454,16 @@
                             {% for c in contas %}
                             <option value="{{ c.seq_conta }}">{{ c.cod_banco }} / {{ c.num_agencia }} / {{ c.num_conta
                                 }}{% if c.dsc_conta %} - {{ c.dsc_conta }}{% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label for="edit_seq_fonte_recurso" class="block text-sm font-medium text-gray-700">Fonte de Recursos</label>
+                        <select name="seq_fonte_recurso" id="edit_seq_fonte_recurso"
+                            class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                            <option value="">— sem fonte —</option>
+                            {% for f in fontes_recurso %}
+                            <option value="{{ f.seq }}">{{ f.rotulo }}</option>
                             {% endfor %}
                         </select>
                     </div>
@@ -514,11 +554,8 @@
                 document.getElementById('edit_val_lancamento').value = button.dataset.val_lancamento;
                 document.getElementById('edit_cod_tipo_lancamento').value = button.dataset.cod_tipo_lancamento;
                 document.getElementById('edit_cod_origem_lancamento').value = button.dataset.cod_origem_lancamento;
-                if (button.dataset.seq_conta) {
-                    document.getElementById('edit_seq_conta').value = button.dataset.seq_conta;
-                } else {
-                    document.getElementById('edit_seq_conta').value = '';
-                }
+                document.getElementById('edit_seq_conta').value = button.dataset.seq_conta || '';
+                document.getElementById('edit_seq_fonte_recurso').value = button.dataset.seq_fonte_recurso || '';
 
                 editModal.classList.remove('hidden');
             });

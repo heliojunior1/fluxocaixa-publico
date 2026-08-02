@@ -266,7 +266,338 @@ class _AdapterLoa:
         return {"sucesso": n, "erros": []}
 
 
+class _AdapterFontesRecurso:
+    """Importação da tabela oficial de fontes/destinações da STN (F9.1).
+
+    Layout: identificador;fonte;detalhamento;descricao;vinculada;grupo
+    (detalhamento e grupo opcionais; vinculada = L/V). O exercício de
+    vigência é fixado pela rota antes do parse (padrão do adapter da LOA).
+    Fonte já existente na vigência vira AVISO e é ignorada na gravação —
+    a importação nunca altera existente (spec fonte-recurso R2/R3).
+    """
+
+    tipo = "fontes_recurso"
+    _exercicio = date.today().year  # a rota informa antes de parse_validar
+
+    def parse_validar(self, content: bytes, filename: str) -> Preview:
+        from ..models import FonteRecurso
+        from ..models.fonte_recurso import IDENTIFICADORES_EXERCICIO
+
+        cabecalho, linhas = _ler_csv(content)
+        idx = {i: _norm(c) for i, c in enumerate(cabecalho)}
+        colunas = ["Código", "Descrição", "Vinculação", "Status"]
+
+        existentes = {
+            (f.cod_identificador_exercicio, f.cod_fonte_stn, f.cod_detalhamento)
+            for f in FonteRecurso.query.filter_by(
+                num_exercicio_vigencia=self._exercicio, ind_status='A').all()
+        }
+
+        preview_linhas = []
+        for n, row in enumerate(linhas, start=1):
+            campos = {idx.get(i, str(i)): (row[i] if i < len(row) else "") for i in range(len(cabecalho))}
+            ident = (campos.get("identificador") or "1").strip()
+            fonte = (campos.get("fonte") or "").strip()
+            det = (campos.get("detalhamento") or "").strip() or None
+            dsc = (campos.get("descricao") or "").strip()
+            vinc = (campos.get("vinculada") or "V").strip().upper()
+            grupo = (campos.get("grupo") or "").strip() or None
+            codigo = f"{ident}.{fonte}" + (f".{det}" if det else "")
+            dados = {"ident": ident, "fonte": fonte, "det": det or "", "dsc": dsc,
+                     "vinc": vinc, "grupo": grupo or "",
+                     "_exibe": {"Código": codigo, "Descrição": dsc,
+                                "Vinculação": "livre" if vinc == "L" else "vinculada"}}
+
+            if ident not in IDENTIFICADORES_EXERCICIO:
+                preview_linhas.append(LinhaPreview(n, "erro", f"Identificador inválido '{ident}'", dados)); continue
+            if not fonte.isdigit() or len(fonte) != 3:
+                preview_linhas.append(LinhaPreview(n, "erro", f"Fonte STN inválida '{fonte}'", dados)); continue
+            if not dsc:
+                preview_linhas.append(LinhaPreview(n, "erro", "Descrição vazia", dados)); continue
+            if vinc not in ("L", "V"):
+                preview_linhas.append(LinhaPreview(n, "erro", f"Vinculação inválida '{vinc}'", dados)); continue
+            if (ident, fonte, det) in existentes:
+                preview_linhas.append(LinhaPreview(
+                    n, "aviso", "já existe nesta vigência — será ignorada (nunca altera existente)", dados))
+            else:
+                preview_linhas.append(LinhaPreview(n, "ok", None, dados))
+        return Preview(tipo=self.tipo, arquivo=filename, colunas=colunas, linhas=preview_linhas)
+
+    def gravar(self, linhas_graváveis):
+        from .fonte_recurso_service import criar_fonte
+        from .validacao import RegraNegocioError
+        from ..models.fonte_recurso import ORIGEM_STN
+
+        n = 0
+        for l in linhas_graváveis:
+            try:
+                criar_fonte(
+                    l.dados["ident"], l.dados["fonte"], l.dados["dsc"],
+                    self._exercicio, vinculada=l.dados["vinc"],
+                    detalhamento=l.dados["det"] or None,
+                    grupo_destinacao=l.dados["grupo"] or None,
+                    origem=ORIGEM_STN,
+                )
+                n += 1
+            except RegraNegocioError:
+                continue  # linha de aviso (duplicada) — ignorada, nunca altera
+        return {"sucesso": n, "erros": []}
+
+
 registrar_adapter("saldos", _AdapterSaldos())
 registrar_adapter("lancamentos", _AdapterLancamentos())
 registrar_adapter("loa", _AdapterLoa())
+registrar_adapter("fontes_recurso", _AdapterFontesRecurso())
+
+class _AdapterProgramacao:
+    """Importação do decreto de programação de desembolso (F7.3b).
+
+    Layout: mes;orgao;valor;ato — o ano é fixado pela rota (padrão da LOA).
+    Revisão da mesma chave inativa a anterior (nunca sobrescreve).
+    """
+
+    tipo = "programacao"
+    _ano = date.today().year
+
+    def parse_validar(self, content: bytes, filename: str) -> Preview:
+        from ..models import Orgao
+
+        cabecalho, linhas = _ler_csv(content)
+        idx = {i: _norm(c) for i, c in enumerate(cabecalho)}
+        colunas = ["Mês", "Órgão", "Valor", "Ato", "Status"]
+        orgaos = {o.cod_orgao for o in Orgao.query.filter_by(ind_status='A').all()}
+
+        preview_linhas = []
+        for n, row in enumerate(linhas, start=1):
+            campos = {idx.get(i, str(i)): (row[i] if i < len(row) else "") for i in range(len(cabecalho))}
+            mes_raw = (campos.get("mes") or "").strip()
+            orgao_raw = (campos.get("orgao") or "").strip()
+            valor_raw = campos.get("valor") or ""
+            ato = (campos.get("ato") or "").strip()
+            dados = {"mes": mes_raw, "orgao": orgao_raw, "valor": str(valor_raw),
+                     "ato": ato,
+                     "_exibe": {"Mês": mes_raw, "Órgão": orgao_raw,
+                                "Valor": str(valor_raw), "Ato": ato}}
+            if not mes_raw.isdigit() or not (1 <= int(mes_raw) <= 12):
+                preview_linhas.append(LinhaPreview(n, "erro", f"Mês inválido '{mes_raw}'", dados)); continue
+            if not orgao_raw.isdigit() or int(orgao_raw) not in orgaos:
+                preview_linhas.append(LinhaPreview(n, "erro", f"Órgão '{orgao_raw}' não cadastrado", dados)); continue
+            if not ato:
+                preview_linhas.append(LinhaPreview(n, "erro", "Referência do ato vazia", dados)); continue
+            try:
+                if _dec(valor_raw) <= 0:
+                    preview_linhas.append(LinhaPreview(n, "erro", "Valor deve ser positivo", dados)); continue
+            except (InvalidOperation, ValueError, AttributeError):
+                preview_linhas.append(LinhaPreview(n, "erro", f"Valor inválido '{valor_raw}'", dados)); continue
+            preview_linhas.append(LinhaPreview(n, "ok", None, dados))
+        return Preview(tipo=self.tipo, arquivo=filename, colunas=colunas, linhas=preview_linhas)
+
+    def gravar(self, linhas_graváveis):
+        from .programacao_service import registrar_cota
+
+        n = 0
+        for l in linhas_graváveis:
+            registrar_cota(self._ano, int(l.dados["mes"]), int(l.dados["orgao"]),
+                           _dec(l.dados["valor"]), l.dados["ato"])
+            n += 1
+        return {"sucesso": n, "erros": []}
+
+
+registrar_adapter("programacao", _AdapterProgramacao())
+
+
+class _AdapterDotacao:
+    """Importação da dotação inicial (F8.1).
+
+    Layout: qualificador;valor — o ano é fixado pela rota (padrão da
+    programação). Créditos adicionais NÃO entram por aqui: são eventos com
+    ato obrigatório, registrados um a um pela tela.
+    """
+
+    tipo = "dotacao"
+    _ano = date.today().year
+
+    def parse_validar(self, content: bytes, filename: str) -> Preview:
+        from ..models import Qualificador
+
+        cabecalho, linhas = _ler_csv(content)
+        idx = {i: _norm(c) for i, c in enumerate(cabecalho)}
+        colunas = ["Qualificador", "Valor", "Status"]
+        folhas = {q.num_qualificador: q for q in Qualificador.query.filter_by(ind_status='A').all()
+                  if q.is_folha() and q.tipo_fluxo == 'despesa'}
+
+        preview_linhas = []
+        for n, row in enumerate(linhas, start=1):
+            campos = {idx.get(i, str(i)): (row[i] if i < len(row) else "") for i in range(len(cabecalho))}
+            qual_raw = (campos.get("qualificador") or "").strip()
+            valor_raw = campos.get("valor") or ""
+            dados = {"qualificador": qual_raw, "valor": str(valor_raw),
+                     "_exibe": {"Qualificador": qual_raw, "Valor": str(valor_raw)}}
+            if qual_raw not in folhas:
+                preview_linhas.append(LinhaPreview(n, "erro", f"Qualificador '{qual_raw}' não é folha ativa de despesa", dados)); continue
+            try:
+                if _dec(valor_raw) < 0:
+                    preview_linhas.append(LinhaPreview(n, "erro", "Valor não pode ser negativo", dados)); continue
+            except (InvalidOperation, ValueError, AttributeError):
+                preview_linhas.append(LinhaPreview(n, "erro", f"Valor inválido '{valor_raw}'", dados)); continue
+            dados["seq_qualificador"] = folhas[qual_raw].seq_qualificador
+            preview_linhas.append(LinhaPreview(n, "ok", None, dados))
+        return Preview(tipo=self.tipo, arquivo=filename, colunas=colunas, linhas=preview_linhas)
+
+    def gravar(self, linhas_graváveis):
+        from .dotacao_service import criar_dotacao
+
+        n = 0
+        erros = []
+        for l in linhas_graváveis:
+            try:
+                criar_dotacao(self._ano, int(l.dados["seq_qualificador"]),
+                              _dec(l.dados["valor"]))
+                n += 1
+            except Exception as exc:  # dotação repetida na planilha, etc.
+                erros.append(f"linha {l.numero}: {exc}")
+        return {"sucesso": n, "erros": erros}
+
+
+registrar_adapter("dotacao", _AdapterDotacao())
+
+
+class _AdapterExecucao:
+    """Importação da execução orçamentária E/L/P (F8.2).
+
+    Layout: estagio;numero;pai;orgao;qualificador;fonte;valor;data — `pai` é
+    o número do documento do estágio anterior no MESMO ano (vazio para E);
+    `fonte` é o código STN cru (desconhecida → auto-cadastro pendente, F9.1).
+    O ano é fixado pela rota. A ORDEM das linhas importa (o pai precisa
+    existir antes do filho — E antes de L antes de P).
+    """
+
+    tipo = "execucao"
+    _ano = date.today().year
+
+    def parse_validar(self, content: bytes, filename: str) -> Preview:
+        from ..models import Orgao, Qualificador
+
+        cabecalho, linhas = _ler_csv(content)
+        idx = {i: _norm(c) for i, c in enumerate(cabecalho)}
+        colunas = ["Estágio", "Número", "Pai", "Órgão", "Qualificador",
+                   "Fonte", "Valor", "Data", "Status"]
+        orgaos = {o.cod_orgao for o in Orgao.query.filter_by(ind_status='A').all()}
+        folhas = {q.num_qualificador: q for q in Qualificador.query.filter_by(ind_status='A').all()
+                  if q.is_folha() and q.tipo_fluxo == 'despesa'}
+
+        preview_linhas = []
+        for n, row in enumerate(linhas, start=1):
+            campos = {idx.get(i, str(i)): (row[i] if i < len(row) else "") for i in range(len(cabecalho))}
+            estagio = (campos.get("estagio") or "").strip().upper()
+            numero = (campos.get("numero") or "").strip()
+            pai = (campos.get("pai") or "").strip()
+            orgao_raw = (campos.get("orgao") or "").strip()
+            qual_raw = (campos.get("qualificador") or "").strip()
+            fonte = (campos.get("fonte") or "").strip()
+            valor_raw = campos.get("valor") or ""
+            data_raw = (campos.get("data") or "").strip()
+            dados = {"estagio": estagio, "numero": numero, "pai": pai,
+                     "orgao": orgao_raw, "qualificador": qual_raw,
+                     "fonte": fonte, "valor": str(valor_raw), "data": data_raw,
+                     "_exibe": {"Estágio": estagio, "Número": numero, "Pai": pai,
+                                "Órgão": orgao_raw, "Qualificador": qual_raw,
+                                "Fonte": fonte, "Valor": str(valor_raw), "Data": data_raw}}
+            if estagio not in ('E', 'L', 'P'):
+                preview_linhas.append(LinhaPreview(n, "erro", f"Estágio inválido '{estagio}'", dados)); continue
+            if not numero:
+                preview_linhas.append(LinhaPreview(n, "erro", "Número do documento vazio", dados)); continue
+            if estagio != 'E' and not pai:
+                preview_linhas.append(LinhaPreview(n, "erro", "Documento-pai obrigatório para L/P", dados)); continue
+            if not orgao_raw.isdigit() or int(orgao_raw) not in orgaos:
+                preview_linhas.append(LinhaPreview(n, "erro", f"Órgão '{orgao_raw}' não cadastrado", dados)); continue
+            if qual_raw not in folhas:
+                preview_linhas.append(LinhaPreview(n, "erro", f"Qualificador '{qual_raw}' não é folha ativa de despesa", dados)); continue
+            try:
+                if _dec(valor_raw) <= 0:
+                    preview_linhas.append(LinhaPreview(n, "erro", "Valor deve ser positivo", dados)); continue
+            except (InvalidOperation, ValueError, AttributeError):
+                preview_linhas.append(LinhaPreview(n, "erro", f"Valor inválido '{valor_raw}'", dados)); continue
+            try:
+                date.fromisoformat(data_raw)
+            except ValueError:
+                preview_linhas.append(LinhaPreview(n, "erro", f"Data inválida '{data_raw}'", dados)); continue
+            dados["seq_qualificador"] = folhas[qual_raw].seq_qualificador
+            preview_linhas.append(LinhaPreview(n, "ok", None, dados))
+        return Preview(tipo=self.tipo, arquivo=filename, colunas=colunas, linhas=preview_linhas)
+
+    def gravar(self, linhas_graváveis):
+        from .execucao_orcamentaria_service import registrar_documento
+
+        n = 0
+        erros = []
+        for l in linhas_graváveis:
+            try:
+                registrar_documento(
+                    cod_estagio=l.dados["estagio"], num_documento=l.dados["numero"],
+                    num_ano=self._ano, cod_orgao=int(l.dados["orgao"]),
+                    seq_qualificador=int(l.dados["seq_qualificador"]),
+                    val_documento=_dec(l.dados["valor"]),
+                    dat_documento=date.fromisoformat(l.dados["data"]),
+                    codigo_fonte=l.dados["fonte"] or None,
+                    num_documento_pai=l.dados["pai"] or None)
+                n += 1
+            except Exception as exc:  # pai ausente, estouro, duplicado…
+                erros.append(f"linha {l.numero}: {exc}")
+        return {"sucesso": n, "erros": erros}
+
+
+registrar_adapter("execucao", _AdapterExecucao())
+
+
+class _AdapterDisponibilidadeContabil:
+    """Importação da disponibilidade contábil por fonte (F9.4).
+
+    Layout: fonte;valor — a data de referência é fixada pela rota. Fonte
+    desconhecida → auto-cadastro pendente (F9.1). Valor pode ser NEGATIVO
+    (a contabilidade pode reportar insuficiência). Revisão da mesma
+    (data, fonte) inativa a anterior.
+    """
+
+    tipo = "disponibilidade_contabil"
+    _data = date.today()
+
+    def parse_validar(self, content: bytes, filename: str) -> Preview:
+        cabecalho, linhas = _ler_csv(content)
+        idx = {i: _norm(c) for i, c in enumerate(cabecalho)}
+        colunas = ["Fonte", "Valor", "Status"]
+
+        preview_linhas = []
+        for n, row in enumerate(linhas, start=1):
+            campos = {idx.get(i, str(i)): (row[i] if i < len(row) else "") for i in range(len(cabecalho))}
+            fonte = (campos.get("fonte") or "").strip()
+            valor_raw = campos.get("valor") or ""
+            dados = {"fonte": fonte, "valor": str(valor_raw),
+                     "_exibe": {"Fonte": fonte, "Valor": str(valor_raw)}}
+            if not fonte:
+                preview_linhas.append(LinhaPreview(n, "erro", "Código da fonte vazio", dados)); continue
+            try:
+                _dec(valor_raw)
+            except (InvalidOperation, ValueError, AttributeError):
+                preview_linhas.append(LinhaPreview(n, "erro", f"Valor inválido '{valor_raw}'", dados)); continue
+            preview_linhas.append(LinhaPreview(n, "ok", None, dados))
+        return Preview(tipo=self.tipo, arquivo=filename, colunas=colunas, linhas=preview_linhas)
+
+    def gravar(self, linhas_graváveis):
+        from .conciliacao_fonte_service import registrar_disponibilidade
+
+        n = 0
+        erros = []
+        for l in linhas_graváveis:
+            try:
+                registrar_disponibilidade(self._data, l.dados["fonte"],
+                                          _dec(l.dados["valor"]))
+                n += 1
+            except Exception as exc:
+                erros.append(f"linha {l.numero}: {exc}")
+        return {"sucesso": n, "erros": erros}
+
+
+registrar_adapter("disponibilidade_contabil", _AdapterDisponibilidadeContabil())
+
 

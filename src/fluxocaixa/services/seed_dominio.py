@@ -38,6 +38,19 @@ CATEGORIAS_FISCAIS = [
     ("EDUCACAO", "Aplicação em Educação", BASE_DESPESA_TOTAL, SENTIDO_PISO, 25, None),
 ]
 
+# (identificador, fonte STN, descrição, vinculada, grupo de destinação) — F9.1
+# ⚠️ Valores de PARTIDA, não a tabela oficial: a carga real vem da tabela STN
+# do exercício (importação) ou do sistema de origem. `ind_vinculada` é
+# EXPLÍCITA e o seed NUNCA altera existente — o ajuste manual do usuário não
+# pode ser revertido no boot. Códigos do padrão federativo público da STN.
+FONTES_RECURSO = [
+    ("1", "500", "Recursos não vinculados de impostos", "L", None),
+    ("1", "501", "Outros recursos não vinculados", "L", None),
+    ("1", "540", "FUNDEB — impostos e transferências", "V", "Educação"),
+    ("1", "600", "SUS — transferências fundo a fundo", "V", "Saúde"),
+    ("1", "700", "Convênios e instrumentos congêneres", "V", "Convênios"),
+]
+
 # (nom_parametro, dsc_parametro, cod_tipo) — 'P' percentual, 'V' valor absoluto
 PARAMETROS_GLOBAIS = [
     # Macro
@@ -114,6 +127,45 @@ def seed_dominio(session=None):
                 cod_sentido=sentido, val_limite=limite,
                 val_limite_atencao=atencao, ind_status='A',
             ))
+
+    # Fontes de recurso (F9.1) — seed mínimo do exercício corrente, por chave
+    # composta completa; nunca altera existente (spec fonte-recurso R2).
+    from datetime import date as _date
+
+    from ..models import FonteRecurso
+    from ..models.fonte_recurso import ORIGEM_STN
+
+    exercicio = _date.today().year
+    existentes = {
+        (f.num_exercicio_vigencia, f.cod_identificador_exercicio,
+         f.cod_fonte_stn, f.cod_detalhamento)
+        for f in FonteRecurso.query.all()
+    }
+    for ident, fonte_stn, dsc, vinculada, grupo in FONTES_RECURSO:
+        if (exercicio, ident, fonte_stn, None) not in existentes:
+            session.add(FonteRecurso(
+                cod_identificador_exercicio=ident,
+                cod_fonte_stn=fonte_stn,
+                cod_detalhamento=None,
+                num_exercicio_vigencia=exercicio,
+                dsc_fonte_recurso=dsc,
+                ind_vinculada=vinculada,
+                cod_origem_classificacao=ORIGEM_STN,
+                dsc_grupo_destinacao=grupo,
+                ind_pendente_revisao='N',
+                ind_status='A',
+            ))
+
+    # Colchão mínimo do desembolso — default global 0.00 (só bloqueia curva
+    # negativa); cada instalação define o seu. Nunca altera existente.
+    from ..models import ParametroDesembolso
+    from ..models.simulacao_desembolso import PARAM_COLCHAO_MINIMO
+
+    if not ParametroDesembolso.query.filter_by(
+            cod_parametro=PARAM_COLCHAO_MINIMO, cod_grupo=None).first():
+        session.add(ParametroDesembolso(
+            cod_parametro=PARAM_COLCHAO_MINIMO, cod_grupo=None,
+            val_parametro=0, ind_status='A'))
 
     # Tipos de origem de saldo (domínio fixo). Sistemas de origem NÃO são
     # seedados — cada instalação cadastra os seus (spec saldo-por-fundo R1).

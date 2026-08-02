@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div class="flex items-center">
+        <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-700">
+            <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+        </a>
+        <div class="ml-4">
+            <h2 class="text-2xl font-bold text-gray-800">Repartição por Fonte</h2>
+            <p class="text-sm text-gray-500">Percentuais-fallback da projeção por grupo · sem repartição = <strong>não classificado</strong> (fora do veredicto da simulação)</p>
+        </div>
+    </div>
+    <form method="get" class="flex items-center gap-2 text-sm">
+        <label class="text-gray-600">Vigência</label>
+        <input type="number" name="vigencia" value="{{ vigencia }}" class="border rounded px-2 py-1 w-24">
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-4 rounded">Ir</button>
+    </form>
+</div>
+
+<div class="space-y-4">
+    {% for linha in linhas %}
+    <div class="bg-white rounded-lg shadow-md p-4 {% if not linha.reparticoes %}border-l-4 border-amber-400{% endif %}"
+        data-testid="reparticao-{{ linha.qualificador.num_qualificador }}">
+        <div class="flex items-start justify-between flex-wrap gap-3">
+            <div>
+                <p class="font-semibold text-gray-800">{{ linha.qualificador.num_qualificador }} · {{ linha.qualificador.dsc_qualificador }}</p>
+                {% if linha.reparticoes %}
+                <p class="text-sm text-gray-600 mt-1">
+                    {% for r in linha.reparticoes %}
+                    <span class="inline-flex items-center gap-1 mr-3">
+                        <span class="font-mono">{{ r.fonte.codigo_completo }}</span>
+                        <span class="font-semibold">{{ '%.2f'|format(r.pct) }}%</span>
+                        {% if r.fonte.ind_vinculada == 'L' %}
+                        <span class="bg-emerald-100 text-emerald-800 text-[10px] font-semibold px-1.5 rounded-full">livre</span>
+                        {% else %}
+                        <span class="bg-indigo-100 text-indigo-800 text-[10px] font-semibold px-1.5 rounded-full">vinculada</span>
+                        {% endif %}
+                    </span>
+                    {% endfor %}
+                </p>
+                {% else %}
+                <p class="text-sm text-amber-700 mt-1" data-testid="pendencia-{{ linha.qualificador.num_qualificador }}">
+                    <i data-lucide="alert-triangle" class="w-3.5 h-3.5 inline"></i>
+                    Sem repartição na vigência {{ vigencia }} — projeção deste qualificador vai ao grupo <strong>não classificado</strong>.
+                </p>
+                {% endif %}
+                {% if linha.sugestao %}
+                <p class="text-xs text-gray-400 mt-1">
+                    Sugestão do histórico (lançamentos por fonte):
+                    {% for s in linha.sugestao %}{% if s.fonte %}<span class="font-mono">{{ s.fonte.codigo_completo }}</span> {{ s.pct }}%{% if not loop.last %} · {% endif %}{% endif %}{% endfor %}
+                    — gravar é decisão sua.
+                </p>
+                {% endif %}
+            </div>
+            {% if tem_permissao(request, 'FC_MANT_REPARTICAO_FONTE') %}
+            <form action="/reparticao-fonte/{{ linha.qualificador.seq_qualificador }}/definir" method="POST"
+                class="flex items-end gap-2 flex-wrap text-sm" data-testid="form-reparticao-{{ linha.qualificador.num_qualificador }}">
+                <input type="hidden" name="vigencia" value="{{ vigencia }}">
+                {% for f in fontes_ativas %}
+                <div>
+                    <label class="block text-[10px] text-gray-500">{{ f.rotulo }}</label>
+                    <input type="number" step="0.0001" min="0" max="100" name="pct_{{ f.seq }}"
+                        class="border rounded px-2 py-1 w-24 text-right" placeholder="%">
+                </div>
+                {% endfor %}
+                <button type="submit" data-testid="salvar-reparticao-{{ linha.qualificador.num_qualificador }}"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-3 rounded"
+                    title="A soma deve ser exatamente 100 — substitui o conjunto por inteiro">Definir</button>
+            </form>
+            {% endif %}
+        </div>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-lg shadow-md p-6 text-center text-gray-400">Nenhum qualificador folha de receita</div>
+    {% endfor %}
+</div>
+
+<script>if (window.lucide) lucide.createIcons();</script>
+{% endblock %}

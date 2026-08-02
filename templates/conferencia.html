@@ -1,88 +1,149 @@
 {% extends 'base.html' %}
 {% block content %}
-
-<div class="space-y-6">
-    <!-- Header -->
-    <div class="flex items-center justify-between">
-        <div class="flex items-center">
-            <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-700">
-                <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
-            </a>
-            <div class="ml-4">
-                <h2 class="text-2xl font-bold text-slate-800">Conferência</h2>
-                <p class="text-slate-500 mt-1">Validação e conciliação de dados financeiros</p>
-            </div>
+<div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+    <div class="flex items-center">
+        <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-700">
+            <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+        </a>
+        <div class="ml-4">
+            <h2 class="text-2xl font-bold text-gray-800">Conferência do Desembolso</h2>
+            <p class="text-sm text-gray-500">Três visões, três saldos — <strong>liberação não movimenta caixa</strong></p>
         </div>
     </div>
-
-    <!-- Table Card -->
-    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-slate-200">
-                <thead class="bg-slate-50">
-                    <tr>
-                        <th scope="col"
-                            class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Data
-                        </th>
-                        <th scope="col"
-                            class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
-                            Saldo Anterior</th>
-                        <th scope="col"
-                            class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
-                            Liberações</th>
-                        <th scope="col"
-                            class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
-                            Conf. Liberações</th>
-                        <th scope="col"
-                            class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">S.
-                            Ant + Lib.</th>
-                        <th scope="col"
-                            class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
-                            Pagamentos</th>
-                        <th scope="col"
-                            class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
-                            Conf. Pagamentos</th>
-                        <th scope="col"
-                            class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">
-                            Saldo Final</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-slate-200">
-                    {% for r in registros %}
-                    <tr
-                        class="hover:bg-slate-50 transition-colors {% if r.val_liberacoes != r.val_conf_liberacoes or r.val_pagamentos != r.val_conf_pagamentos %}bg-red-50{% endif %}">
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-800">
-                            {{ r.dat_conferencia }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-600">
-                            {{ '%.2f'|format(r.val_saldo_anterior) }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-600">
-                            {{ '%.2f'|format(r.val_liberacoes) }}
-                        </td>
-                        <td
-                            class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium {% if r.val_liberacoes != r.val_conf_liberacoes %}text-red-600{% else %}text-emerald-600{% endif %}">
-                            {{ '%.2f'|format(r.val_conf_liberacoes) }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-600">
-                            {{ '%.2f'|format(r.val_soma_anter_liberacoes) }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right text-slate-600">
-                            {{ '%.2f'|format(r.val_pagamentos) }}
-                        </td>
-                        <td
-                            class="px-6 py-4 whitespace-nowrap text-sm text-right font-medium {% if r.val_pagamentos != r.val_conf_pagamentos %}text-red-600{% else %}text-emerald-600{% endif %}">
-                            {{ '%.2f'|format(r.val_conf_pagamentos) }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-right font-bold text-slate-800">
-                            {{ '%.2f'|format(r.val_saldo_final) }}
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </div>
+    <form method="get" class="flex items-center gap-2 text-sm">
+        <input type="date" name="inicio" value="{{ inicio.isoformat() }}" class="border rounded px-2 py-1.5">
+        <input type="date" name="fim" value="{{ fim.isoformat() }}" class="border rounded px-2 py-1.5">
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-4 rounded">Consultar</button>
+    </form>
 </div>
 
+<!-- 1 · Controle de liberações -->
+<div class="bg-white rounded-lg shadow-md overflow-x-auto mb-6" data-testid="visao-controle">
+    <div class="px-4 py-3 border-b flex items-center justify-between">
+        <h3 class="font-semibold text-gray-700 text-sm">1 · Controle de liberações</h3>
+        <span class="text-[10px] font-bold uppercase bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full">saldo de CONTROLE — não é caixa</span>
+    </div>
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-800 text-white text-xs uppercase">
+            <tr>
+                <th class="px-4 py-2 text-left">Data</th>
+                <th class="px-4 py-2 text-right">Pendente anterior</th>
+                <th class="px-4 py-2 text-right">Liberações</th>
+                <th class="px-4 py-2 text-right bg-gray-700">Apurado externo</th>
+                <th class="px-4 py-2 text-right">Apropriações</th>
+                <th class="px-4 py-2 text-right">Cancelamentos</th>
+                <th class="px-4 py-2 text-right">Pendente final</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for l in controle | reverse %}
+            <tr {% if l.liberacoes == 0 and l.apropriacoes == 0 and l.cancelamentos == 0 %}class="text-gray-400"{% endif %}
+                data-testid="controle-{{ l.dia.isoformat() }}">
+                <td class="px-4 py-2 font-medium">{{ l.dia.strftime('%d/%m/%Y') }}</td>
+                <td class="px-4 py-2 text-right">{{ l.pendente_anterior | format_currency }}</td>
+                <td class="px-4 py-2 text-right">{{ l.liberacoes | format_currency }}</td>
+                <td class="px-4 py-2 text-right {% if l.situacao_apurado == 'CONFERIDO' %}text-green-700 font-semibold{% elif l.situacao_apurado == 'DIVERGENTE' %}text-red-700 font-bold{% endif %}"
+                    data-testid="apurado-{{ l.dia.isoformat() }}">
+                    {% if l.apurado_liberacoes is not none %}{{ l.apurado_liberacoes | format_currency }}
+                    {% if l.situacao_apurado == 'CONFERIDO' %}✓{% else %}✗{% endif %}
+                    {% else %}—{% endif %}
+                </td>
+                <td class="px-4 py-2 text-right">{{ l.apropriacoes | format_currency }}</td>
+                <td class="px-4 py-2 text-right">{{ l.cancelamentos | format_currency }}</td>
+                <td class="px-4 py-2 text-right font-semibold">{{ l.pendente_final | format_currency }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="px-4 py-2 text-[11px] text-gray-400 border-t">pendente anterior + liberações − apropriações − cancelamentos = pendente final · tudo derivado, nada persistido · sem apurado informado = estado neutro</p>
+</div>
+
+<!-- 2 · Financeira -->
+<div class="bg-white rounded-lg shadow-md overflow-x-auto mb-6" data-testid="visao-financeira">
+    <div class="px-4 py-3 border-b flex items-center justify-between">
+        <h3 class="font-semibold text-gray-700 text-sm">2 · Financeira</h3>
+        <span class="text-[10px] font-bold uppercase bg-sky-100 text-sky-800 px-2 py-0.5 rounded-full">saldo BANCÁRIO</span>
+    </div>
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-800 text-white text-xs uppercase">
+            <tr>
+                <th class="px-4 py-2 text-left">Data</th>
+                <th class="px-4 py-2 text-right">Entradas</th>
+                <th class="px-4 py-2 text-right">Saídas</th>
+                <th class="px-4 py-2 text-right">Saldo bancário registrado</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for l in financeira | reverse %}
+            <tr {% if l.entradas == 0 and l.saidas == 0 %}class="text-gray-400"{% endif %}>
+                <td class="px-4 py-2 font-medium">{{ l.dia.strftime('%d/%m/%Y') }}</td>
+                <td class="px-4 py-2 text-right text-green-700">+ {{ l.entradas | format_currency }}</td>
+                <td class="px-4 py-2 text-right text-red-700">− {{ l.saidas | format_currency }}</td>
+                <td class="px-4 py-2 text-right font-semibold">{% if l.saldo_registrado is not none %}{{ l.saldo_registrado | format_currency }}{% else %}—{% endif %}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="px-4 py-2 text-[11px] text-gray-400 border-t">entradas/saídas dos lançamentos (via sinal da costura) · saldo registrado da view agregada quando houver</p>
+</div>
+
+<!-- 3 · Conciliação -->
+<div class="bg-white rounded-lg shadow-md overflow-x-auto mb-6" data-testid="visao-conciliacao">
+    <div class="px-4 py-3 border-b flex items-center justify-between">
+        <h3 class="font-semibold text-gray-700 text-sm">3 · Conciliação — pagamentos × saídas efetivas</h3>
+        <span class="text-[10px] font-bold uppercase bg-violet-100 text-violet-800 px-2 py-0.5 rounded-full">liga o controle ao banco</span>
+    </div>
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-800 text-white text-xs uppercase">
+            <tr>
+                <th class="px-4 py-2 text-left">Data</th>
+                <th class="px-4 py-2 text-right">Pagamentos registrados</th>
+                <th class="px-4 py-2 text-right">Saídas efetivas</th>
+                <th class="px-4 py-2 text-right">Transferência interna (neutra)</th>
+                <th class="px-4 py-2 text-right">A investigar (possível ordem judicial)</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for l in conciliacao | reverse %}
+            <tr {% if l.a_investigar > 0 %}class="bg-red-50"{% elif l.pagamentos == 0 and l.saidas == 0 %}class="text-gray-400"{% endif %}
+                data-testid="conciliacao-{{ l.dia.isoformat() }}">
+                <td class="px-4 py-2 font-medium">{{ l.dia.strftime('%d/%m/%Y') }}</td>
+                <td class="px-4 py-2 text-right">{{ l.pagamentos | format_currency }}</td>
+                <td class="px-4 py-2 text-right">{{ l.saidas | format_currency }}</td>
+                <td class="px-4 py-2 text-right text-blue-700">{{ l.transferencia_neutra | format_currency }}</td>
+                <td class="px-4 py-2 text-right {% if l.a_investigar > 0 %}text-red-700 font-bold{% else %}text-green-700{% endif %}">
+                    {{ l.a_investigar | format_currency }} {% if l.a_investigar == 0 %}✓{% else %}✗{% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="px-4 py-2 text-[11px] text-gray-400 border-t">diferença = saídas − pagamentos · parcela coberta por transferência interna é neutra (F7.5) · o resto é categoria própria, nunca divergência anônima · regularização da saída judicial = registrar o pagamento correspondente</p>
+</div>
+
+<!-- Apurado externo -->
+{% if tem_permissao(request, 'FC_MANT_CONFERENCIA') %}
+<div class="bg-white rounded-lg shadow-md p-4">
+    <h3 class="font-semibold text-gray-700 text-sm mb-2">Informar apurado externo do dia</h3>
+    <form action="/conferencia/apurado" method="POST" class="flex flex-wrap items-end gap-3 text-sm" data-testid="form-apurado">
+        <input type="hidden" name="fim" value="{{ fim.isoformat() }}">
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Dia</label>
+            <input type="date" name="dia" data-testid="apurado-dia" required class="border rounded px-2 py-1.5">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Liberações apuradas (R$)</label>
+            <input type="number" step="0.01" name="val_apurado_liberacoes" data-testid="apurado-liberacoes" class="border rounded px-2 py-1.5 w-40">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Pagamentos apurados (R$)</label>
+            <input type="number" step="0.01" name="val_apurado_pagamentos" class="border rounded px-2 py-1.5 w-40">
+        </div>
+        <button type="submit" data-testid="apurado-salvar"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Registrar</button>
+    </form>
+</div>
+{% endif %}
+
+<script>if (window.lucide) lucide.createIcons();</script>
 {% endblock %}

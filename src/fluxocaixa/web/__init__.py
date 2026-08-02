@@ -49,6 +49,6 @@ def _fundos_pendentes(request) -> int:
 templates.env.globals['fundos_pendentes'] = _fundos_pendentes
 
 # Import routes so they register themselves with the router
-from . import base, pagamentos, mapeamentos, processamento, termos_regra, relatorios, alertas, qualificadores, saldos_bancarios, simulador_cenarios, loa, formulas, fundos, contas_bancarias, importacao_lote, importacao, extracao  # noqa: E402,F401
+from . import base, pagamentos, liberacoes, orgaos, simulacao_desembolso, transferencias, reservas, programacao, orcamento, mapeamentos, processamento, termos_regra, relatorios, alertas, qualificadores, saldos_bancarios, simulador_cenarios, loa, formulas, fundos, fontes_recurso, reparticao_fonte, contas_bancarias, importacao_lote, importacao, extracao  # noqa: E402,F401
 
 __all__ = ['router', 'templates', 'handle_exceptions']

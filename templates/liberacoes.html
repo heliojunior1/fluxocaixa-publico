@@ -1,0 +1,222 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+    <div class="flex items-center">
+        <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-700">
+            <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+        </a>
+        <div class="ml-4">
+            <h2 class="text-2xl font-bold text-gray-800">Liberações</h2>
+            <p class="text-sm text-gray-500">Semana de {{ visao.dias[0].strftime('%d/%m/%Y') }} a {{ visao.dias[-1].strftime('%d/%m/%Y') }}</p>
+        </div>
+    </div>
+    <div class="flex items-center gap-2">
+        <a href="/liberacoes?ref={{ semana_anterior }}" data-testid="semana-anterior"
+            class="px-3 py-2 text-sm rounded-lg border bg-white text-gray-600 hover:bg-gray-50 flex items-center">
+            <i data-lucide="chevron-left" class="w-4 h-4"></i> Semana
+        </a>
+        <a href="/liberacoes?ref={{ semana_seguinte }}" data-testid="semana-seguinte"
+            class="px-3 py-2 text-sm rounded-lg border bg-white text-gray-600 hover:bg-gray-50 flex items-center">
+            Semana <i data-lucide="chevron-right" class="w-4 h-4"></i>
+        </a>
+        {% if tem_permissao(request, 'FC_MANT_LIBERACAO') %}
+        <button id="nova-liberacao-btn" data-testid="nova-liberacao"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center">
+            <i data-lucide="plus" class="w-5 h-5 mr-2"></i> Inserção manual
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- KPIs (derivados, nunca persistidos) -->
+<div class="grid md:grid-cols-3 gap-4 mb-6">
+<div class="bg-sky-50 border border-sky-300 rounded-lg p-4" data-testid="kpi-previsto">
+    <p class="text-xs font-semibold text-sky-700 uppercase">Previsto na semana (LOA)</p>
+    <p class="text-2xl font-bold text-sky-800">{{ previsto_semana | format_currency }}</p>
+    <p class="text-xs text-sky-700 mt-1">derivado da LOA (perfil histórico, fallback 1/12) — nunca persistido · <a class="underline" href="{{ url_for('execucao_desembolso') }}" data-testid="link-execucao">relatório de execução</a></p>
+</div>
+<div class="bg-rose-50 border border-rose-300 rounded-lg p-4" data-testid="kpi-devido">
+    <p class="text-xs font-semibold text-rose-700 uppercase">Liquidado não pago no ano</p>
+    <p class="text-2xl font-bold text-rose-800">{{ devido_ano | format_currency }}</p>
+    <p class="text-xs text-rose-700 mt-1">obrigação líquida e certa (execução importada) — o "curtíssimo prazo"; zero = sem execução no ano (neutro)</p>
+</div>
+<div class="bg-amber-50 border border-amber-300 rounded-lg p-4" data-testid="kpi-pendente">
+    <p class="text-xs font-semibold text-amber-700 uppercase">Saldo liberado pendente</p>
+    <p class="text-2xl font-bold text-amber-800" data-testid="kpi-pendente-valor">{{ pendente | format_currency }}</p>
+    <p class="text-xs text-amber-700 mt-1">liberado não baixado — as apropriações em pagamentos chegam com o vínculo (F7.1b); derivado na leitura, nunca persistido</p>
+</div>
+</div>
+
+<!-- Grade semanal -->
+<div class="bg-white rounded-lg shadow-md overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-50 text-left text-gray-600">
+            <tr>
+                <th class="px-4 py-3 font-semibold w-72">Descrição</th>
+                {% for d in visao.dias %}
+                <th class="px-4 py-3 font-semibold text-right">{{ ['Seg','Ter','Qua','Qui','Sex'][loop.index0] }} {{ d.strftime('%d/%m') }}</th>
+                {% endfor %}
+                <th class="px-4 py-3 font-semibold text-right bg-gray-100">Semana</th>
+                <th class="px-4 py-3 font-semibold text-center">Ações</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for chave, titulo in [('nao_gerenciavel', 'Não gerenciáveis (obrigatórias)'), ('discricionaria', 'Discricionárias')] %}
+            {% if visao.grupos.get(chave) %}
+            <tr class="bg-gray-100 font-semibold text-gray-700">
+                <td class="px-4 py-2" colspan="8">▾ {{ titulo }}</td>
+            </tr>
+            {% for cod_orgao, libs in visao.grupos[chave].items() %}
+            {% for l in libs %}
+            <tr data-testid="liberacao-{{ l.seq_liberacao }}" {% if l.cod_situacao == 'R' %}class="bg-yellow-50/60"{% endif %}>
+                <td class="px-4 py-2 pl-8 text-gray-700">
+                    {{ '%06d'|format(cod_orgao) }} · {{ nomes_orgaos.get(cod_orgao, '?') }}
+                    <span class="ml-1 font-mono text-xs text-gray-500" title="Fonte de recursos">{{ l.fonte_recurso.codigo_completo }}</span>
+                    {% if l.cod_situacao == 'R' %}
+                    <span class="ml-1 bg-yellow-100 text-yellow-800 text-xs font-semibold px-2 py-0.5 rounded-full" data-testid="badge-rascunho-{{ l.seq_liberacao }}">rascunho</span>
+                    {% elif l.cod_situacao == 'C' %}
+                    <span class="ml-1 bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-full" data-testid="badge-confirmada-{{ l.seq_liberacao }}">confirmada</span>
+                    {% endif %}
+                    {% if l.nao_gerenciavel %}
+                    <span class="ml-1 bg-purple-100 text-purple-800 text-xs font-semibold px-2 py-0.5 rounded-full" title="{{ l.dsc_base_legal or 'obrigatória' }}">não gerenciável</span>
+                    {% endif %}
+                </td>
+                {% for d in visao.dias %}
+                <td class="px-4 py-2 text-right">
+                    {% if l.dat_liberacao == d %}{{ l.val_liberacao | format_currency }}{% else %}—{% endif %}
+                </td>
+                {% endfor %}
+                <td class="px-4 py-2 text-right bg-gray-50 font-medium">{{ l.val_liberacao | format_currency }}</td>
+                <td class="px-4 py-2 text-center whitespace-nowrap">
+                    {% if l.cod_situacao == 'R' and tem_permissao(request, 'FC_CONF_LIBERACAO') %}
+                    <form action="/liberacoes/{{ l.seq_liberacao }}/confirmar" method="POST" class="inline-block">
+                        <button type="submit" data-testid="confirmar-{{ l.seq_liberacao }}"
+                            class="text-green-600 hover:text-green-800 p-1" title="Confirmar (valida o teto da LOA)">
+                            <i data-lucide="check-circle" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    <form action="/liberacoes/{{ l.seq_liberacao }}/confirmar" method="POST" class="inline-block"
+                        onsubmit="return confirm('Confirmar MESMO excedendo o teto da LOA? O excedente fica registrado no evento.');">
+                        <input type="hidden" name="confirmado" value="true">
+                        <button type="submit" data-testid="confirmar-excedendo-{{ l.seq_liberacao }}"
+                            class="text-amber-500 hover:text-amber-700 p-1" title="Confirmar excedendo o teto da LOA (registra o excedente)">
+                            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                    {% if tem_permissao(request, 'FC_MANT_LIBERACAO') %}
+                    <form action="/liberacoes/{{ l.seq_liberacao }}/cancelar" method="POST" class="inline-block"
+                        onsubmit="return confirm('Cancelar esta liberação?');">
+                        <input type="hidden" name="confirmado" value="true">
+                        <input type="hidden" name="justificativa" value="Cancelada pela tela">
+                        <button type="submit" data-testid="cancelar-{{ l.seq_liberacao }}"
+                            class="text-red-600 hover:text-red-800 p-1" title="Cancelar">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            {% endfor %}
+            {% endif %}
+            {% endfor %}
+            {% if not visao.grupos %}
+            <tr><td colspan="8" class="px-4 py-6 text-center text-gray-400">Nenhuma liberação nesta semana</td></tr>
+            {% endif %}
+        </tbody>
+        <tfoot class="bg-gray-800 text-white font-semibold">
+            <tr>
+                <td class="px-4 py-2">Total</td>
+                {% for d in visao.dias %}
+                <td class="px-4 py-2 text-right" data-testid="total-dia-{{ d.isoformat() }}">{{ visao.totais_dia[d] | format_currency }}</td>
+                {% endfor %}
+                <td class="px-4 py-2 text-right" data-testid="total-semana">{{ visao.total_semana | format_currency }}</td>
+                <td></td>
+            </tr>
+        </tfoot>
+    </table>
+</div>
+
+<!-- Modal inserção manual -->
+<div id="liberacao-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50 overflow-y-auto">
+    <div class="relative top-16 mx-auto p-6 border w-full max-w-xl shadow-lg rounded-md bg-white">
+        <h3 class="text-lg font-bold text-gray-800 mb-1">Inserção manual — Liberação</h3>
+        <p class="text-xs text-gray-400 mb-4">Salva como <strong>rascunho</strong> — a confirmação é ato distinto (e, com a F7.2, passa pela simulação).</p>
+        <form action="/liberacoes/adicionar" method="POST" data-testid="liberacao-form">
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Data da liberação</label>
+                    <input type="date" name="dat_liberacao" data-testid="liberacao-data" required
+                        value="{{ referencia.isoformat() }}" class="w-full border rounded px-3 py-2">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Valor (R$)</label>
+                    <input type="number" step="0.01" name="val_liberacao" data-testid="liberacao-valor"
+                        required class="w-full border rounded px-3 py-2" placeholder="0.00">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Órgão</label>
+                    <select name="cod_orgao" data-testid="liberacao-orgao" required class="w-full border rounded px-3 py-2">
+                        {% for o in orgaos %}
+                        <option value="{{ o.cod_orgao }}">{{ '%06d'|format(o.cod_orgao) }} · {{ o.nom_orgao }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Qualificador (folha de despesa)</label>
+                    <select name="seq_qualificador" data-testid="liberacao-qualificador" required class="w-full border rounded px-3 py-2">
+                        {% for q in qualificadores_despesa %}
+                        <option value="{{ q.seq_qualificador }}">{{ q.num_qualificador }} · {{ q.dsc_qualificador }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Fonte de recursos</label>
+                    <select name="seq_fonte_recurso" data-testid="liberacao-fonte" required class="w-full border rounded px-3 py-2">
+                        <option value="">— selecionar fonte (obrigatória, sem default) —</option>
+                        {% for f in fontes %}
+                        <option value="{{ f.seq }}">{{ f.rotulo }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Natureza da obrigação</label>
+                    <select name="cod_natureza_obrigacao" data-testid="liberacao-natureza" class="w-full border rounded px-3 py-2">
+                        <option value="D">Discricionária</option>
+                        <option value="O">Obrigação constitucional/legal</option>
+                        <option value="J">Decisão judicial</option>
+                        <option value="F">Folha</option>
+                        <option value="V">Serviço da dívida</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Base legal</label>
+                    <input type="text" name="dsc_base_legal" maxlength="200"
+                        class="w-full border rounded px-3 py-2" placeholder="Recomendada se não discricionária">
+                </div>
+                <div class="col-span-2">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">Descrição</label>
+                    <input type="text" name="dsc_liberacao" maxlength="255" class="w-full border rounded px-3 py-2" placeholder="Opcional">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2 mt-6">
+                <button type="button" onclick="document.getElementById('liberacao-modal').classList.add('hidden')"
+                    class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</button>
+                <button type="submit" data-testid="liberacao-salvar"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Salvar rascunho</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const novaLibBtn = document.getElementById('nova-liberacao-btn');
+    if (novaLibBtn) {
+        novaLibBtn.addEventListener('click', () => {
+            document.getElementById('liberacao-modal').classList.remove('hidden');
+        });
+    }
+    if (window.lucide) lucide.createIcons();
+</script>
+{% endblock %}

@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-6 flex-wrap gap-3">
+    <div class="flex items-center">
+        <a href="{{ url_for('liberacoes') }}" class="text-gray-500 hover:text-gray-700">
+            <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+        </a>
+        <div class="ml-4">
+            <h2 class="text-2xl font-bold text-gray-800">Programação de Desembolso — {{ ano }}</h2>
+            <p class="text-sm text-gray-500">Cotas do decreto (LRF art. 8º) · revisão inativa a anterior, nunca sobrescreve · a cota é previsto, não trava</p>
+        </div>
+    </div>
+    <form method="get" class="flex items-center gap-2 text-sm">
+        <input type="number" name="ano" value="{{ ano }}" class="border rounded px-2 py-1.5 w-24">
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-1.5 px-4 rounded">Ir</button>
+    </form>
+</div>
+
+{% if tem_permissao(request, 'FC_MANT_PROGRAMACAO') %}
+<div class="bg-white rounded-lg shadow-md p-4 mb-6">
+    <h3 class="font-semibold text-gray-700 text-sm mb-3">Registrar cota</h3>
+    <form action="/desembolso/programacao/cota" method="POST" class="flex flex-wrap items-end gap-3 text-sm" data-testid="form-cota">
+        <input type="hidden" name="num_ano" value="{{ ano }}">
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Mês</label>
+            <input type="number" name="num_mes" min="1" max="12" data-testid="cota-mes" required class="border rounded px-2 py-1.5 w-20">
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Órgão</label>
+            <select name="cod_orgao" data-testid="cota-orgao" required class="border rounded px-2 py-1.5">
+                {% for o in orgaos %}
+                <option value="{{ o.cod_orgao }}">{{ '%06d'|format(o.cod_orgao) }} · {{ o.nom_orgao }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Valor da cota (R$)</label>
+            <input type="number" step="0.01" min="0" name="val_cota" data-testid="cota-valor" required class="border rounded px-2 py-1.5 w-36">
+        </div>
+        <div class="flex-1 min-w-[200px]">
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Ato (decreto/portaria)</label>
+            <input type="text" name="dsc_referencia_ato" data-testid="cota-ato" required maxlength="120" class="w-full border rounded px-2 py-1.5">
+        </div>
+        <button type="submit" data-testid="cota-salvar"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg">Registrar</button>
+    </form>
+    {% if tem_permissao(request, 'FC_IMP_PROGRAMACAO') %}
+    <form action="/desembolso/programacao/importar" method="POST" enctype="multipart/form-data"
+        class="flex items-end gap-3 text-sm mt-4 pt-4 border-t">
+        <input type="hidden" name="ano_import" value="{{ ano }}">
+        <div>
+            <label class="block text-xs font-semibold text-gray-600 mb-1">Importar decreto (CSV: mes;orgao;valor;ato)</label>
+            <input type="file" name="arquivo" accept=".csv,.xlsx" required class="border rounded px-2 py-1.5">
+        </div>
+        <button type="submit" class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg border">Enviar</button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="bg-white rounded-lg shadow-md overflow-x-auto">
+    <table class="min-w-full text-xs">
+        <thead class="bg-gray-50 text-left text-gray-600">
+            <tr>
+                <th class="px-3 py-2 font-semibold">Órgão</th>
+                <th class="px-3 py-2 font-semibold">Série</th>
+                {% for m in range(1, 13) %}
+                <th class="px-3 py-2 font-semibold text-right">{{ '%02d'|format(m) }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for linha in linhas %}
+            {% for serie, rotulo, cor in [('cota', 'Cota', 'text-sky-700'), ('liberado', 'Liberado', 'text-blue-700'), ('pago', 'Pago', 'text-green-700')] %}
+            <tr {% if serie == 'cota' %}class="border-t-2 border-gray-200"{% endif %}
+                data-testid="prog-{{ linha.cod_orgao }}-{{ serie }}">
+                {% if serie == 'cota' %}
+                <td class="px-3 py-1.5 font-medium text-gray-800" rowspan="3">{{ '%06d'|format(linha.cod_orgao) }} · {{ nomes_orgaos.get(linha.cod_orgao, '?') }}</td>
+                {% endif %}
+                <td class="px-3 py-1.5 {{ cor }} font-semibold">{{ rotulo }}</td>
+                {% for m in range(1, 13) %}
+                <td class="px-3 py-1.5 text-right {{ cor }}">{{ linha[serie][m] | format_currency }}</td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+            {% else %}
+            <tr><td colspan="14" class="px-4 py-6 text-center text-gray-400">Nenhuma cota ou liberação no ano</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="px-4 py-2 text-[11px] text-gray-400 border-t">mês com cota ativa: o previsto do desembolso usa a Σ das cotas (precedência sobre a derivação da LOA) · liberado/pago vêm das liberações confirmadas e suas apropriações</p>
+</div>
+
+<script>if (window.lucide) lucide.createIcons();</script>
+{% endblock %}

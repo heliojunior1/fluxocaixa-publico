@@ -512,4 +512,35 @@ if _cat_edu is not None and not Qualificador.query.filter_by(
         ))
     db.session.commit()
 
+# ---------------------------------------------------------------------------
+# F9.1 (fontes_recurso.spec.ts): fundo SEM fonte para o teste de classificação.
+# As fontes vêm do seed_dominio (1.500 livre etc.). Dados fictícios.
+# ---------------------------------------------------------------------------
+if not Fundo.query.filter_by(cod_fundo='9931').first():
+    criar_fundo('9931', 'Fundo Sem Fonte E2E')
+
+# ---------------------------------------------------------------------------
+# F7.1a (liberacoes.spec.ts): órgão ativo para o modal de liberação e um
+# qualificador folha de DESPESA (raiz '2'). Dados fictícios.
+# ---------------------------------------------------------------------------
+from fluxocaixa.models import Orgao  # noqa: E402
+
+if Orgao.query.get(70001) is None:
+    db.session.add(Orgao(cod_orgao=70001, nom_orgao='Secretaria E2E Educação',
+                         ind_status='A'))
+    db.session.commit()
+
+if not Qualificador.query.filter_by(num_qualificador='2.8.9').first():
+    _raiz_desp = Qualificador.query.filter_by(num_qualificador='2').first()
+    if _raiz_desp is None:
+        _raiz_desp = Qualificador(num_qualificador='2', dsc_qualificador='Despesas E2E',
+                                  ind_status='A')
+        db.session.add(_raiz_desp)
+        db.session.commit()
+    db.session.add(Qualificador(num_qualificador='2.8.9',
+                                dsc_qualificador='Custeio E2E Liberável',
+                                cod_qualificador_pai=_raiz_desp.seq_qualificador,
+                                ind_status='A'))
+    db.session.commit()
+
 print("usuarios e2e prontos")

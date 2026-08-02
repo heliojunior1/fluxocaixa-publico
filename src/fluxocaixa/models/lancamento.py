@@ -43,11 +43,18 @@ class Lancamento(Base):
 
     # Conta bancária vinculada (opcional)
     seq_conta = Column(Integer, ForeignKey('flc_conta_bancaria.seq_conta'), nullable=True)
+    # Fonte de recursos (F9.2) — dimensão OPCIONAL: automático estampa do
+    # json_atributos da staging; manual escolhe sem default; legado fica nulo
+    # (não se inventa fonte retroativamente).
+    seq_fonte_recurso = Column(
+        Integer, ForeignKey('flc_fonte_recurso.seq_fonte_recurso'), nullable=True
+    )
 
     tipo = relationship('TipoLancamento')
     origem = relationship('OrigemLancamento')
     qualificador = relationship('Qualificador')
     conta = relationship('ContaBancaria')
+    fonte_recurso = relationship('FonteRecurso')
 
     # -----------------------------------------------------------------------
     # A COSTURA (F6.1a, spec cadastros-nucleo R6)

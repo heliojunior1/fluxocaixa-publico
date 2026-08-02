@@ -1,0 +1,265 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <div class="flex items-center">
+        <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-700">
+            <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+        </a>
+        <h2 class="text-2xl font-bold text-gray-800 ml-4">Fontes de Recurso</h2>
+    </div>
+    <div class="flex items-center gap-2">
+        {% if tem_permissao(request, 'FC_IMP_FONTE_RECURSO') %}
+        <button id="importar-fonte-btn" data-testid="importar-fontes"
+            class="bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold py-2 px-4 rounded-lg flex items-center border">
+            <i data-lucide="file-up" class="w-5 h-5 mr-2"></i>
+            <span>Importar tabela STN</span>
+        </button>
+        {% endif %}
+        {% if tem_permissao(request, 'FC_MANT_FONTE_RECURSO') %}
+        <button id="nova-fonte-btn" data-testid="nova-fonte"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center">
+            <i data-lucide="plus" class="w-5 h-5 mr-2"></i>
+            <span>Nova Fonte</span>
+        </button>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Disponibilidade OPERACIONAL por grupo (saldo bruto derivado — nada persistido) -->
+<div class="bg-white p-4 rounded-lg shadow-md mb-6" data-testid="disponibilidade-operacional">
+    <p class="text-xs font-semibold text-gray-500 uppercase mb-3">
+        Disponibilidade operacional — saldo bruto por grupo
+        <span class="ml-2 normal-case font-normal text-gray-400">(não é a disponibilidade fiscal do RGF)</span>
+    </p>
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+        <div>
+            <p class="text-xs text-gray-500">Bancário total</p>
+            <p class="text-lg font-bold text-gray-800" data-testid="grupo-total">{{ grupos.total | format_currency }}</p>
+        </div>
+        <div>
+            <p class="text-xs text-emerald-700">Livre (fontes 'L')</p>
+            <p class="text-lg font-bold text-emerald-700" data-testid="grupo-livre">{{ grupos.L | format_currency }}</p>
+        </div>
+        <div>
+            <p class="text-xs text-indigo-700">Vinculado por fonte</p>
+            <p class="text-lg font-bold text-indigo-700" data-testid="grupo-vinculado">{{ grupos.V | format_currency }}</p>
+        </div>
+        <div>
+            <p class="text-xs text-amber-700">Pendente de classificação</p>
+            <p class="text-lg font-bold text-amber-700" data-testid="grupo-pendente">{{ grupos.P | format_currency }}</p>
+            <p class="text-[11px] text-amber-600">fundo sem fonte — fora do livre (<a class="underline" href="{{ url_for('fundos') }}">classificar</a>)</p>
+        </div>
+    </div>
+</div>
+
+<!-- Filtros -->
+<form method="get" action="{{ url_for('fontes_recurso') }}" class="bg-white p-4 rounded-lg shadow-md mb-6 flex flex-wrap items-end gap-4">
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Vigência (exercício)</label>
+        <select name="exercicio" class="border rounded px-2 py-1">
+            <option value="">Todas</option>
+            {% for e in exercicios %}
+            <option value="{{ e }}" {% if filtros.exercicio == e|string %}selected{% endif %}>{{ e }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <label class="flex items-center gap-2 text-sm text-gray-700">
+        <input type="checkbox" name="pendente" value="true" data-testid="filtro-fontes-pendentes"
+            {% if filtros.pendente %}checked{% endif %}>
+        Pendentes de revisão
+    </label>
+    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Filtrar</button>
+</form>
+
+<!-- Tabela -->
+<div class="bg-white rounded-lg shadow-md overflow-x-auto">
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-50 text-left text-gray-600">
+            <tr>
+                <th class="px-4 py-3 font-semibold">Código</th>
+                <th class="px-4 py-3 font-semibold">Descrição</th>
+                <th class="px-4 py-3 font-semibold">Vinculação</th>
+                <th class="px-4 py-3 font-semibold">Grupo de destinação</th>
+                <th class="px-4 py-3 font-semibold">Origem</th>
+                <th class="px-4 py-3 font-semibold">Vigência</th>
+                <th class="px-4 py-3 font-semibold">Status</th>
+                <th class="px-4 py-3 font-semibold text-right">Ações</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for f in fontes %}
+            <tr {% if f.pendente %}class="bg-amber-50/60"{% endif %} data-testid="fonte-{{ f.codigo }}">
+                <td class="px-4 py-3 font-mono font-medium text-gray-800">{{ f.codigo }}</td>
+                <td class="px-4 py-3 text-gray-700">
+                    {{ f.dsc }}
+                    {% if f.pendente %}
+                    <span class="ml-2 bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 rounded-full"
+                        data-testid="badge-fonte-pendente-{{ f.codigo }}">Auto-cadastro · pendente</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3">
+                    {% if f.vinculada %}
+                    <span class="bg-indigo-100 text-indigo-800 text-xs font-semibold px-2 py-0.5 rounded-full">vinculada</span>
+                    {% else %}
+                    <span class="bg-emerald-100 text-emerald-800 text-xs font-semibold px-2 py-0.5 rounded-full">livre</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3 text-gray-600">{{ f.grupo_destinacao or '—' }}</td>
+                <td class="px-4 py-3 text-gray-500 text-xs">{{ f.origem }}</td>
+                <td class="px-4 py-3 text-gray-600">{{ f.vigencia }}</td>
+                <td class="px-4 py-3">
+                    <span class="{% if f.ativo %}text-green-700{% else %}text-gray-400{% endif %}">
+                        {{ 'Ativa' if f.ativo else 'Inativa' }}
+                    </span>
+                </td>
+                <td class="px-4 py-3 text-right whitespace-nowrap">
+                    {% if f.pendente and tem_permissao(request, 'FC_MANT_FONTE_RECURSO') %}
+                    <form action="/fontes-recurso/{{ f.seq }}/aprovar" method="POST" class="inline-block">
+                        <button type="submit" data-testid="aprovar-fonte-{{ f.codigo }}"
+                            class="text-green-600 hover:text-green-800 p-1" title="Aprovar (revisão concluída)">
+                            <i data-lucide="check-circle" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                    {% if f.ativo and tem_permissao(request, 'FC_MANT_FONTE_RECURSO') %}
+                    <button type="button" data-testid="editar-fonte-{{ f.codigo }}"
+                        onclick="abrirEdicaoFonte({{ f.seq }}, '{{ f.dsc|e }}', '{{ 'V' if f.vinculada else 'L' }}', '{{ f.grupo_destinacao|e }}')"
+                        class="text-blue-600 hover:text-blue-800 p-1" title="Editar">
+                        <i data-lucide="edit-2" class="w-4 h-4"></i>
+                    </button>
+                    <form action="/fontes-recurso/{{ f.seq }}/inativar" method="POST" class="inline-block"
+                        onsubmit="return confirm('Inativar esta fonte?');">
+                        <button type="submit" data-testid="inativar-fonte-{{ f.codigo }}"
+                            class="text-red-600 hover:text-red-800 p-1" title="Inativar">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="8" class="px-4 py-6 text-center text-gray-400">Nenhuma fonte cadastrada</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<!-- Modal cadastro/edição -->
+<div id="fonte-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50">
+    <div class="relative top-24 mx-auto p-6 border w-[28rem] shadow-lg rounded-md bg-white">
+        <h3 class="text-lg font-bold text-gray-800 mb-4" id="fonte-modal-titulo">Nova Fonte</h3>
+        <form id="fonte-form" method="POST" data-testid="fonte-form">
+            <div id="fonte-campos-codigo" class="grid grid-cols-4 gap-3 mb-4">
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Exercício (1/2/9)</label>
+                    <select name="identificador" id="fonte-ident" class="w-full border rounded px-2 py-2">
+                        <option value="1">1 — corrente</option>
+                        <option value="2">2 — anteriores</option>
+                        <option value="9">9 — condicionados</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Fonte STN</label>
+                    <input type="text" name="fonte_stn" id="fonte-stn" data-testid="fonte-stn"
+                        class="w-full border rounded px-3 py-2" maxlength="3" placeholder="500">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Detalham.</label>
+                    <input type="text" name="detalhamento" id="fonte-det"
+                        class="w-full border rounded px-3 py-2" maxlength="10" placeholder="—">
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-gray-700 mb-1">Vigência</label>
+                    <input type="number" name="exercicio" id="fonte-vig" data-testid="fonte-vigencia"
+                        class="w-full border rounded px-3 py-2" value="{{ exercicio_corrente }}">
+                </div>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Descrição</label>
+                <input type="text" name="dsc" id="fonte-dsc" data-testid="fonte-dsc"
+                    class="w-full border rounded px-3 py-2" maxlength="200" required>
+            </div>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Vinculação</label>
+                    <select name="vinculada" id="fonte-vinc" data-testid="fonte-vinculada" class="w-full border rounded px-3 py-2">
+                        <option value="V">Vinculada</option>
+                        <option value="L">Livre</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-700 mb-1">Grupo de destinação</label>
+                    <input type="text" name="grupo_destinacao" id="fonte-grupo"
+                        class="w-full border rounded px-3 py-2" maxlength="60" placeholder="Saúde, Educação…">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="fecharModalFonte('fonte-modal')"
+                    class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</button>
+                <button type="submit" data-testid="fonte-salvar"
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Salvar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal importação da tabela STN -->
+<div id="importar-modal" class="fixed inset-0 bg-gray-600 bg-opacity-50 h-full w-full hidden z-50">
+    <div class="relative top-24 mx-auto p-6 border w-96 shadow-lg rounded-md bg-white">
+        <h3 class="text-lg font-bold text-gray-800 mb-2">Importar tabela STN</h3>
+        <p class="text-xs text-gray-500 mb-4">CSV: identificador;fonte;detalhamento;descricao;vinculada;grupo — fonte existente na vigência é ignorada (nunca altera).</p>
+        <form action="/fontes-recurso/importar" method="POST" enctype="multipart/form-data" data-testid="importar-form">
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Vigência (exercício)</label>
+                <input type="number" name="exercicio_import" class="w-full border rounded px-3 py-2"
+                    value="{{ exercicio_corrente }}" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Arquivo</label>
+                <input type="file" name="arquivo" accept=".csv,.xlsx" class="w-full border rounded px-3 py-2" required>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button type="button" onclick="fecharModalFonte('importar-modal')"
+                    class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">Cancelar</button>
+                <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Enviar</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function fecharModalFonte(id) { document.getElementById(id).classList.add('hidden'); }
+
+    const novaFonteBtn = document.getElementById('nova-fonte-btn');
+    if (novaFonteBtn) {
+        novaFonteBtn.addEventListener('click', () => {
+            document.getElementById('fonte-modal-titulo').textContent = 'Nova Fonte';
+            document.getElementById('fonte-form').action = '/fontes-recurso/adicionar';
+            document.getElementById('fonte-campos-codigo').style.display = '';
+            document.getElementById('fonte-dsc').value = '';
+            document.getElementById('fonte-grupo').value = '';
+            document.getElementById('fonte-modal').classList.remove('hidden');
+        });
+    }
+
+    const importarBtn = document.getElementById('importar-fonte-btn');
+    if (importarBtn) {
+        importarBtn.addEventListener('click', () => {
+            document.getElementById('importar-modal').classList.remove('hidden');
+        });
+    }
+
+    function abrirEdicaoFonte(seq, dsc, vinc, grupo) {
+        document.getElementById('fonte-modal-titulo').textContent = 'Editar Fonte';
+        document.getElementById('fonte-form').action = '/fontes-recurso/' + seq + '/editar';
+        // código e vigência são imutáveis — esconde os campos na edição
+        document.getElementById('fonte-campos-codigo').style.display = 'none';
+        document.getElementById('fonte-dsc').value = dsc;
+        document.getElementById('fonte-vinc').value = vinc;
+        document.getElementById('fonte-grupo').value = grupo;
+        document.getElementById('fonte-modal').classList.remove('hidden');
+    }
+
+    if (window.lucide) lucide.createIcons();
+</script>
+{% endblock %}

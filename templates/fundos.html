@@ -50,6 +50,7 @@
                 <th class="px-4 py-3 font-semibold">Código</th>
                 <th class="px-4 py-3 font-semibold">Descrição</th>
                 <th class="px-4 py-3 font-semibold">Origem</th>
+                <th class="px-4 py-3 font-semibold">Fonte de recursos</th>
                 <th class="px-4 py-3 font-semibold">Status</th>
                 <th class="px-4 py-3 font-semibold text-right">Ações</th>
             </tr>
@@ -66,6 +67,33 @@
                     {% endif %}
                 </td>
                 <td class="px-4 py-3 text-gray-600">{{ f.origem }}</td>
+                <td class="px-4 py-3">
+                    {% if tem_permissao(request, 'FC_MANT_FONTE_RECURSO') and f.ativo %}
+                    <form action="/fundos/{{ f.seq_fundo }}/classificar-fonte" method="POST"
+                        class="flex items-center gap-1" data-testid="classificar-fonte-{{ f.cod_fundo }}">
+                        <select name="seq_fonte_recurso"
+                            class="border rounded px-2 py-1 text-xs {% if not f.seq_fonte_recurso %}border-amber-400 bg-amber-50{% endif %}">
+                            <option value="">— sem fonte (pendente) —</option>
+                            {% for fonte in fontes_ativas %}
+                            <option value="{{ fonte.seq }}"
+                                {% if f.seq_fonte_recurso == fonte.seq %}selected{% endif %}>{{ fonte.rotulo }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="text-blue-600 hover:text-blue-800 p-1" title="Salvar fonte">
+                            <i data-lucide="save" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    {% elif f.fonte %}
+                    <span class="font-mono text-gray-700">{{ f.fonte }}</span>
+                    {% else %}
+                    <span class="bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 rounded-full"
+                        data-testid="badge-sem-fonte-{{ f.cod_fundo }}"
+                        title="Fundo sem fonte fica fora do disponível livre (conservador)">sem fonte — fora do livre</span>
+                    {% endif %}
+                    {% if tem_permissao(request, 'FC_MANT_FONTE_RECURSO') and f.ativo and not f.seq_fonte_recurso %}
+                    <p class="text-[10px] text-amber-600 mt-0.5" data-testid="aviso-sem-fonte-{{ f.cod_fundo }}">pendente de classificação — fora do livre</p>
+                    {% endif %}
+                </td>
                 <td class="px-4 py-3">
                     <span class="{% if f.ativo %}text-green-700{% else %}text-gray-400{% endif %}">
                         {{ 'Ativo' if f.ativo else 'Inativo' }}
@@ -98,7 +126,7 @@
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="5" class="px-4 py-6 text-center text-gray-400">Nenhum fundo cadastrado</td></tr>
+            <tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">Nenhum fundo cadastrado</td></tr>
             {% endfor %}
         </tbody>
     </table>

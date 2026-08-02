@@ -102,6 +102,15 @@ def _gravar_lancamento(linha, item, mapeamento, cod_tipo, cod_origem, pessoa):
         # aplicada IGUALMENTE a receita e despesa — na referência a inversão é
         # silenciosamente ignorada na despesa (o insert de despesa nem tem o token)
         valor = -valor
+
+    # Fonte de recursos (R17): dimensão OPCIONAL estampada do json_atributos —
+    # ausente/não parseável = sem fonte, nunca erro de linha. Import tardio
+    # (fonte_recurso_service importa validacao, sem ciclo com este módulo).
+    from .fonte_recurso_service import resolver_fonte_de_atributos
+
+    seq_fonte = resolver_fonte_de_atributos(
+        linha.json_atributos, linha.num_ano_exercicio or linha.dat_referencia.year)
+
     db.session.add(Lancamento(
         dat_lancamento=linha.dat_referencia,
         seq_qualificador=item.seq_qualificador,
@@ -109,6 +118,7 @@ def _gravar_lancamento(linha, item, mapeamento, cod_tipo, cod_origem, pessoa):
         cod_tipo_lancamento=TIPO_CREDITO if valor >= 0 else TIPO_DEBITO,
         cod_origem_lancamento=cod_origem,
         seq_etl_staging=linha.seq_etl_staging,   # a âncora (R12)
+        seq_fonte_recurso=seq_fonte,
         cod_pessoa_inclusao=pessoa,
         ind_status='A',
     ))

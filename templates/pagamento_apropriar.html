@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="flex items-center mb-6">
+    <a href="{{ url_for('pagamentos') }}" class="text-gray-500 hover:text-gray-700">
+        <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
+    </a>
+    <div class="ml-4">
+        <h2 class="text-2xl font-bold text-gray-800">Apropriação de liberações</h2>
+        <p class="text-sm text-gray-500">
+            Pagamento de {{ pagamento.dat_pagamento.strftime('%d/%m/%Y') }} ·
+            {{ pagamento.orgao.nom_orgao }} · R$ {{ '%.2f'|format(pagamento.val_pagamento) }}
+            {% if pagamento.fonte_recurso %}· fonte <span class="font-mono">{{ pagamento.fonte_recurso.codigo_completo }}</span> (herdada){% endif %}
+        </p>
+    </div>
+</div>
+
+<div class="grid md:grid-cols-3 gap-4 mb-6 text-sm">
+    <div class="bg-white rounded-lg shadow-md p-4">
+        <p class="text-xs text-gray-500 uppercase font-semibold">Valor do pagamento</p>
+        <p class="text-lg font-bold text-gray-800">R$ {{ '%.2f'|format(pagamento.val_pagamento) }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-4">
+        <p class="text-xs text-gray-500 uppercase font-semibold">Apropriado</p>
+        <p class="text-lg font-bold text-green-700" data-testid="total-apropriado">R$ {{ '%.2f'|format(consumo) }}</p>
+    </div>
+    <div class="bg-white rounded-lg shadow-md p-4">
+        <p class="text-xs text-gray-500 uppercase font-semibold">Disponível para apropriar</p>
+        <p class="text-lg font-bold text-gray-800">R$ {{ '%.2f'|format(pagamento.val_pagamento - consumo) }}</p>
+    </div>
+</div>
+
+<!-- Candidatas -->
+<div class="bg-white rounded-lg shadow-md overflow-hidden mb-6">
+    <div class="px-4 py-3 border-b flex items-center justify-between">
+        <h3 class="font-semibold text-gray-700 text-sm">Liberações candidatas
+            <span class="font-normal text-gray-400">(confirmadas, mesmo órgão/qualificador{% if pagamento.fonte_recurso %}/fonte{% endif %}, com saldo — mais antiga primeiro)</span></h3>
+    </div>
+    {% if candidatas %}
+    <form action="/pagamentos/{{ pagamento.seq_pagamento }}/apropriar" method="POST" data-testid="form-apropriar">
+        <table class="min-w-full text-sm">
+            <thead class="bg-gray-50 text-left text-gray-600">
+                <tr>
+                    <th class="px-4 py-2 font-semibold">Liberação</th>
+                    <th class="px-4 py-2 font-semibold">Fonte</th>
+                    <th class="px-4 py-2 font-semibold text-right">Saldo restante</th>
+                    <th class="px-4 py-2 font-semibold text-right w-48">Valor a apropriar (R$)</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for c in candidatas %}
+                <tr data-testid="candidata-{{ c.liberacao.seq_liberacao }}">
+                    <td class="px-4 py-2 text-gray-700">
+                        LIB-{{ c.liberacao.seq_liberacao }} · {{ c.liberacao.dat_liberacao.strftime('%d/%m/%Y') }}
+                        {% if c.liberacao.dsc_liberacao %}· {{ c.liberacao.dsc_liberacao }}{% endif %}
+                    </td>
+                    <td class="px-4 py-2 font-mono text-gray-600">{{ c.liberacao.fonte_recurso.codigo_completo }}</td>
+                    <td class="px-4 py-2 text-right">{{ '%.2f'|format(c.saldo_restante) }}</td>
+                    <td class="px-4 py-2 text-right">
+                        <input type="number" step="0.01" min="0" name="valor_{{ c.liberacao.seq_liberacao }}"
+                            data-testid="valor-{{ c.liberacao.seq_liberacao }}"
+                            class="w-36 border rounded px-2 py-1 text-right" placeholder="0.00">
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div class="px-4 py-3 border-t flex justify-between items-center text-xs text-gray-500">
+            <span>Estouro é proibido: cada valor ≤ saldo restante da liberação, e a soma ≤ disponível do pagamento.</span>
+            <button type="submit" data-testid="apropriar-salvar"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Apropriar</button>
+        </div>
+    </form>
+    {% else %}
+    <p class="px-4 py-6 text-center text-gray-400 text-sm">
+        Nenhuma candidata — é preciso liberação <strong>confirmada</strong> do mesmo órgão/qualificador{% if pagamento.fonte_recurso %} e fonte{% endif %} com saldo.
+    </p>
+    {% endif %}
+</div>
+
+<!-- Apropriações registradas -->
+<div class="bg-white rounded-lg shadow-md overflow-hidden">
+    <div class="px-4 py-3 border-b">
+        <h3 class="font-semibold text-gray-700 text-sm">Eventos de apropriação
+            <span class="font-normal text-gray-400">(linhas imutáveis — estorno devolve saldo, edição não existe)</span></h3>
+    </div>
+    <table class="min-w-full text-sm">
+        <thead class="bg-gray-50 text-left text-gray-600">
+            <tr>
+                <th class="px-4 py-2 font-semibold">Data</th>
+                <th class="px-4 py-2 font-semibold">Liberação</th>
+                <th class="px-4 py-2 font-semibold">Tipo</th>
+                <th class="px-4 py-2 font-semibold text-right">Valor</th>
+                <th class="px-4 py-2 font-semibold text-center">Ações</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for a in apropriacoes %}
+            <tr data-testid="evento-{{ a.seq_pagamento_liberacao }}">
+                <td class="px-4 py-2 text-gray-600">{{ a.dat_evento.strftime('%d/%m/%Y') }}</td>
+                <td class="px-4 py-2 text-gray-700">LIB-{{ a.seq_liberacao }}</td>
+                <td class="px-4 py-2">
+                    {% if a.cod_tipo_evento == 'A' %}
+                    <span class="bg-green-100 text-green-800 text-xs font-semibold px-2 py-0.5 rounded-full">apropriação</span>
+                    {% else %}
+                    <span class="bg-red-100 text-red-800 text-xs font-semibold px-2 py-0.5 rounded-full">estorno</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-2 text-right">{{ '%.2f'|format(a.val_apropriado) }}</td>
+                <td class="px-4 py-2 text-center">
+                    {% if a.cod_tipo_evento == 'A' and tem_permissao(request, 'FC_APROPRIAR_PAGAMENTO') %}
+                    <form action="/pagamentos/apropriacoes/{{ a.seq_pagamento_liberacao }}/estornar" method="POST"
+                        class="inline-block" onsubmit="return confirm('Estornar esta apropriação?');">
+                        <button type="submit" data-testid="estornar-{{ a.seq_pagamento_liberacao }}"
+                            class="text-red-600 hover:text-red-800 p-1" title="Estornar (evento contrário)">
+                            <i data-lucide="undo-2" class="w-4 h-4"></i>
+                        </button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" class="px-4 py-6 text-center text-gray-400">Sem apropriações — pagamento destacado na lista</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>if (window.lucide) lucide.createIcons();</script>
+{% endblock %}

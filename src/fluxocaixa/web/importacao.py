@@ -15,6 +15,11 @@ _TIPOS = {
     "saldos": ("FC_IMP_SALDO_BANCARIO", "/saldos-bancarios"),
     "lancamentos": ("FC_IMP_LANCAMENTO", "/saldos"),
     "loa": ("FC_IMP_LOA", "/loa"),
+    "fontes_recurso": ("FC_IMP_FONTE_RECURSO", "/fontes-recurso"),
+    "programacao": ("FC_IMP_PROGRAMACAO", "/desembolso/programacao"),
+    "dotacao": ("FC_IMP_DOTACAO", "/orcamento/dotacoes"),
+    "execucao": ("FC_IMP_EXECUCAO_ORCAMENTARIA", "/orcamento/execucao"),
+    "disponibilidade_contabil": ("FC_IMP_DISPONIBILIDADE_CONTABIL", "/fontes-recurso/conciliacao"),
 }
 
 
