@@ -270,7 +270,6 @@
 
             {% if tem_permissao(request, 'FC_CONS_PREVISAO')
                 or tem_permissao(request, 'FC_REL_BACKTEST')
-                or tem_permissao(request, 'FC_CONS_LOA')
                 or tem_permissao(request, 'FC_CONS_FORMULA') %}
             <p
                 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 sidebar-section-title whitespace-nowrap" data-testid="menu-grupo-previsao">
@@ -297,16 +296,6 @@
             </a>
             {% endif %}
 
-            {% if tem_permissao(request, 'FC_CONS_LOA') %}
-            <a href="{{ url_for('loa_list') }}" data-testid="menu-loa"
-                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
-                title="LOA - Lei Orçamentária Anual">
-                <i data-lucide="file-spreadsheet"
-                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
-                <span class="sidebar-text whitespace-nowrap">LOA</span>
-            </a>
-            {% endif %}
-
             {% if tem_permissao(request, 'FC_CONS_FORMULA') %}
             <a href="{{ url_for('formulas_list') }}" data-testid="menu-formulas"
                 class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
@@ -324,44 +313,6 @@
                 <i data-lucide="settings-2"
                     class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
                 <span class="sidebar-text whitespace-nowrap">Parâmetros</span>
-            </a>
-            {% endif %}
-
-            {% if tem_permissao(request, 'FC_CONS_DOTACAO')
-                or tem_permissao(request, 'FC_CONS_EXECUCAO_ORCAMENTARIA')
-                or tem_permissao(request, 'FC_REL_FUNIL') %}
-            <p
-                class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 sidebar-section-title whitespace-nowrap" data-testid="menu-grupo-orcamento">
-                Orçamento</p>
-            {% endif %}
-
-            {% if tem_permissao(request, 'FC_CONS_DOTACAO') %}
-            <a href="{{ url_for('dotacoes') }}" data-testid="menu-dotacoes"
-                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
-                title="Dotações e Créditos">
-                <i data-lucide="landmark"
-                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
-                <span class="sidebar-text whitespace-nowrap">Dotações</span>
-            </a>
-            {% endif %}
-
-            {% if tem_permissao(request, 'FC_CONS_EXECUCAO_ORCAMENTARIA') %}
-            <a href="{{ url_for('execucao_orcamentaria') }}" data-testid="menu-execucao-orcamentaria"
-                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
-                title="Execução E/L/P">
-                <i data-lucide="filter"
-                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
-                <span class="sidebar-text whitespace-nowrap">Execução E/L/P</span>
-            </a>
-            {% endif %}
-
-            {% if tem_permissao(request, 'FC_REL_FUNIL') %}
-            <a href="{{ url_for('funil_orcamento') }}" data-testid="menu-funil-orcamento"
-                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
-                title="Funil LOA→Caixa">
-                <i data-lucide="git-merge"
-                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
-                <span class="sidebar-text whitespace-nowrap">Funil LOA→Caixa</span>
             </a>
             {% endif %}
 
@@ -455,6 +406,55 @@
                 <i data-lucide="check-circle-2"
                     class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
                 <span class="sidebar-text whitespace-nowrap">Conferência</span>
+            </a>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_CONS_LOA')
+                or tem_permissao(request, 'FC_CONS_DOTACAO')
+                or tem_permissao(request, 'FC_CONS_EXECUCAO_ORCAMENTARIA')
+                or tem_permissao(request, 'FC_REL_FUNIL') %}
+            <p
+                class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 sidebar-section-title whitespace-nowrap" data-testid="menu-grupo-orcamento">
+                Orçamento</p>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_CONS_LOA') %}
+            <a href="{{ url_for('loa_list') }}" data-testid="menu-loa"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="LOA - Lei Orçamentária Anual">
+                <i data-lucide="file-spreadsheet"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">LOA</span>
+            </a>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_CONS_DOTACAO') %}
+            <a href="{{ url_for('dotacoes') }}" data-testid="menu-dotacoes"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="Dotações e Créditos">
+                <i data-lucide="landmark"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">Dotações</span>
+            </a>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_CONS_EXECUCAO_ORCAMENTARIA') %}
+            <a href="{{ url_for('execucao_orcamentaria') }}" data-testid="menu-execucao-orcamentaria"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="Execução E/L/P">
+                <i data-lucide="filter"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">Execução E/L/P</span>
+            </a>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_REL_FUNIL') %}
+            <a href="{{ url_for('funil_orcamento') }}" data-testid="menu-funil-orcamento"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="Funil LOA→Caixa">
+                <i data-lucide="git-merge"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">Funil LOA→Caixa</span>
             </a>
             {% endif %}
 

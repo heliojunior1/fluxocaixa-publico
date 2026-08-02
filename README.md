@@ -2,7 +2,7 @@
 
 Sistema web de gestão de fluxo de caixa para tesourarias do setor público — secretarias de fazenda estaduais, prefeituras e órgãos públicos em geral. Código aberto sob licença MIT, pensado para ser adotado e adaptado por qualquer ente.
 
-O sistema cobre o ciclo completo da tesouraria: registra a movimentação diária, consolida saldos bancários por conta e por fundo, produz os relatórios gerenciais (DFC, KPIs, indicadores) e projeta receitas e despesas com modelos estatísticos e de aprendizado de máquina — comparando-os por acurácia para recomendar o mais adequado a cada rubrica.
+O sistema cobre o ciclo completo da tesouraria: registra a movimentação diária, consolida saldos bancários por conta e por fundo, produz os relatórios gerenciais (DFC, KPIs, indicadores) e projeta receitas e despesas com modelos estatísticos e de aprendizado de máquina — comparando-os por acurácia para recomendar o mais adequado a cada rubrica. Cobre também o **desembolso**: fontes de recursos no padrão STN, liberações financeiras com simulação de disponibilidade por fonte, reservas e bloqueios judiciais, programação de desembolso e o funil orçamentário (dotação → empenho → liquidação → pagamento) conciliado com o caixa.
 
 **Princípio de produto: tudo é parametrizável por cadastro.** Cada órgão tem seus bancos, seus sistemas de origem e seus layouts de arquivo. Nada disso é código fixo — plano de contas, regras de classificação, fontes de extração e fórmulas de projeção são configurados pela interface. O sistema também é *self-contained*: não exige Airflow, Redis, fila de mensagens ou qualquer infraestrutura externa. Sobe com Python e um banco.
 
@@ -14,6 +14,7 @@ O sistema cobre o ciclo completo da tesouraria: registra a movimentação diári
 | **Banco** | SQLite por padrão, PostgreSQL via `DATABASE_URL`; schema versionado com Alembic |
 | **Previsão** | Holt-Winters, ARIMA, SARIMA, XGBoost, LightGBM, média histórica, fórmulas paramétricas e LOA |
 | **Integração** | Extração embutida por FTP/SFTP, API REST e banco SQL, com motor de regras em português |
+| **Desembolso** | Liberações por fonte de recursos (padrão STN), simulação de disponibilidade, reservas/bloqueios e funil orçamentário E/L/P |
 | **Testes** | Suíte pytest com cenários BDD em Gherkin pt-BR, mais testes E2E em Playwright |
 
 ## 📸 Demonstração Visual
@@ -57,6 +58,56 @@ O sistema cobre o ciclo completo da tesouraria: registra a movimentação diári
 **Alertas** — regras de acompanhamento sobre saldos, rubricas e desvios entre projetado e realizado.
 
 ![Alertas](docs/images/alertas.png)
+
+### Módulo de Desembolso
+
+O lado da **saída programada** do caixa: fontes de recursos, liberações financeiras, simulação de disponibilidade e conciliações — decidindo sempre pela disponibilidade **por fonte** (livre × vinculada), nunca pelo agregado bruto.
+
+**Fontes de recursos** — catálogo no padrão STN, decomposto e versionado por exercício, com a anatomia do saldo bancário: livre + vinculado + pendente de classificação. Fonte desconhecida em carga nasce vinculada e pendente de revisão (errar para baixo, nunca para cima).
+
+![Fontes de Recursos](docs/images/fontes_recurso.png)
+
+**Liberações** — a cota financeira que o Tesouro solta para o órgão pagar, em visão semanal por natureza da obrigação (discricionária, folha, judicial…). Confirmação e cancelamento são eventos imutáveis; o saldo pendente é sempre derivado, e exceder o autorizado ou o liquidado não pago exige confirmação consciente.
+
+![Liberações](docs/images/liberacoes.png)
+
+**Simulação de disponibilidade** — o para-brisa do desembolso: curva mensal por grupo de fonte (saldo − reservas + receitas repartidas − despesas − pendente − lote em rascunho) com veredicto OK / alerta / bloqueio contra o colchão mínimo, antes de confirmar o lote.
+
+![Simulação de Disponibilidade](docs/images/simulacao_desembolso.png)
+
+**Reservas e bloqueios judiciais** — reservas administrativas e bloqueios judiciais por fonte, como livro de eventos imutáveis (constituição, reforço, redução, liberação); o valor corrente é sempre derivado e abate a disponibilidade do grupo.
+
+![Reservas e Bloqueios](docs/images/reservas.png)
+
+**Programação de desembolso** — as cotas do decreto de programação financeira (LRF art. 8º) por órgão e mês, com histórico preservado (revisão nunca sobrescreve) e precedência sobre a derivação da LOA no previsto.
+
+![Programação de Desembolso](docs/images/programacao_desembolso.png)
+
+**Conferência diária** — três visões derivadas do mesmo dia: saldo de controle das liberações, movimento financeiro e a conciliação categorizada (transferência interna, possível ordem judicial, a investigar) — nunca divergência anônima.
+
+![Conferência](docs/images/conferencia_desembolso.png)
+
+**Conciliação por fonte** — a disponibilidade operacional (caixa − reservas) lado a lado com a contábil/fiscal importada do balancete, por fonte, com situação nomeada: conciliada, a explicar ou sem carga contábil.
+
+![Conciliação por Fonte](docs/images/conciliacao_fonte.png)
+
+**Painel analítico do desembolso** — liberado × pago × pendente por órgão, composição por natureza da obrigação e por grupo de fonte, e a evolução do pendente no tempo — relatório interno, sem depender de ferramenta de BI.
+
+![Analítico do Desembolso](docs/images/analitico_desembolso.png)
+
+### Módulo de Orçamento (funil LOA → caixa)
+
+**Dotações e créditos adicionais** — o autorizado vivo: dotação inicial mais créditos (suplementar, especial, extraordinário, redução) como eventos imutáveis com ato legal obrigatório; a dotação atualizada é sempre derivada e passa a ser o teto do autorizado das liberações.
+
+![Dotações e Créditos](docs/images/dotacoes.png)
+
+**Execução orçamentária (E/L/P)** — empenhos, liquidações e pagamentos orçamentários importados e encadeados, com estouro proibido nos dois sentidos da cadeia e o **liquidado não pago** — a obrigação líquida e certa — derivado dela.
+
+![Execução Orçamentária](docs/images/execucao_orcamentaria.png)
+
+**Funil LOA → Caixa** — as gradações juntas (autorizado → empenhado → liquidado → pago) por qualificador, e a conciliação entre o pago orçamentário e o desembolso financeiro por órgão, com a direção da diferença nomeada.
+
+![Funil LOA→Caixa](docs/images/funil_orcamento.png)
 
 
 
@@ -199,7 +250,9 @@ explicando exatamente esse comando — nada é alterado no banco.
 
 ## 📤 Importação de arquivos com pré-processamento
 
-Toda importação por tela (saldos, lançamentos, LOA) passa por **pré-visualização**
+Toda importação por tela (saldos, lançamentos, LOA, catálogo de fontes de
+recursos, programação de desembolso, dotação inicial, execução orçamentária
+E/L/P e disponibilidade contábil por fonte) passa por **pré-visualização**
 antes de gravar: você envia o arquivo, revê o veredito linha a linha (ok / aviso /
 erro com o motivo) e só então confirma — nada é gravado sem sua confirmação, e
 a gravação corresponde exatamente ao que o preview mostrou.
@@ -525,6 +578,22 @@ fora do controle de versão (nunca commite estado de sessão).
 - **Agendamento** das fontes e log imutável de execuções, com status por execução.
 - **API de ingestão** para ETLs externos que já existam no órgão.
 
+### Desembolso
+
+- **Fontes de recursos** no padrão STN: catálogo decomposto (identificador de exercício + fonte + detalhamento) e versionado por exercício, com vinculação explícita e auto-cadastro conservador — fonte desconhecida em carga nasce vinculada e pendente de revisão. A fonte estampa o lançamento e reparte a projeção de receita por grupo de disponibilidade.
+- **Liberações financeiras** por órgão, qualificador, fonte e natureza da obrigação, com livro de eventos imutáveis, saldo pendente sempre derivado e teto do autorizado como alerta consciente (nunca bloqueio cego).
+- **Apropriação pagamento ↔ liberação** com estouro proibido nos dois sentidos, fonte herdada da liberação (pagamento monofonte) e estorno como evento — edição não existe.
+- **Simulação de disponibilidade** por grupo de fonte antes de confirmar o lote: curva mensal, veredicto contra o colchão mínimo parametrizável, modo prudente (receita não classificada fora do veredicto) e snapshot imutável da decisão.
+- **Reservas administrativas e bloqueios judiciais** por fonte, como eventos imutáveis, subtraídos da disponibilidade uma única vez; liberar bloqueio judicial exige a referência da ordem.
+- **Programação de desembolso** (cotas do decreto, LRF art. 8º) com histórico e precedência sobre a derivação da LOA; **conferência diária** com conciliação categorizada; **transferências internas** registradas como par neutro; **painel analítico** interno.
+- **Conciliação por fonte**: disponibilidade operacional × contábil/fiscal (balancete importado), com situação nomeada por fonte.
+
+### Orçamento (funil LOA → caixa)
+
+- **Dotações e créditos adicionais** como eventos imutáveis com ato legal obrigatório; dotação atualizada sempre derivada, assumindo o papel de teto do autorizado.
+- **Execução orçamentária E/L/P** importada e encadeada (liquidação consome empenho, pagamento consome liquidação), com o **liquidado não pago** derivado — a resposta de melhor qualidade para "o que tenho que pagar", que ancora a liberação.
+- **Relatório do funil** (autorizado → empenhado → liquidado → pago, por qualificador) e **conciliação orçamentário × financeiro** por órgão, com direção da diferença nomeada.
+
 ### Governança
 
 - **Autenticação** por sessão com senhas em hash bcrypt e **permissões por verbo e recurso** — toda rota de negócio exige permissão explícita, verificada por teste automatizado.
@@ -611,7 +680,6 @@ ativo, `'I'` inativo), e toda tabela carrega auditoria (`dat_inclusao`,
 | `flc_cenario_ajuste` | Ajustes manuais sobre o calculado, por valor ou percentual |
 | `flc_projecao_versao`, `flc_projecao_valor` | Versões publicadas da projeção — registro histórico, não recalculado |
 | `flc_rubrica_formula`, `flc_parametro_global` | Fórmulas por rubrica e parâmetros macroeconômicos cadastráveis |
-| `flc_loa` | Dotação orçamentária, base do modelo LOA |
 
 ### Integração e automação
 
@@ -631,11 +699,33 @@ ativo, `'I'` inativo), e toda tabela carrega auditoria (`dat_inclusao`,
 | `flc_usuario`, `flc_perfil`, `flc_permissao` | Usuários, perfis e catálogo de permissões `FC_<VERBO>_<RECURSO>` |
 | `flc_usuario_perfil`, `flc_perfil_permissao` | Vínculos entre eles |
 
+### Desembolso e fontes de recursos
+
+| Tabela | Papel |
+|---|---|
+| `flc_fonte_recurso` | Catálogo de fontes no padrão STN, decomposto e versionado por exercício; `vw_flc_saldo_fundo_fonte` deriva o saldo bruto por grupo (livre/vinculado/pendente) |
+| `flc_liberacao`, `flc_liberacao_evento` | Liberações financeiras e seu livro de eventos imutáveis — o saldo pendente **nunca é coluna**, é derivado |
+| `flc_pagamento`, `flc_pagamento_liberacao` | Pagamentos por órgão e as apropriações/estornos como linhas-evento |
+| `flc_qualificador_fonte` | Percentuais-fallback que repartem a projeção de receita por grupo de fonte |
+| `flc_parametro_desembolso`, `flc_simulacao_desembolso` | Colchão mínimo por grupo e snapshots imutáveis das simulações confirmadas |
+| `flc_reserva_financeira`, `flc_reserva_evento` | Reservas administrativas e bloqueios judiciais por fonte, com eventos imutáveis |
+| `flc_programacao_desembolso` | Cotas do decreto de programação, com revisão que inativa (nunca sobrescreve) |
+| `flc_transferencia`, `flc_conferencia` | Par neutro de transferência interna e apurados externos da conferência diária |
+| `flc_disponibilidade_contabil` | Disponibilidade contábil/fiscal por fonte importada do balancete, para a conciliação |
+| `flc_orgao` | Órgãos — dimensão exclusiva do desembolso |
+
+### Execução orçamentária
+
+| Tabela | Papel |
+|---|---|
+| `flc_dotacao`, `flc_credito_adicional` | Dotação inicial e créditos como eventos imutáveis com ato legal; a atualizada é sempre derivada |
+| `flc_execucao_orcamentaria`, `flc_execucao_evento` | Documentos E/L/P encadeados e seus movimentos (inscrição/reforço/anulação); correntes e liquidado não pago derivados |
+| `flc_loa` | Lei Orçamentária Anual — base do teto (fallback da dotação) e do modelo LOA de projeção |
+
 ### Demais
 
 `flc_alerta` e `flc_alerta_gerado` (regras de alerta e ocorrências),
-`flc_pagamento` e `flc_orgao` (pagamentos por órgão), `flc_conferencia`
-(conferência diária), `flc_tipo_lancamento` e `flc_origem_lancamento`
+`flc_tipo_lancamento` e `flc_origem_lancamento`
 (domínios), `flc_simulador_cenario_historico` (snapshots de simulação) e
 `flc_modelo_economico_parametro` (parâmetros dos modelos econométricos).
 
