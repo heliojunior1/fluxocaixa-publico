@@ -1672,3 +1672,10 @@ def seed_data(session=None):
         session.commit()
         print("Seeded RubricaFormula data (16 formulas)")
 
+    # Telas de Integração (fontes, execuções, mapeamentos, termos de regra).
+    # Por último: os itens de mapeamento apontam para qualificadores folha,
+    # e a árvore é recriada no início desta função.
+    from .seed_integracao import seed_integracao
+
+    seed_integracao(session)
+
