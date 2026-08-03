@@ -24,15 +24,21 @@ services:
       #   value: "true"
       # - key: SEED_DEMO_DATA
       #   value: "true"
-      # DEMO_MODE (default false): instância de demonstração pública — exibe as
-      # credenciais na tela de login, dispensa a troca de senha obrigatória do
-      # admin e recusa a troca de senha (senão o 1º visitante tranca os demais).
-      # NUNCA ligar em instalação com dados reais.
-      # - key: DEMO_MODE
-      #   value: "true"
-      # Autenticação: defina SECRET_KEY (sessões sobrevivem a restarts) e,
-      # opcionalmente, ADMIN_INITIAL_PASSWORD (senha inicial do admin; troca
-      # obrigatória no primeiro login). APP_ENV=prod liga cookie Secure.
+      # DEMO_MODE — DEFINA NO PAINEL DO PROVEDOR, NUNCA AQUI.
+      # Este arquivo é VERSIONADO: ligar a flag aqui faria todo fork herdar a
+      # demonstração pública em produção, com admin/admin na tela de login e a
+      # troca de senha recusada — ou seja, sem nem conseguir se proteger depois.
+      # O default `false` é o que mantém o fork seguro; a instância de demo
+      # declara a exceção no seu próprio ambiente.
+      # O boot ABORTA se DEMO_MODE vier com SEED_DEMO_DATA=false ou APP_ENV=prod
+      # (infraestrutura-banco R10) — combinações sem uso legítimo.
+      # Autenticação — defina no painel (sync: false), nunca neste arquivo.
+      # SECRET_KEY é OBRIGATÓRIA com APP_ENV=prod: o boot aborta sem ela, porque
+      # a chave aleatória por processo mata as sessões a cada deploy e quebra a
+      # autenticação em silêncio com mais de um worker.
+      # ADMIN_INITIAL_PASSWORD: sem ela a senha inicial é ALEATÓRIA e vai uma
+      # única vez para o log do boot.
+      # APP_ENV: o cookie `Secure` agora é o DEFAULT (desligado só em `dev`).
       # - key: SECRET_KEY
       #   sync: false
       # - key: ADMIN_INITIAL_PASSWORD

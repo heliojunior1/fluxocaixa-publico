@@ -13,6 +13,7 @@ from ..models import Loa, Qualificador
 from ..models.base import db
 from ..auth.permissoes import requer
 
+
 try:
     import openpyxl
     HAS_OPENPYXL = True
@@ -133,7 +134,7 @@ async def loa_importar(request: Request, arquivo: UploadFile = File(...), ano_im
     from .importacao import render_preview
 
     _AdapterLoa._ano = ano_import
-    token, preview = criar_preview('loa', await arquivo.read(), arquivo.filename, request.session)
+    token, preview = criar_preview('loa', await _ler(arquivo), arquivo.filename, request.session)
     return render_preview(request, 'loa', token, preview)
 
 
@@ -274,3 +275,11 @@ def _upsert_loa(ano: int, seq_qualificador: int, valor: Decimal):
             seq_qualificador=seq_qualificador,
             val_loa=valor,
         ))
+
+
+async def _ler(arquivo):
+    """Upload com teto de bytes e extensão validada (importacao-arquivos R6)."""
+    from ..services.preprocessamento import ler_upload_limitado, validar_extensao
+
+    validar_extensao(arquivo.filename)
+    return await ler_upload_limitado(arquivo)

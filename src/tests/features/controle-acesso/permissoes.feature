@@ -63,7 +63,7 @@ Funcionalidade: Perfis e permissões por verbo e recurso
 
   Cenário: init-db exige FC_ADMIN_BANCO
     Dado um usuário autenticado com o perfil "CONSULTA"
-    Quando acessa a tela "/init-db"
+    Quando aciona por POST a rota "/init-db"
     Então recebe status 403
 
   Cenário: Admin acessa com todos os perfis

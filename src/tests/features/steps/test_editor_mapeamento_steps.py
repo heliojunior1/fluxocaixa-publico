@@ -1,5 +1,6 @@
 """Steps BDD — editor de mapeamento na tela (spec R17 mod / R22)."""
 import json
+import os
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
@@ -43,7 +44,10 @@ def _form_sql(nome, layout):
         "sigla_sistema": "SIS_X",
         "cod_destino": "SALDO_FUNDO",
         "txt_cron": "",
-        "url_conexao": "sqlite:///./_naoexiste_mapa.db",
+        # Banco fictício que nunca é aberto (estes cenários exercitam só o
+        # editor de mapeamento). Vive sob a raiz de extração porque o
+        # confinamento (R23) trata dialeto de arquivo como caminho local.
+        "url_conexao": f"sqlite:///{os.environ['EXTRACAO_PASTA_RAIZ']}/_naoexiste_mapa.db",
         "query": "SELECT 1 AS x WHERE :data_inicio <= :data_fim",
         "cod_banco": "001",
         "batch_size": "5000",

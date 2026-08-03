@@ -205,7 +205,7 @@
                 tr.className = 'hover:bg-slate-50 transition-colors';
 
                 tr.innerHTML = `
-                <td class="p-4 font-medium">${row.descricao}</td>
+                <td class="p-4 font-medium">${escHtml(row.descricao)}</td>
                 <td class="p-4 text-right font-mono text-slate-600">${row.previsao_inicial}</td>
                 <td class="p-4 text-right font-mono text-slate-600">${row.previsao_final}</td>
                 <td class="p-4 text-right font-mono font-bold text-slate-800">${row.realizado}</td>

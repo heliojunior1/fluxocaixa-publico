@@ -272,12 +272,12 @@
             const badgeProprio = item.proprio
                 ? '<span class="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-200 text-slate-700">próprio</span>'
                 : '';
-            bodyHtml += `<span class="number-badge">${item.number}</span>${item.name}${badgeProprio}</td>`;
+            bodyHtml += `<span class="number-badge">${item.number}</span>${escHtml(item.name)}${badgeProprio}</td>`;
             item.values.forEach((value, idx) => {
                 const cls = value !== 0 ? 'clickable-value' : '';
                 const isProj = item.proj[idx];
                 const icon = isProj ? '<i data-lucide="activity" class="inline h-3 w-3 text-blue-600 ml-1"></i>' : '';
-                bodyHtml += `<td class="p-2 text-right font-mono ${cls}" data-col="${idx + 1}" data-qualifier-id="${item.id}" data-qualifier-name="${item.name}" data-proj="${isProj ? 1 : 0}" data-proprio="${item.proprio ? 1 : 0}">${formatCurrency(value, false)}${icon}</td>`;
+                bodyHtml += `<td class="p-2 text-right font-mono ${cls}" data-col="${idx + 1}" data-qualifier-id="${item.id}" data-qualifier-name="${escHtml(item.name)}" data-proj="${isProj ? 1 : 0}" data-proprio="${item.proprio ? 1 : 0}">${formatCurrency(value, false)}${icon}</td>`;
             });
             bodyHtml += '</tr>';
             if (hasChildren) {
@@ -391,7 +391,7 @@
                 modal.innerHTML = `
             <div class="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
                 <div class="p-4 border-b flex justify-between items-center">
-                    <h2 class="text-xl font-bold">Lançamentos: ${qualifierName}</h2>
+                    <h2 class="text-xl font-bold">Lançamentos: ${escHtml(qualifierName)}</h2>
                     <button class="btn-close-modal text-gray-500 hover:text-gray-800"><i data-lucide="x" class="h-6 w-6"></i></button>
                 </div>
                 <div class="p-4 flex-grow overflow-y-auto">

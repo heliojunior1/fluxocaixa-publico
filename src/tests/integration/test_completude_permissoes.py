@@ -15,6 +15,8 @@ EXCECOES = {
     "/openapi.json",
     # Confirmação/descarte de importação: a permissão é a do TIPO do preview,
     # verificada dentro do handler (não há uma permissão única para a rota).
+    # AMBAS verificam — o descarte passou a verificar no change
+    # limites-e-validacao-de-upload, fechando a assimetria.
     "/importacoes/{token}/confirmar",
     "/importacoes/{token}/descartar",
 }

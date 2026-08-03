@@ -52,6 +52,10 @@
         {% endif %}
 
         <form method="post" action="/trocar-senha" data-testid="troca-form">
+            {# Tela STANDALONE (não estende base.html), então o token vai
+               explícito: sem ele a troca de senha obrigatória do primeiro
+               login ficaria bloqueada pelo CSRF para sempre. #}
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
             <label for="senha_atual">Senha atual</label>
             <input type="password" id="senha_atual" name="senha_atual" autofocus
                    autocomplete="current-password" required data-testid="troca-senha-atual">

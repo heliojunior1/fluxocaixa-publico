@@ -13,6 +13,7 @@ from . import handle_exceptions, router, templates
 from ..auth.permissoes import requer
 from ..repositories.saldo_fundo_repository import saldo_bruto_por_grupo
 from ..services.fonte_recurso_service import (
+
     alterar_fonte,
     aprovar_fonte,
     criar_fonte,
@@ -119,7 +120,7 @@ async def importar_fontes_recurso(request: Request, arquivo: UploadFile = File(.
 
     _AdapterFontesRecurso._exercicio = exercicio_import
     token, preview = criar_preview(
-        'fontes_recurso', await arquivo.read(), arquivo.filename, request.session)
+        'fontes_recurso', await _ler(arquivo), arquivo.filename, request.session)
     return render_preview(request, 'fontes_recurso', token, preview)
 
 
@@ -155,6 +156,14 @@ async def importar_disponibilidade_contabil(request: Request,
 
     _AdapterDisponibilidadeContabil._data = date.fromisoformat(data_import)
     token, preview = criar_preview(
-        'disponibilidade_contabil', await arquivo.read(), arquivo.filename,
+        'disponibilidade_contabil', await _ler(arquivo), arquivo.filename,
         request.session)
     return render_preview(request, 'disponibilidade_contabil', token, preview)
+
+
+async def _ler(arquivo):
+    """Upload com teto de bytes e extensão validada (importacao-arquivos R6)."""
+    from ..services.preprocessamento import ler_upload_limitado, validar_extensao
+
+    validar_extensao(arquivo.filename)
+    return await ler_upload_limitado(arquivo)

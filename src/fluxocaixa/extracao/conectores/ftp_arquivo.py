@@ -58,9 +58,25 @@ class ConfigFtpArquivo(BaseModel):
 
     @field_validator("diretorio")
     @classmethod
-    def _sem_traversal_dir(cls, v: str) -> str:
-        if ".." in v.split(os.sep):
-            raise ValueError("diretorio não pode conter '..'")
+    def _confinado(cls, v: str) -> str:
+        """Confinado à raiz de extração (R23), não só sem `..`.
+
+        A checagem antiga recusava `..` e deixava passar caminho ABSOLUTO:
+        `diretorio=/etc` + `padrao_nome=passwd` lia arquivo do servidor e
+        devolvia o conteúdo no detalhe da execução.
+        """
+        from ..confinamento import validar_diretorio_local
+
+        validar_diretorio_local(v)
+        return v
+
+    @field_validator("host")
+    @classmethod
+    def _host_externo(cls, v: str | None) -> str | None:
+        if v:
+            from ..confinamento import validar_host_externo
+
+            validar_host_externo(v)
         return v
 
 

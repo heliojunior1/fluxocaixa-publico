@@ -271,10 +271,10 @@
         const r = await fetch('/extracao/fontes/preview-layout', { method: 'POST', body: fd });
         const d = await r.json();
         if (!r.ok) { out.innerHTML = `<span class="text-red-600">${d.detail || 'Falha no preview'}</span>`; return; }
-        if (d.rejeitado) { out.innerHTML = `<span class="text-red-600">Arquivo rejeitado: ${d.mensagem}</span>`; return; }
+        if (d.rejeitado) { out.innerHTML = `<span class="text-red-600">Arquivo rejeitado: ${escHtml(d.mensagem)}</span>`; return; }
         let html = `<div class="text-green-700">${d.linhas.length} linha(s) · ${d.erros.length} erro(s)</div>`;
         for (const l of d.linhas) html += `<div>${l.num_conta} · fundo ${l.cod_fundo} · ${l.val_saldo}</div>`;
-        for (const e of d.erros) html += `<div class="text-red-600">linha ${e.linha}: ${e.mensagem}</div>`;
+        for (const e of d.erros) html += `<div class="text-red-600">linha ${e.linha}: ${escHtml(e.mensagem)}</div>`;
         out.innerHTML = html;
     }
 </script>
@@ -347,7 +347,7 @@
         if (!r.ok) { out.innerHTML = `<span class="text-red-600">${d.detail || 'Falha no preview'}</span>`; return; }
         let html = `<div class="text-green-700">${d.linhas.length} linha(s) · ${d.erros.length} erro(s)</div>`;
         for (const l of d.linhas) html += `<div>fundo ${l.cod_fundo} · ${l.val_saldo}</div>`;
-        for (const e of d.erros) html += `<div class="text-red-600">item ${e.item}: ${e.mensagem}</div>`;
+        for (const e of d.erros) html += `<div class="text-red-600">item ${e.item}: ${escHtml(e.mensagem)}</div>`;
         out.innerHTML = html;
     }
 </script>

@@ -28,6 +28,25 @@ Funcionalidade: Autenticação e proteção de rotas
     Quando envio login "maria" com senha "Segredo-Forte-1" com destino "/saldos"
     Então sou redirecionado para "/saldos"
 
+  # Open redirect: o destino vem do cliente e o phishing pós-login usa o
+  # domínio confiável como trampolim. A guarda antiga listava prefixos
+  # proibidos e barra invertida não estava na lista — navegadores normalizam
+  # "\" para "/" em esquemas especiais, então /\host vira //host vira https://host.
+  Cenário: Destino com barra dupla não sai do domínio
+    Dado um usuário ativo "maria" com senha "Segredo-Forte-1"
+    Quando envio login "maria" com senha "Segredo-Forte-1" com destino "//exemplo-externo.test"
+    Então sou redirecionado para "/"
+
+  Cenário: Destino com barra invertida não sai do domínio
+    Dado um usuário ativo "maria" com senha "Segredo-Forte-1"
+    Quando envio login "maria" com senha "Segredo-Forte-1" com destino "/\exemplo-externo.test"
+    Então sou redirecionado para "/"
+
+  Cenário: Destino com esquema absoluto não sai do domínio
+    Dado um usuário ativo "maria" com senha "Segredo-Forte-1"
+    Quando envio login "maria" com senha "Segredo-Forte-1" com destino "https://exemplo-externo.test/painel"
+    Então sou redirecionado para "/"
+
   Cenário: Documentação OpenAPI exige login
     Quando acesso "/docs" sem estar autenticado
     Então recebo redirect para "/login?next=/docs"
@@ -68,7 +87,7 @@ Funcionalidade: Autenticação e proteção de rotas
 
     Exemplos:
       | nova_senha   | mensagem                                  |
-      | curta1       | A nova senha deve ter ao menos 8 caracteres |
+      | curta1       | A nova senha deve ter ao menos 12 caracteres |
       | Provisoria-1 | A nova senha deve ser diferente da atual  |
 
   Cenário: Reinício não sobrescreve a senha do admin
@@ -85,7 +104,7 @@ Funcionalidade: Autenticação e proteção de rotas
     Dado um usuário ativo "maria" com senha "Segredo-Forte-1"
     E estou autenticado como "maria" com senha "Segredo-Forte-1"
     E o ambiente não é de desenvolvimento
-    Quando acesso "/recreate-db" na mesma sessão
+    Quando aciono "/recreate-db" por POST na mesma sessão
     Então recebo status 403
 
   Regra: Modo de demonstração pública (DEMO_MODE)

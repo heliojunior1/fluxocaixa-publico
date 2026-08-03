@@ -1024,7 +1024,7 @@
                     <label class="flex items-center text-xs" style="padding-left: ${(f.nivel - 1) * 12}px">
                         <input type="checkbox" name="qualificador_filho[]" value="${f.seq_qualificador}" 
                             class="mr-2 filho-checkbox" ${f.is_folha ? 'checked' : ''}>
-                        ${f.dsc_qualificador}
+                        ${escHtml(f.dsc_qualificador)}
                     </label>
                 `).join('')}
             </div>
@@ -1655,7 +1655,7 @@
                                     name="formula_param_${p.nom_parametro}"
                                     class="w-full border rounded p-1.5 text-sm ${usado ? 'border-violet-300' : ''}"
                                     placeholder="${p.cod_tipo === 'P' ? '0.045' : '0.00'}">
-                                <p class="text-[10px] text-gray-400 mt-1">${p.dsc_parametro || ''}</p>
+                                <p class="text-[10px] text-gray-400 mt-1">${escHtml(p.dsc_parametro || '')}</p>
                             </div>
                         `;
                     }).join('');

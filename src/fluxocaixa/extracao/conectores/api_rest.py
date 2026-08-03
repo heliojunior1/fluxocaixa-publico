@@ -62,6 +62,20 @@ class ConfigApiRest(BaseModel):
             raise ValueError("autenticacao deve ser OAUTH2, BEARER ou BASIC")
         return v
 
+    @field_validator("url_base", "token_url")
+    @classmethod
+    def _destino_confinado(cls, v: str | None) -> str | None:
+        """Confina o destino (R23) — inclui a URL do token, não só a base.
+
+        Deixar `token_url` de fora daria SSRF pela porta da autenticação: ela é
+        chamada antes de qualquer coisa, e com credenciais.
+        """
+        if v:
+            from ..confinamento import validar_url_externa
+
+            validar_url_externa(v)
+        return v
+
     @field_validator("path_template")
     @classmethod
     def _path_valido(cls, v: str) -> str:

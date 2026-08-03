@@ -218,7 +218,7 @@
             const pai = item.num_qualificador_pai ? `<span class="text-slate-400">${item.num_qualificador_pai} ›</span> ` : '';
             linha.innerHTML =
                 `<div class="flex justify-between gap-2">` +
-                `<span>${pai}${item.num_qualificador} — ${item.dsc_qualificador}</span>` +
+                `<span>${pai}${item.num_qualificador} — ${escHtml(item.dsc_qualificador)}</span>` +
                 `<span class="font-medium whitespace-nowrap">${fmtBRL(item.valor)} <span class="text-slate-400">(${item.percentual}%)</span></span>` +
                 `</div>` +
                 `<div class="h-1.5 bg-slate-100 rounded-full mt-1"><div class="h-1.5 bg-blue-500 rounded-full" style="width:${Math.min(100, parseFloat(item.percentual))}%"></div></div>`;
@@ -281,7 +281,7 @@
                 : (parseFloat(l.delta) < 0 ? 'text-rose-600' : 'text-emerald-600');
             tr.innerHTML =
                 `<td class="py-2 pr-4">${l.cod_banco}/${l.num_agencia}/${l.num_conta}` +
-                (l.dsc_conta ? ` <span class="text-slate-400">— ${l.dsc_conta}</span>` : '') + `</td>` +
+                (l.dsc_conta ? ` <span class="text-slate-400">— ${escHtml(l.dsc_conta)}</span>` : '') + `</td>` +
                 `<td class="py-2 pr-4 text-right font-medium">${fmtBRL(l.saldo)}</td>` +
                 `<td class="py-2 pr-4 text-right">${l.saldo_d1 === null ? '—' : fmtBRL(l.saldo_d1)}</td>` +
                 `<td class="py-2 pr-4 text-right ${corDelta}">${delta}</td>` +

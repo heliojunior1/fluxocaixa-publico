@@ -54,5 +54,11 @@ async def confirmar_importacao(request: Request, token: str):
 @router.post('/importacoes/{token}/descartar', name='descartar_importacao')
 @handle_exceptions
 async def descartar_importacao(request: Request, token: str, tipo: str = Form("saldos")):
+    # Exige a permissão do TIPO do preview, como o confirmar (R6). A assimetria
+    # anterior tinha impacto direto pequeno (o token é amarrado à sessão), mas
+    # ensinava que preview não precisa de permissão — e a próxima rota de
+    # preview nasceria sem.
+    preview = obter_preview(token, request.session)
+    _exigir(request, preview.tipo)
     descartar(token, request.session)
     return RedirectResponse(_TIPOS.get(tipo, (None, "/"))[1], status_code=303)

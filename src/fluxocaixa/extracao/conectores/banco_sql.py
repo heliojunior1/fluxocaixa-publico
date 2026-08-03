@@ -50,6 +50,19 @@ class ConfigBancoSql(BaseModel):
             )
         return v
 
+    @field_validator("url_conexao")
+    @classmethod
+    def _destino_confinado(cls, v: str) -> str:
+        """Confina o destino (R23): host interno e SQLite fora da raiz.
+
+        `sqlite:////caminho/qualquer.db` é leitura de arquivo local com outra
+        roupa — fechar só o conector de arquivo deixaria a porta dos fundos.
+        """
+        from ..confinamento import validar_url_conexao
+
+        validar_url_conexao(v)
+        return v
+
     @field_validator("batch_size")
     @classmethod
     def _batch_positivo(cls, v: int) -> int:

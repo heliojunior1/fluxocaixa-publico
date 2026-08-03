@@ -17,6 +17,51 @@ STAGING_DIR = os.path.join(BASE_DIR, "instance", "uploads")
 TTL_SEGUNDOS = 30 * 60
 MAX_LINHAS = 10_000
 
+# Teto de bytes do upload (importacao-arquivos R6). Folgado para as planilhas
+# reais do domínio e longe do que derruba o processo — que serve a TODOS os
+# usuários, então esgotar sua memória derruba a aplicação inteira, não só a
+# requisição (produção roda --workers 1).
+MAX_UPLOAD_BYTES = int(os.getenv("IMPORTACAO_MAX_BYTES", 5 * 1024 * 1024))
+
+EXTENSOES_SUPORTADAS = (".csv", ".txt", ".xlsx")
+
+
+async def ler_upload_limitado(arquivo, *, max_bytes: int | None = None) -> bytes:
+    """Lê o upload recusando o que passar do teto, SEM materializá-lo inteiro.
+
+    Ler `limite + 1` responde "estourou?" sem carregar o arquivo: se voltarem
+    `limite + 1` bytes, sabe-se que há mais. A validação de `MAX_LINHAS` que já
+    existia roda DEPOIS do parse completo — inútil contra este cenário, porque
+    o arquivo já foi inteiro para a memória antes de alguém contar linhas.
+
+    O padrão não é novo no projeto: `web/extracao.py` já o usava no preview de
+    layout. Este helper o torna compartilhado, para que o próximo endpoint de
+    importação não nasça sem teto.
+    """
+    limite = MAX_UPLOAD_BYTES if max_bytes is None else max_bytes
+    conteudo = await arquivo.read(limite + 1)
+    if len(conteudo) > limite:
+        raise RegraNegocioError(
+            f"Arquivo excede o limite de {limite // (1024 * 1024)} MB."
+        )
+    return conteudo
+
+
+def validar_extensao(filename: str | None) -> None:
+    """Recusa extensão fora da lista suportada (R6).
+
+    Declarativa e forjável — a defesa real contra conteúdo hostil é o parser.
+    O ganho aqui é a MENSAGEM: quem manda `.pdf` numa tela de CSV descobre na
+    hora, em vez de receber erro de parse obscuro. Validar *magic bytes* seria
+    teatro: quem forja a extensão forja o cabeçalho.
+    """
+    nome = (filename or "").strip().lower()
+    if not nome.endswith(EXTENSOES_SUPORTADAS):
+        aceitos = ", ".join(EXTENSOES_SUPORTADAS)
+        raise RegraNegocioError(
+            f"Formato de arquivo não suportado. Envie um destes: {aceitos}."
+        )
+
 
 @dataclass
 class LinhaPreview:

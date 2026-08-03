@@ -10,6 +10,7 @@ from ..auth.permissoes import requer
 from ..services.dotacao_service import criar_dotacao, registrar_credito, visao_do_ano
 
 
+
 def _qualificadores_despesa():
     from ..models import Qualificador
 
@@ -107,7 +108,7 @@ async def importar_execucao(request: Request, arquivo: UploadFile = File(...),
 
     _AdapterExecucao._ano = ano_import
     token, preview = criar_preview(
-        'execucao', await arquivo.read(), arquivo.filename, request.session)
+        'execucao', await _ler(arquivo), arquivo.filename, request.session)
     return render_preview(request, 'execucao', token, preview)
 
 
@@ -123,5 +124,13 @@ async def importar_dotacao(request: Request, arquivo: UploadFile = File(...),
 
     _AdapterDotacao._ano = ano_import
     token, preview = criar_preview(
-        'dotacao', await arquivo.read(), arquivo.filename, request.session)
+        'dotacao', await _ler(arquivo), arquivo.filename, request.session)
     return render_preview(request, 'dotacao', token, preview)
+
+
+async def _ler(arquivo):
+    """Upload com teto de bytes e extensão validada (importacao-arquivos R6)."""
+    from ..services.preprocessamento import ler_upload_limitado, validar_extensao
+
+    validar_extensao(arquivo.filename)
+    return await ler_upload_limitado(arquivo)

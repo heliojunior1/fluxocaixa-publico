@@ -1,10 +1,18 @@
 """Rotas de autenticação: login/logout (públicas) e troca de senha (logado)."""
+import time
+from urllib.parse import urlsplit
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 
 from ..config import modo_demo
 from ..models.usuario import Usuario
-from .dependencies import sessao_atual
+from .csrf import obter_token
+from .dependencies import (
+    CHAVE_ULTIMO_ACESSO,
+    CHAVE_VERSAO_CREDENCIAL,
+    sessao_atual,
+)
 from .service import autenticar, definir_senha, validar_nova_senha
 
 MENSAGEM_CREDENCIAIS_INVALIDAS = "Usuário ou senha inválidos"
@@ -20,11 +28,33 @@ router_publico = APIRouter()
 router_sessao = APIRouter(dependencies=[Depends(sessao_atual)])
 
 
-def _destino_seguro(destino: str) -> str:
-    """Evita open redirect: só caminhos internos."""
-    if destino and destino.startswith("/") and not destino.startswith("//"):
-        return destino
-    return "/"
+def _destino_seguro(destino: str | None) -> str:
+    """Evita open redirect: só caminhos internos.
+
+    Normaliza a URL em vez de listar prefixos proibidos. A guarda anterior
+    recusava `//host` mas aceitava `/\\host` — navegadores normalizam `\\` para
+    `/` em esquemas especiais, então `/\\host` vira `//host` vira `https://host`,
+    e o phishing pós-login ganha o domínio confiável como trampolim.
+
+    Lista de proibições sempre fica uma variação atrás (barra invertida, espaço
+    à esquerda, caractere de controle, `JaVaScRiPt:`). `urlsplit` responde a
+    pergunta certa — "esta URL tem host?" — e a resposta não envelhece.
+    """
+    if not destino:
+        return "/"
+    # o \ é normalizado para / pelo navegador ANTES de resolver o host; fazer o
+    # mesmo aqui garante que se analise a URL que o navegador vai ver
+    candidato = destino.replace("\\", "/").strip()
+    partes = urlsplit(candidato)
+    if partes.scheme or partes.netloc or not candidato.startswith("/"):
+        return "/"
+    # `//host` é protocol-relative; `///host` tem autoridade vazia e navegadores
+    # divergem ao colapsar as barras (parte resolve para o host). Qualquer
+    # sequência de barras no início é recusada — caminho interno legítimo nunca
+    # precisa de duas.
+    if candidato.startswith("//"):
+        return "/"
+    return destino
 
 
 def _templates():
@@ -59,6 +89,14 @@ async def efetuar_login(
     request.session.clear()
     request.session["seq_usuario"] = autenticado.seq_usuario
     request.session["nom_usuario"] = autenticado.nom_usuario
+    # Token CSRF nasce COM a sessão (controle-acesso R12): assim toda sessão
+    # autenticada tem token, e o middleware pode falhar fechado na ausência
+    # dele em vez de deixar passar.
+    obter_token(request.session)
+    # Versão de credencial e carimbo de acesso (R13): a sessão passa a poder ser
+    # revogada por troca de senha e a expirar por inatividade.
+    request.session[CHAVE_VERSAO_CREDENCIAL] = autenticado.num_versao_credencial
+    request.session[CHAVE_ULTIMO_ACESSO] = time.time()
     if autenticado.ind_troca_senha == 'S':
         request.session["troca_pendente"] = True
         return RedirectResponse("/trocar-senha", status_code=303)
@@ -109,4 +147,7 @@ async def efetuar_troca_senha(
 
     definir_senha(usuario, nova_senha, troca_pendente=False)
     request.session["troca_pendente"] = False
+    # A troca revogou TODAS as sessões (a versão subiu); esta continua válida
+    # porque acompanha a versão nova — as outras caem na próxima requisição.
+    request.session[CHAVE_VERSAO_CREDENCIAL] = usuario.num_versao_credencial
     return RedirectResponse("/", status_code=303)

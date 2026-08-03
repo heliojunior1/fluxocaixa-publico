@@ -11,6 +11,7 @@ from ..services.orgao_service import listar_orgaos
 from ..services.programacao_service import registrar_cota, visao_anual
 
 
+
 @router.get('/desembolso/programacao', name='programacao_desembolso',
             dependencies=[requer('FC_CONS_PROGRAMACAO')])
 @handle_exceptions
@@ -53,5 +54,13 @@ async def importar_programacao(request: Request, arquivo: UploadFile = File(...)
 
     _AdapterProgramacao._ano = ano_import
     token, preview = criar_preview(
-        'programacao', await arquivo.read(), arquivo.filename, request.session)
+        'programacao', await _ler(arquivo), arquivo.filename, request.session)
     return render_preview(request, 'programacao', token, preview)
+
+
+async def _ler(arquivo):
+    """Upload com teto de bytes e extensão validada (importacao-arquivos R6)."""
+    from ..services.preprocessamento import ler_upload_limitado, validar_extensao
+
+    validar_extensao(arquivo.filename)
+    return await ler_upload_limitado(arquivo)

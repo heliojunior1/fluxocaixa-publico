@@ -165,7 +165,10 @@ def test_admin_em_modo_demo_nasce_sem_troca_obrigatoria(banco):
     """Numa demo pública a troca obrigatória trancaria o acesso: o primeiro
     visitante definiria a senha e os seguintes ficariam de fora."""
     db_file, url = banco
-    res = boot(url, SEED_DEMO_DATA="false", DEMO_MODE="true")
+    # SEED_DEMO_DATA=true junto: "modo demo com dados de demo" é a
+    # combinação legítima. A inversa (demo sobre dados reais) passou a
+    # abortar o boot — infraestrutura-banco R10.
+    res = boot(url, SEED_DEMO_DATA="true", DEMO_MODE="true")
     assert res.returncode == 0, res.stderr[-3000:]
 
     assert _q(

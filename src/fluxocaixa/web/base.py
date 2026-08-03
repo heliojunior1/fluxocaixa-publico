@@ -8,7 +8,12 @@ from io import BytesIO, StringIO
 import openpyxl
 from sqlalchemy import func
 
+import logging
+
 from . import router, templates, handle_exceptions
+from ..services.validacao import RegraNegocioError
+
+logger = logging.getLogger(__name__)
 from ..domain import LancamentoCreate
 from ..services import (
     list_lancamentos,
@@ -26,6 +31,7 @@ from ..models import db
 from ..services.seed import seed_data
 from ..auth.permissoes import requer
 
+
 @router.get('/', dependencies=[requer('FC_EXI_DASHBOARD')])
 @handle_exceptions
 async def index(request: Request):
@@ -38,10 +44,44 @@ async def index(request: Request):
     })
 
 
-@router.get('/init-db', dependencies=[requer('FC_ADMIN_BANCO')])
+async def _exigir_seed_destrutivo_autorizado(request: Request, rota: str):
+    """Guarda das rotas que acionam `seed_data()` (controle-acesso R6, infra R8).
+
+    As duas rotas removem FISICAMENTE lançamento, qualificador, pagamento e
+    órgão. Antes, só `recreate-db` exigia `APP_ENV=dev` — assimetria que vinha
+    da spec e deixava desprotegida a rota que ninguém achava perigosa.
+
+    Vive num helper, e não repetido em cada endpoint, porque duplicar guarda de
+    segurança é como a primeira ficou para trás.
+    """
+    import os
+
+    from fastapi import HTTPException
+
+    if os.getenv('APP_ENV') != 'dev':
+        raise HTTPException(
+            status_code=403,
+            detail=f"{rota} é destrutivo e só está disponível com APP_ENV=dev",
+        )
+    form = await request.form()
+    if form.get('confirmado') != 'true':
+        raise RegraNegocioError(
+            f"{rota} apaga lançamentos, qualificadores, pagamentos e órgãos. "
+            "Reenvie com confirmado=true para prosseguir."
+        )
+
+
+@router.post('/init-db', dependencies=[requer('FC_ADMIN_BANCO')])
 @handle_exceptions
-async def init_db():
-    """Initialize/reset the database with seed data"""
+async def init_db(request: Request):
+    """Migra e repopula o banco com os dados de demonstração (só em dev).
+
+    POST, e não GET: `SameSite=lax` envia o cookie de sessão em navegação
+    top-level GET, então uma rota destrutiva em GET é acionável por link de
+    terceiro. A confirmação protege do acionamento acidental; contra terceiro,
+    quem protege é o token CSRF (change protecao-csrf-global).
+    """
+    await _exigir_seed_destrutivo_autorizado(request, 'init-db')
     try:
         from ..bootstrap_db import preparar_banco
         from ..services.seed_dominio import seed_dominio
@@ -49,21 +89,19 @@ async def init_db():
         seed_dominio()
         seed_data()
         return "Database initialized successfully!"
-    except Exception as e:
-        return f"Error initializing database: {str(e)}"
+    except Exception:
+        # nunca devolver str(e): com SQLAlchemy vaza SQL, tabela, coluna e às
+        # vezes a string de conexão (o SafeAPIRouter já faz o certo em toda
+        # outra rota — estas duas o contornavam)
+        logger.exception("Falha ao inicializar o banco")
+        return "Erro ao inicializar o banco. Consulte o log do servidor."
 
 
-@router.get('/recreate-db', dependencies=[requer('FC_ADMIN_BANCO')])
+@router.post('/recreate-db', dependencies=[requer('FC_ADMIN_BANCO')])
 @handle_exceptions
-async def recreate_db():
-    """Recreate the database from scratch (somente APP_ENV=dev)"""
-    import os
-    from fastapi import HTTPException
-    if os.getenv('APP_ENV') != 'dev':
-        raise HTTPException(
-            status_code=403,
-            detail="recreate-db é destrutivo e só está disponível com APP_ENV=dev",
-        )
+async def recreate_db(request: Request):
+    """Recria o banco do zero (somente APP_ENV=dev)."""
+    await _exigir_seed_destrutivo_autorizado(request, 'recreate-db')
     try:
         from ..bootstrap_db import resetar_banco
         from ..services.seed_dominio import seed_dominio
@@ -71,8 +109,9 @@ async def recreate_db():
         seed_dominio()
         seed_data()
         return "Database recreated successfully!"
-    except Exception as e:
-        return f"Error recreating database: {str(e)}"
+    except Exception:
+        logger.exception("Falha ao recriar o banco")
+        return "Erro ao recriar o banco. Consulte o log do servidor."
 
 
 @router.get('/saldos', dependencies=[requer('FC_CONS_LANCAMENTO')])
@@ -225,7 +264,7 @@ async def import_lancamentos(request: Request, file: UploadFile = File(...)):
     from ..services.preprocessamento import criar_preview
     from .importacao import render_preview
 
-    token, preview = criar_preview('lancamentos', await file.read(), file.filename or '', request.session)
+    token, preview = criar_preview('lancamentos', await _ler(file), file.filename or '', request.session)
     return render_preview(request, 'lancamentos', token, preview)
 
 
@@ -326,3 +365,11 @@ async def informar_apurado_route(request: Request):
     return RedirectResponse(f"/conferencia?fim={form.get('fim') or dia.isoformat()}", status_code=303)
 
 
+
+
+async def _ler(arquivo):
+    """Upload com teto de bytes e extensão validada (importacao-arquivos R6)."""
+    from ..services.preprocessamento import ler_upload_limitado, validar_extensao
+
+    validar_extensao(arquivo.filename)
+    return await ler_upload_limitado(arquivo)

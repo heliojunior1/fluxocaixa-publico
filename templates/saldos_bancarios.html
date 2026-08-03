@@ -31,8 +31,8 @@
 <form action="{{ url_for('import_saldos_bancarios') }}" method="post" enctype="multipart/form-data"
     class="bg-white p-4 rounded-lg shadow-md mb-6 flex items-center gap-4" data-testid="importar-saldos">
     <span class="text-sm text-gray-600">Importar CSV (Data;Conta;Valor) → fundo GERAL:</span>
-    <input type="file" name="file" accept=".csv,.xlsx" class="border rounded px-2 py-1" required>
-    <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Importar</button>
+    <input type="file" name="file" accept=".csv,.xlsx" class="border rounded px-2 py-1" data-testid="import-arquivo" required>
+    <button type="submit" data-testid="import-enviar" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">Importar</button>
 </form>
 {% endif %}
 

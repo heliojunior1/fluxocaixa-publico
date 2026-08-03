@@ -1,20 +1,41 @@
-fastapi==0.109.0
-uvicorn[standard]==0.27.0
-sqlalchemy==2.0.41
-alembic==1.18.5
-jinja2==3.1.3
-python-multipart==0.0.6
-aiofiles==23.2.1
-gunicorn==21.2.0
+# Bloco web: faixas COM TETO de major, pelo mesmo motivo do bloco científico
+# abaixo — sem teto o build resolve para o major seguinte e o ambiente publicado
+# deixa de ser o que a suíte testou. Aqui é ainda mais sensível: fastapi e
+# starlette mudam contrato de renderização e de middleware entre majors.
+fastapi>=0.129.2,<0.130
+# TETO DELIBERADO em starlette 1.0. As advertências remanescentes (PYSEC-2026-161,
+# -248, -249, -2280, -2281) só são corrigidas na série 1.x, que REMOVE a
+# assinatura antiga de TemplateResponse(nome, {...}) em favor de
+# TemplateResponse(request, nome, ...). Medido: fastapi 0.141.1 + starlette 1.3.1
+# quebra 71 testes, todos em renderização de template. Não é fragilidade difusa,
+# é UMA mudança de contrato que toca toda tela — migração com escopo próprio,
+# não patch de CVE. Subir este teto exige a migração junto.
+starlette>=0.52.1,<1.0
+uvicorn[standard]>=0.27.0,<1
+sqlalchemy>=2.0.41,<2.1
+alembic>=1.18.5,<2
+jinja2>=3.1.6,<4
+# 0.0.6 tinha 9 advertências, entre elas a CVE-2024-24762 (ReDoS no parse de
+# multipart) — alcançável SEM autenticação, porque o POST /login é público e
+# passa por aqui.
+python-multipart>=0.0.32,<0.1
+aiofiles>=23.2.1,<25
+# 21.2.0 tinha a CVE-2024-1135 (request smuggling via Transfer-Encoding) — é o
+# servidor de produção e há proxy na frente no Render, que é a condição em que
+# smuggling importa.
+gunicorn>=26.0.0,<27
 pydantic>=2.6,<3
-apscheduler==3.11.3
-paramiko==3.5.1
-openpyxl==3.1.2
-httpx==0.27.0 
-pytest==8.4.1
-pytest-bdd==8.1.0
-bcrypt==5.0.0
-itsdangerous==2.2.0
+apscheduler>=3.11.3,<4
+# PYSEC-2026-2858 sem versão corrigida publicada (auditado em 2026-08-03).
+# Aceito e registrado: usado só pelo conector SFTP, com import tardio — quem não
+# configura fonte SFTP não carrega a biblioteca. Reavaliar a cada auditoria.
+paramiko>=3.5.1,<4
+openpyxl>=3.1.2,<4
+httpx>=0.27.0,<1
+pytest>=9.1.1,<10
+pytest-bdd>=8.1.0,<9
+bcrypt>=5.0.0,<6
+itsdangerous>=2.2.0,<3
 # Faixa com teto: sem ele o pip resolve para o major mais novo a cada build e o
 # ambiente publicado deixa de ser o que a suíte testou (um build pegou pandas 3
 # onde o desenvolvimento usa pandas 2). Subir de major aqui é decisão, não efeito

@@ -11,9 +11,17 @@ Idempotente e não destrutivo: cria apenas linhas faltantes por chave
 natural; nunca altera nem remove linhas existentes (edições do usuário
 são preservadas).
 """
+import logging
 import os
+import secrets
 
 from ..config import modo_demo
+
+logger = logging.getLogger(__name__)
+
+# Credencial que a TELA DE LOGIN exibe em modo demo (templates/login.html).
+# Mudar aqui exige mudar lá — o banner e a senha são a mesma decisão.
+SENHA_DEMO_ADMIN = "admin"
 from ..models import OrigemLancamento, TipoLancamento, Usuario
 from ..models.base import db
 from ..models.categoria_fiscal import (
@@ -97,6 +105,33 @@ PARAMETROS_GLOBAIS = [
     ("rcl_projetada", "Receita Corrente Líquida projetada (R$)", "V"),
     ("percentual_limite_poder", "% da RCL do duodécimo de cada Poder (LDO/CE)", "P"),
 ]
+
+
+def _senha_inicial_admin() -> str:
+    """Senha inicial do admin (spec controle-acesso R4).
+
+    ⚠️ Em MODO DEMO a senha continua sendo o valor conhecido: a tela de login
+    EXIBE as credenciais ao visitante, e uma senha aleatória tornaria o banner
+    mentiroso e a demo inacessível. A demo publica a credencial por desenho —
+    não há segredo a proteger ali.
+
+    Fora do modo demo, a ausência de `ADMIN_INITIAL_PASSWORD` passa a gerar
+    senha ALEATÓRIA, registrada uma única vez no log do boot. O default `admin`
+    abria janela de corrida real: entre o seed e o primeiro login legítimo,
+    quem monitorasse o deploy logava e definia a senha, tomando a conta.
+    """
+    configurada = os.getenv('ADMIN_INITIAL_PASSWORD')
+    if configurada:
+        return configurada
+    if modo_demo():
+        return SENHA_DEMO_ADMIN
+    senha = secrets.token_urlsafe(18)
+    logger.warning(
+        "ADMIN_INITIAL_PASSWORD não definida — senha inicial do admin gerada: %s "
+        "(anote agora; ela não será exibida de novo e a troca é obrigatória no "
+        "primeiro login)", senha,
+    )
+    return senha
 
 
 def seed_dominio(session=None):
@@ -189,7 +224,7 @@ def seed_dominio(session=None):
             Usuario(
                 nom_usuario='admin',
                 nom_completo='Administrador',
-                txt_hash_senha=gerar_hash(os.getenv('ADMIN_INITIAL_PASSWORD', 'admin')),
+                txt_hash_senha=gerar_hash(_senha_inicial_admin()),
                 # Em demo pública a troca obrigatória seria contraproducente: o
                 # primeiro visitante definiria a senha e trancaria os demais.
                 ind_troca_senha='N' if modo_demo() else 'S',

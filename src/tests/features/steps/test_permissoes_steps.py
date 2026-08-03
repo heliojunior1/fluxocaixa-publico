@@ -91,6 +91,12 @@ def acessa_tela(navegador, contexto, caminho):
     contexto["resp"] = navegador.get(caminho)
 
 
+@when(parsers.parse('aciona por POST a rota "{caminho}"'))
+def aciona_rota_post(navegador, contexto, caminho):
+    """As rotas destrutivas de banco só existem em POST (controle-acesso R6)."""
+    contexto["resp"] = navegador.post(caminho, data={"confirmado": "true"})
+
+
 # Telas candidatas para observar a barra lateral. A primeira que o perfil
 # alcançar serve — o menu é o mesmo em todas (vem do `base.html`).
 _TELAS_COM_MENU = ("/saldos", "/extracao/fontes", "/")

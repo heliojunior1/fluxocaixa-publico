@@ -14,6 +14,7 @@ from ..auth.permissoes import requer
 from ..models import Fundo
 from ..services import list_contas_bancarias
 from ..services.saldo_conta_service import (
+
     criar_saldo_tela,
     editar_saldo_tela,
     inativar_saldo_tela,
@@ -104,7 +105,7 @@ async def import_saldos_bancarios(request: Request, file: UploadFile = File(...)
     from ..services.preprocessamento import criar_preview
     from .importacao import render_preview
 
-    token, preview = criar_preview('saldos', await file.read(), file.filename or '', request.session)
+    token, preview = criar_preview('saldos', await _ler(file), file.filename or '', request.session)
     return render_preview(request, 'saldos', token, preview)
 
 
@@ -120,3 +121,11 @@ async def modelo_csv_saldos():
     )
     return Response(conteudo, media_type="text/csv",
                     headers={"Content-Disposition": "attachment; filename=modelo_saldos.csv"})
+
+
+async def _ler(arquivo):
+    """Upload com teto de bytes e extensão validada (importacao-arquivos R6)."""
+    from ..services.preprocessamento import ler_upload_limitado, validar_extensao
+
+    validar_extensao(arquivo.filename)
+    return await ler_upload_limitado(arquivo)

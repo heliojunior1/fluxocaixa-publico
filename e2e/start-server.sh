@@ -17,5 +17,10 @@ export ADMIN_INITIAL_PASSWORD=admin
 # disparam execução manualmente.
 export EXTRACAO_DEMO_CONNECTOR=1
 export EXTRACAO_SCHEDULER=false
+# Raiz de confinamento dos conectores (extracao-configuravel R23): as fontes
+# locais dos testes apontam para e2e/.data/fixtures, então é essa a raiz que o
+# ambiente E2E declara. Caminho fora dela continua recusado — é o que o spec de
+# segurança afere.
+export EXTRACAO_PASTA_RAIZ="$(pwd)/e2e/.data"
 .venv/bin/python e2e/seed_usuarios_e2e.py
 exec .venv/bin/uvicorn fluxocaixa.main:app --port 8433

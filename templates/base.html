@@ -5,10 +5,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Fluxo de Caixa</title>
+    <!-- Token CSRF (controle-acesso R12) — lido por seguranca.js, que o
+         injeta nos formulários e no fetch. -->
+    <meta name="csrf-token" content="{{ csrf_token(request) }}">
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tailwind (vendorizado, versão fixada — controle-acesso R11).
+         Ainda é o Play CDN (compilador JIT em runtime); internalizar resolve
+         dependência externa e integridade, não o custo de runtime. Build
+         estático fica como trabalho próprio. -->
+    <script src="{{ url_for('static', path='vendor/tailwind.play.js') }}"></script>
     <script>
         tailwind.config = {
             theme: {
@@ -37,14 +43,22 @@
             }
         }
     </script>
-    <!-- Chart.js CDN -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script
-        src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Chart.js 4.4.7 + adapter date-fns 3.0.0 e Lucide 0.469.0, vendorizados.
+         Antes vinham de CDN sem `integrity` e o Lucide sem versão (`@latest`):
+         comprometimento de terceiro executaria código em toda sessão
+         autenticada, e o conteúdo podia mudar sem ninguém revisar. -->
+    <script src="{{ url_for('static', path='vendor/chart.umd.min.js') }}"></script>
+    <script src="{{ url_for('static', path='vendor/chartjs-adapter-date-fns.bundle.min.js') }}"></script>
+    <script src="{{ url_for('static', path='vendor/lucide.min.js') }}"></script>
+    <!-- Escape de HTML dinâmico (relatorios R21) — origem única do `escHtml`.
+         Arquivo estático, e não <script> inline, para já nascer compatível com
+         a CSP (change headers-seguranca-http). -->
+    <script src="{{ url_for('static', path='js/seguranca.js') }}"></script>
+    <!-- Inter vendorizada (subsets latin/latin-ext apenas — o app é pt-BR).
+         O @import do Google Fonts bloqueava o render, dependia de internet
+         e seria recusado pela CSP. -->
+    <link rel="stylesheet" href="{{ url_for('static', path='vendor/inter.css') }}">
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
         body {
             font-family: 'Inter', sans-serif;

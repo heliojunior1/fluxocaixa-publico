@@ -131,6 +131,12 @@ def acessa_na_sessao(navegador, contexto, caminho):
     contexto["resp"] = navegador.get(caminho)
 
 
+@when(parsers.parse('aciono "{caminho}" por POST na mesma sessão'))
+def aciona_post_na_sessao(navegador, contexto, caminho):
+    """As rotas destrutivas de banco só existem em POST (controle-acesso R6)."""
+    contexto["resp"] = navegador.post(caminho, data={"confirmado": "true"})
+
+
 @when("aciono o logout")
 def aciona_logout(navegador, contexto):
     contexto["resp"] = navegador.post("/logout")

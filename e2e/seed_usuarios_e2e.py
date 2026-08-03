@@ -83,6 +83,75 @@ if not Qualificador.query.filter_by(num_qualificador='9.9.9').first():
     )
     db.session.commit()
 
+# Usuário dedicado ao teste de revogação de sessão (seguranca.spec.ts). Precisa
+# ser SÓ dele: o teste troca a senha, o que revoga todas as sessões daquele
+# usuário — usar o admin derrubaria o storageState dos outros specs.
+from fluxocaixa.auth.service import gerar_hash as _gerar_hash  # noqa: E402
+from fluxocaixa.models.usuario import Usuario as _Usuario  # noqa: E402
+
+if _Usuario.query.filter_by(nom_usuario='sessao.e2e').first() is None:
+    _u = _Usuario(
+        nom_usuario='sessao.e2e',
+        nom_completo='Usuário Sessão E2E',
+        txt_hash_senha=_gerar_hash('E2e-Sessao-123'),
+        ind_troca_senha='N',
+        ind_status='A',
+    )
+    db.session.add(_u)
+    db.session.commit()
+    _perfil = Perfil.query.filter_by(cod_perfil='CONSULTA').first()
+    db.session.add(UsuarioPerfil(seq_usuario=_u.seq_usuario,
+                                 seq_perfil=_perfil.seq_perfil))
+    db.session.commit()
+
+# Usuário dedicado ao teste de bloqueio por tentativas (seguranca.spec.ts).
+# Precisa ser SÓ dele: o teste o bloqueia por 15 minutos de propósito, e
+# bloquear um usuário compartilhado derrubaria os demais specs.
+if _Usuario.query.filter_by(nom_usuario='bloqueio.e2e').first() is None:
+    _ub = _Usuario(
+        nom_usuario='bloqueio.e2e',
+        nom_completo='Usuário Bloqueio E2E',
+        txt_hash_senha=_gerar_hash('E2e-Bloqueio-123'),
+        ind_troca_senha='N',
+        ind_status='A',
+    )
+    db.session.add(_ub)
+    db.session.commit()
+    db.session.add(UsuarioPerfil(
+        seq_usuario=_ub.seq_usuario,
+        seq_perfil=Perfil.query.filter_by(cod_perfil='CONSULTA').first().seq_perfil))
+    db.session.commit()
+
+# Rubrica com marcação HTML na descrição, para o teste de XSS armazenado
+# (seguranca.spec.ts). A descrição é campo LIVRE — o serviço valida o formato do
+# CÓDIGO e a unicidade, não o conteúdo —, e é assim que o payload entra pela
+# porta legítima de cadastro (perfil OPERADOR basta). Raiz própria (8) para não
+# poluir a árvore de demonstração nem o DFC dos outros specs.
+_DSC_XSS = '<img src=x onerror="window.__xss_e2e=1">Rubrica'
+if not Qualificador.query.filter_by(num_qualificador='8.8.8').first():
+    _q_xss = Qualificador(
+        num_qualificador='8.8.8',
+        dsc_qualificador=_DSC_XSS,
+        ind_status='A',
+    )
+    db.session.add(_q_xss)
+    db.session.commit()
+
+    _tipo = TipoLancamento.query.filter_by(dsc_tipo_lancamento='Entrada').first()
+    _origem = OrigemLancamento.query.filter_by(dsc_origem_lancamento='Manual').first()
+    db.session.add(
+        Lancamento(
+            dat_lancamento=date(2026, 7, 1),
+            seq_qualificador=_q_xss.seq_qualificador,
+            val_lancamento=Decimal("456.78"),
+            cod_tipo_lancamento=_tipo.cod_tipo_lancamento,
+            cod_origem_lancamento=_origem.cod_origem_lancamento,
+            cod_pessoa_inclusao=1,
+            ind_status='A',
+        )
+    )
+    db.session.commit()
+
 # Fundo pendente de revisão para o teste de aprovação (fundos.spec.ts).
 from fluxocaixa.models import Fundo, SistemaOrigem  # noqa: E402
 from fluxocaixa.services.fundo_service import upsert_fundo_pendente  # noqa: E402

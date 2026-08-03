@@ -16,6 +16,9 @@ from .auth import (
 )
 from .bootstrap_db import env_flag, preparar_banco
 from .config import Config
+from .config_guarda import validar_configuracao
+from .auth.csrf import obter_token, verificar_csrf
+from .seguranca_http import CabecalhosSegurancaMiddleware
 from .services.seed import seed_data
 from .services.seed_dominio import seed_dominio
 from .utils.formatters import format_currency
@@ -47,9 +50,16 @@ def create_app(config_class: type[Config] = Config) -> FastAPI:
 
     # Schema via Alembic (AUTO_MIGRATE), domínio sempre, demo opcional
     preparar_banco()
+    validar_configuracao(dict(os.environ))
+
     seed_dominio()
     if env_flag("SEED_DEMO_DATA", True):
         seed_data()
+
+    # Cabeçalhos de segurança (controle-acesso R11). Registrado ANTES do
+    # SessionMiddleware: no Starlette o último adicionado é o mais externo,
+    # então assim os cabeçalhos envolvem também as respostas de sessão.
+    app.add_middleware(CabecalhosSegurancaMiddleware)
 
     # Sessão em cookie assinado (HttpOnly por padrão; Secure em produção)
     app.add_middleware(
@@ -57,19 +67,28 @@ def create_app(config_class: type[Config] = Config) -> FastAPI:
         secret_key=obter_secret_key(),
         max_age=SESSAO_MAX_AGE_SEGUNDOS,
         same_site="lax",
-        https_only=os.getenv("APP_ENV") == "prod",
+        # Seguro por DEFAULT: desligado apenas em dev. Antes exigia
+        # APP_ENV=prod, então quem não definisse a variável rodava sem
+        # `Secure` — a configuração segura não pode depender de alguém
+        # lembrar de setar algo.
+        https_only=os.getenv("APP_ENV") != "dev",
     )
     registrar_handlers(app)
 
     # Register Jinja2 filters
     templates.env.filters["format_currency"] = format_currency
 
+    # Token CSRF disponível a todo template (controle-acesso R12).
+    templates.env.globals["csrf_token"] = lambda request: obter_token(request.session)
+
     # Rotas de autenticação (login público; logout/troca exigem sessão)
     app.include_router(router_publico)
-    app.include_router(router_sessao)
+    app.include_router(router_sessao, dependencies=[Depends(verificar_csrf)])
 
     # Todas as rotas de negócio exigem login (proteção default — R2)
-    app.include_router(router, dependencies=[Depends(exigir_login)])
+    app.include_router(
+        router, dependencies=[Depends(exigir_login), Depends(verificar_csrf)]
+    )
 
     # Documentação OpenAPI atrás de login
     docs_router = APIRouter(dependencies=[Depends(exigir_login)])
