@@ -14,14 +14,13 @@ from .auth import (
     router_publico,
     router_sessao,
 )
+from .auth.csrf import obter_token, verificar_csrf
 from .bootstrap_db import env_flag, preparar_banco
 from .config import Config
 from .config_guarda import validar_configuracao
-from .auth.csrf import obter_token, verificar_csrf
 from .seguranca_http import CabecalhosSegurancaMiddleware
 from .services.seed import seed_data
 from .services.seed_dominio import seed_dominio
-from .utils.formatters import format_currency
 from .web import router, templates
 
 SESSAO_MAX_AGE_SEGUNDOS = 8 * 3600  # expediente
@@ -56,6 +55,13 @@ def create_app(config_class: type[Config] = Config) -> FastAPI:
     if env_flag("SEED_DEMO_DATA", True):
         seed_data()
 
+    # Sessão SQLAlchemy por request (infraestrutura-banco R13). PRIMEIRO
+    # add_middleware = mais INTERNO: envolve exatamente a execução das rotas,
+    # e o remove() roda antes de os middlewares externos fecharem a resposta.
+    from .sessao_request import SessaoPorRequestMiddleware
+
+    app.add_middleware(SessaoPorRequestMiddleware)
+
     # Cabeçalhos de segurança (controle-acesso R11). Registrado ANTES do
     # SessionMiddleware: no Starlette o último adicionado é o mais externo,
     # então assim os cabeçalhos envolvem também as respostas de sessão.
@@ -74,9 +80,6 @@ def create_app(config_class: type[Config] = Config) -> FastAPI:
         https_only=os.getenv("APP_ENV") != "dev",
     )
     registrar_handlers(app)
-
-    # Register Jinja2 filters
-    templates.env.filters["format_currency"] = format_currency
 
     # Token CSRF disponível a todo template (controle-acesso R12).
     templates.env.globals["csrf_token"] = lambda request: obter_token(request.session)

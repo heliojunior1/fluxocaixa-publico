@@ -1,5 +1,4 @@
 """Steps BDD — conector API REST e resolvedor de mapeamento (spec R19/R20)."""
-import json as _json
 from datetime import date
 from decimal import Decimal
 

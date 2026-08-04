@@ -1,40 +1,39 @@
 """Service layer for Simulador de Cenários."""
-from ..auth.contexto import cod_pessoa_atual
-from . import periodo_resolver
-
-from datetime import date
-from typing import Dict, List, Optional
 import json
+from datetime import date
 
-from ..repositories import simulador_cenario_repository as repo
-from ..repositories.simulador_cenario_historico_repository import SimuladorCenarioHistoricoRepository
+from ..auth.contexto import cod_pessoa_atual
 from ..models import (
-    SimuladorCenario,
-    CenarioConfig,
     CenarioAjuste,
+    CenarioConfig,
     ModeloEconomicoParametro,
+    SimuladorCenario,
     SimuladorCenarioHistorico,
 )
-
+from ..repositories import simulador_cenario_repository as repo
+from ..repositories.simulador_cenario_historico_repository import (
+    SimuladorCenarioHistoricoRepository,
+)
+from . import periodo_resolver
 
 # ==================== CRUD Operations ====================
 
-def list_simuladores() -> List[SimuladorCenario]:
+def list_simuladores() -> list[SimuladorCenario]:
     """Lista todos os cenários simuladores."""
     return repo.get_all_simuladores()
 
 
-def list_active_simuladores() -> List[SimuladorCenario]:
+def list_active_simuladores() -> list[SimuladorCenario]:
     """Lista apenas cenários ativos."""
     return repo.get_active_simuladores()
 
 
-def get_simulador(seq_simulador_cenario: int) -> Optional[SimuladorCenario]:
+def get_simulador(seq_simulador_cenario: int) -> SimuladorCenario | None:
     """Busca um cenário simulador por ID."""
     return repo.get_simulador_by_id(seq_simulador_cenario)
 
 
-def delete_simulador(seq_simulador_cenario: int, user_id: int | None = None) -> Optional[SimuladorCenario]:
+def delete_simulador(seq_simulador_cenario: int, user_id: int | None = None) -> SimuladorCenario | None:
     """Inativa logicamente um cenário simulador."""
     return repo.delete_simulador_logical(seq_simulador_cenario, user_id or cod_pessoa_atual())
 
@@ -47,15 +46,15 @@ def criar_simulador_cenario(
     ano_base: int,
     num_periodos: int,
     tipo_cenario_receita: str,
-    config_receita: Dict,
+    config_receita: dict,
     tipo_cenario_despesa: str,
-    config_despesa: Dict,
-    ajustes_receita: Optional[Dict] = None,
-    ajustes_despesa: Optional[Dict] = None,
+    config_despesa: dict,
+    ajustes_receita: dict | None = None,
+    ajustes_despesa: dict | None = None,
     user_id: int | None = None,
     cod_periodicidade: str = 'MENSAL',
     cod_metodo_base: str = 'MEDIA_SIMPLES',
-    json_config_base: Optional[str] = None,
+    json_config_base: str | None = None,
 ) -> SimuladorCenario:
     """
     Cria um cenário simulador completo com receita e despesa.
@@ -79,33 +78,42 @@ def criar_simulador_cenario(
     Returns:
         SimuladorCenario criado
     """
-    # Criar cenário principal
-    simulador = SimuladorCenario(
-        nom_cenario=nom_cenario,
-        dsc_cenario=dsc_cenario,
-        ano_base=ano_base,
-        num_periodos=num_periodos,
-        cod_periodicidade=cod_periodicidade,
-        cod_metodo_base=cod_metodo_base,
-        json_config_base=json_config_base,
-        ind_status='A',
-        cod_pessoa_inclusao=user_id or cod_pessoa_atual(),
-    )
-    repo.create_simulador(simulador)
-    
-    # Criar configuração de receita
+    # TRANSAÇÃO ÚNICA (previsao R13): cabeçalho + configs + ajustes comitam
+    # juntos — antes o cabeçalho já estava commitado quando a config falhava
+    # (modelo não aplicável à perna) e sobrava um cenário órfão.
+    from ..models.base import db
     from ..models.lancamento import TIPO_CREDITO, TIPO_DEBITO
 
-    for perna, modelo, cfg, ajustes, prefixo in (
-        (TIPO_CREDITO, tipo_cenario_receita, config_receita, ajustes_receita, ''),
-        (TIPO_DEBITO, tipo_cenario_despesa, config_despesa, ajustes_despesa, 'desp_'),
-    ):
-        if not modelo:
-            continue
-        config = criar_config(
-            simulador.seq_simulador_cenario, perna, modelo, cfg or {})
-        if modelo == 'MANUAL' and ajustes:
-            _criar_ajustes(config.seq_cenario_config, ajustes, ano_base, prefixo)
+    try:
+        simulador = SimuladorCenario(
+            nom_cenario=nom_cenario,
+            dsc_cenario=dsc_cenario,
+            ano_base=ano_base,
+            num_periodos=num_periodos,
+            cod_periodicidade=cod_periodicidade,
+            cod_metodo_base=cod_metodo_base,
+            json_config_base=json_config_base,
+            ind_status='A',
+            cod_pessoa_inclusao=user_id or cod_pessoa_atual(),
+        )
+        repo.create_simulador(simulador, commit=False)
+
+        for perna, modelo, cfg, ajustes, prefixo in (
+            (TIPO_CREDITO, tipo_cenario_receita, config_receita, ajustes_receita, ''),
+            (TIPO_DEBITO, tipo_cenario_despesa, config_despesa, ajustes_despesa, 'desp_'),
+        ):
+            if not modelo:
+                continue
+            config = criar_config(
+                simulador.seq_simulador_cenario, perna, modelo, cfg or {},
+                commit=False)
+            if modelo == 'MANUAL' and ajustes:
+                _criar_ajustes(config.seq_cenario_config, ajustes, ano_base,
+                               prefixo, commit=False)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
 
     return simulador
 
@@ -126,7 +134,8 @@ def _validar_modelo_na_perna(cod_tipo_modelo: str, cod_tipo_lancamento: str) -> 
 
 
 def criar_config(seq_simulador_cenario: int, cod_tipo_lancamento: str,
-                 cod_tipo_modelo: str, configuracao: Dict) -> CenarioConfig:
+                 cod_tipo_modelo: str, configuracao: dict,
+                 commit: bool = True) -> CenarioConfig:
     """Cria a configuração de UMA perna, validando catálogo e unicidade (R1/R2)."""
     from .validacao import RegraNegocioError
 
@@ -140,7 +149,7 @@ def criar_config(seq_simulador_cenario: int, cod_tipo_lancamento: str,
         cod_tipo_lancamento=cod_tipo_lancamento,
         cod_tipo_modelo=cod_tipo_modelo,
         json_configuracao=json.dumps(configuracao or {}),
-    ))
+    ), commit=commit)
 
 
 def _validar_qualificador_folha(seq_qualificador: int) -> None:
@@ -163,8 +172,8 @@ def _validar_qualificador_folha(seq_qualificador: int) -> None:
         )
 
 
-def _criar_ajustes(seq_cenario_config: int, ajustes_data: Dict, ano_base: int,
-                   prefixo: str = ''):
+def _criar_ajustes(seq_cenario_config: int, ajustes_data: dict, ano_base: int,
+                   prefixo: str = '', commit: bool = True):
     """Ajustes de UMA perna. `prefixo='desp_'` para débito — o formato achatado
     do form web separa as pernas pelo prefixo da chave."""
     marca = f'val_ajuste_{prefixo}'
@@ -193,10 +202,10 @@ def _criar_ajustes(seq_cenario_config: int, ajustes_data: Dict, ano_base: int,
             seq_cenario_config=seq_cenario_config,
             seq_qualificador=seq_qualificador, ano=ano_base, mes=mes,
             cod_tipo_ajuste=tipo, val_ajuste=val_ajuste,
-        ))
+        ), commit=commit)
 
 
-def _criar_parametros_economicos(seq_cenario_config: int, parametros: List[Dict]):
+def _criar_parametros_economicos(seq_cenario_config: int, parametros: list[dict]):
     """Helper para criar parâmetros de modelos econômicos."""
     for param in parametros:
         modelo_param = ModeloEconomicoParametro(
@@ -217,16 +226,16 @@ def atualizar_simulador_cenario(
     ano_base: int,
     num_periodos: int,
     tipo_cenario_receita: str,
-    config_receita: Dict,
+    config_receita: dict,
     tipo_cenario_despesa: str,
-    config_despesa: Dict,
-    ajustes_receita: Optional[Dict] = None,
-    ajustes_despesa: Optional[Dict] = None,
+    config_despesa: dict,
+    ajustes_receita: dict | None = None,
+    ajustes_despesa: dict | None = None,
     user_id: int | None = None,
     cod_periodicidade: str = 'MENSAL',
     cod_metodo_base: str = 'MEDIA_SIMPLES',
-    json_config_base: Optional[str] = None,
-) -> Optional[SimuladorCenario]:
+    json_config_base: str | None = None,
+) -> SimuladorCenario | None:
     """Atualiza um cenário simulador existente."""
     simulador = repo.get_simulador_by_id(seq_simulador_cenario)
     if not simulador:
@@ -253,36 +262,50 @@ def atualizar_simulador_cenario(
     # Atualização por perna — sem os dois blocos espelhados de antes
     from ..models.lancamento import TIPO_CREDITO, TIPO_DEBITO
 
-    for perna, modelo, cfg, ajustes, prefixo in (
-        (TIPO_CREDITO, tipo_cenario_receita, config_receita, ajustes_receita, ''),
-        (TIPO_DEBITO, tipo_cenario_despesa, config_despesa, ajustes_despesa, 'desp_'),
-    ):
-        config = repo.get_config_by_perna(seq_simulador_cenario, perna)
-        if config is None:
-            if modelo:
-                config = criar_config(seq_simulador_cenario, perna, modelo, cfg or {})
-            else:
-                continue
-        elif modelo:
-            _validar_modelo_na_perna(modelo, perna)
-            config.cod_tipo_modelo = modelo
-            config.json_configuracao = json.dumps(cfg) if cfg else None
+    # TRANSAÇÃO ÚNICA (previsao R13): a exclusão dos ajustes antigos fica
+    # PENDENTE até o commit final — se os novos falharem no meio, o rollback
+    # devolve os antigos (antes: exclusão commitada + novos parciais).
+    from ..models.base import db
 
-        repo.delete_ajustes_by_config_ano(config.seq_cenario_config, ano_base)
-        if ajustes:
-            _criar_ajustes(config.seq_cenario_config, ajustes, ano_base, prefixo)
+    try:
+        for perna, modelo, cfg, ajustes, prefixo in (
+            (TIPO_CREDITO, tipo_cenario_receita, config_receita, ajustes_receita, ''),
+            (TIPO_DEBITO, tipo_cenario_despesa, config_despesa, ajustes_despesa, 'desp_'),
+        ):
+            config = repo.get_config_by_perna(seq_simulador_cenario, perna)
+            if config is None:
+                if modelo:
+                    config = criar_config(seq_simulador_cenario, perna, modelo,
+                                          cfg or {}, commit=False)
+                else:
+                    continue
+            elif modelo:
+                _validar_modelo_na_perna(modelo, perna)
+                config.cod_tipo_modelo = modelo
+                config.json_configuracao = json.dumps(cfg) if cfg else None
 
-        if perna == TIPO_CREDITO and modelo == 'REGRESSAO' and (cfg or {}).get('parametros'):
-            repo.delete_parametros_by_config(config.seq_cenario_config)
-            _criar_parametros_economicos(config.seq_cenario_config, cfg['parametros'])
+            repo.delete_ajustes_by_config_ano(config.seq_cenario_config,
+                                              ano_base, commit=False)
+            if ajustes:
+                _criar_ajustes(config.seq_cenario_config, ajustes, ano_base,
+                               prefixo, commit=False)
 
-    repo.commit()
+            if perna == TIPO_CREDITO and modelo == 'REGRESSAO' and (cfg or {}).get('parametros'):
+                repo.delete_parametros_by_config(config.seq_cenario_config,
+                                                 commit=False)
+                _criar_parametros_economicos(config.seq_cenario_config,
+                                             cfg['parametros'])
+
+        repo.commit()
+    except Exception:
+        db.session.rollback()
+        raise
     return simulador
 
 
 # ==================== Obter Dados Completos ====================
 
-def obter_simulador_completo(seq_simulador_cenario: int) -> Optional[Dict]:
+def obter_simulador_completo(seq_simulador_cenario: int) -> dict | None:
     """Cenário com as configs por perna.
 
     O shape mantém as chaves 'receita'/'despesa' por compatibilidade — quem
@@ -381,7 +404,7 @@ def criar_snapshot_cenario(seq_simulador_cenario: int, user_id: int | None = Non
     return historico_repo.create_snapshot(snapshot)
 
 
-def get_versao_inicial_cenario(seq_simulador_cenario: int, ano: Optional[int] = None) -> Optional[Dict]:
+def get_versao_inicial_cenario(seq_simulador_cenario: int, ano: int | None = None) -> dict | None:
     """
     Retorna a primeira versão do cenário (do histórico ou atual).
     
@@ -402,7 +425,7 @@ def get_versao_inicial_cenario(seq_simulador_cenario: int, ano: Optional[int] = 
     return obter_simulador_completo(seq_simulador_cenario)
 
 
-def get_versao_final_cenario(seq_simulador_cenario: int, ano: Optional[int] = None) -> Optional[Dict]:
+def get_versao_final_cenario(seq_simulador_cenario: int, ano: int | None = None) -> dict | None:
     """
     Retorna a última versão do cenário (do histórico ou atual).
     
@@ -442,7 +465,8 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
 
     from ..models.lancamento import TIPO_CREDITO
     from .formula_engine import (
-        projetar_cenario_formula, projetar_crescimento_ultimo_ano,
+        projetar_cenario_formula,
+        projetar_crescimento_ultimo_ano,
         projetar_media_crescimento_anos,
     )
 
@@ -557,7 +581,7 @@ def _magnitude(projecao):
     return projecao
 
 
-def executar_simulacao(seq_simulador_cenario: int) -> Optional[Dict]:
+def executar_simulacao(seq_simulador_cenario: int) -> dict | None:
     """Executa a simulação do cenário, uma perna por configuração.
 
     O shape de retorno é o mesmo de antes da unificação — `projecao_receita`,
@@ -565,10 +589,10 @@ def executar_simulacao(seq_simulador_cenario: int) -> Optional[Dict]:
     `projecao_versao_service._montar_linhas_valor` e `dfc_projecao._mapa_ao_vivo`
     dependem dele.
     """
-    from . import modelos_economicos_service as modelos
     import pandas as pd
 
     from ..models.lancamento import TIPO_CREDITO, TIPO_DEBITO
+    from . import modelos_economicos_service as modelos
 
     cenario_completo = obter_simulador_completo(seq_simulador_cenario)
     if not cenario_completo:
@@ -586,6 +610,16 @@ def executar_simulacao(seq_simulador_cenario: int) -> Optional[Dict]:
     projecao_despesa, projecao_despesa_detalhada = pernas['despesa']
 
     cenario_total = _calcular_cenario_total(projecao_receita, projecao_despesa)
+
+    # Degradação NUNCA silenciosa (previsao R12): quando um motor caiu para o
+    # fallback, a mensagem viaja em attrs['degradacao'] — agregada aqui para
+    # qualquer consumidor (padrão `projecao_origem.ao_vivo` da F5.2).
+    degradacoes = []
+    for chave, (projecao, _detalhada) in pernas.items():
+        mensagem = getattr(projecao, 'attrs', {}).get('degradacao')
+        if mensagem:
+            degradacoes.append({'perna': chave, 'mensagem': mensagem})
+
     resumo = {
         'total_receita': projecao_receita['valor_projetado'].sum() if len(projecao_receita) > 0 else 0,
         'total_despesa': projecao_despesa['valor_projetado'].sum() if len(projecao_despesa) > 0 else 0,
@@ -601,11 +635,12 @@ def executar_simulacao(seq_simulador_cenario: int) -> Optional[Dict]:
         'projecao_despesa_detalhada': projecao_despesa_detalhada,
         'cenario_total': cenario_total,
         'resumo': resumo,
+        'degradacoes': degradacoes,
     }
 
 
-def _executar_cenario_manual(ajustes: List, ano_base: int, num_periodos: int,
-                             periodicidade: str = 'MENSAL') -> 'pd.DataFrame':
+def _executar_cenario_manual(ajustes: list, ano_base: int, num_periodos: int,
+                             periodicidade: str = 'MENSAL') -> 'pd.DataFrame':  # noqa: F821 - import tardio de pandas, anotação-string
     """Cenário manual a partir dos ajustes — uma função para as DUAS pernas.
 
     Antes havia `_receita` e `_despesa`, 69 e 67 linhas, diferindo em UMA linha
@@ -613,12 +648,10 @@ def _executar_cenario_manual(ajustes: List, ano_base: int, num_periodos: int,
     magnitude) o `abs()` vale para as duas, e a cópia deixou de ter razão.
     """
     import pandas as pd
-    from dateutil.relativedelta import relativedelta
-    from datetime import date
+
     from . import modelos_economicos_service as modelos
-    
+
     # Criar lista de todos os meses e qualificadores
-    data_base = date(ano_base, 1, 1)
     records = []
     
     # Agrupar ajustes por (mes, qualificador)
@@ -650,11 +683,20 @@ def _executar_cenario_manual(ajustes: List, ano_base: int, num_periodos: int,
     # Antes eram sempre `relativedelta(months=i)`, então 52 "semanas" viravam
     # 52 meses. O ajuste continua indexado pelo MÊS da data — é o grão em que o
     # usuário preenche a tela.
-    for i, data_mes in enumerate(
-        periodo_resolver.serie_de_datas(periodicidade, ano_base, num_periodos)
-    ):
+    datas = periodo_resolver.serie_de_datas(periodicidade, ano_base, num_periodos)
+
+    # R15 (L8): o ajuste é MENSAL; em quinzenal/semanal o mês tem 2/4-5
+    # períodos e emitir o valor cheio em cada um multiplicava o mês
+    # (R$ 120 mil viravam R$ 240–600 mil). O valor do mês é RATEADO pela
+    # quota de períodos que o mês tem NESTA série — MENSAL/ANUAL têm quota 1,
+    # mecanismo único e inerte onde já estava certo.
+    from collections import Counter
+    periodos_no_mes = Counter((d.year, d.month) for d in datas)
+
+    for i, data_mes in enumerate(datas):
         mes = data_mes.month
-        
+        quota = periodos_no_mes[(data_mes.year, data_mes.month)] or 1
+
         for seq_qualificador in qualificadores:
             ajuste = ajustes_map.get((mes, seq_qualificador))
             
@@ -665,12 +707,12 @@ def _executar_cenario_manual(ajustes: List, ano_base: int, num_periodos: int,
                 val_ajuste = ajuste['valor']
                 
                 if tipo == 'V':
-                    # Valor fixo
-                    valor_projetado = val_ajuste
+                    # Valor fixo MENSAL rateado pelos períodos do mês
+                    valor_projetado = val_ajuste / quota
                 else:
-                    # Porcentagem sobre o ano anterior
+                    # Porcentagem sobre o total MENSAL do ano anterior, rateada
                     valor_ref = valores_ref.get((seq_qualificador, mes), 0)
-                    valor_projetado = valor_ref * (1 + val_ajuste / 100)
+                    valor_projetado = valor_ref * (1 + val_ajuste / 100) / quota
             
             records.append({
                 'data': data_mes,
@@ -684,7 +726,7 @@ def _executar_cenario_manual(ajustes: List, ano_base: int, num_periodos: int,
     return pd.DataFrame(records)
 
 
-def _calcular_cenario_total(projecao_receita: 'pd.DataFrame', projecao_despesa: 'pd.DataFrame') -> 'pd.DataFrame':
+def _calcular_cenario_total(projecao_receita: 'pd.DataFrame', projecao_despesa: 'pd.DataFrame') -> 'pd.DataFrame':  # noqa: F821 - import tardio de pandas, anotação-string
     """Combina projeções de receita e despesa em um cenário total."""
     import pandas as pd
     

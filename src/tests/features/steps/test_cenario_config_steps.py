@@ -2,7 +2,7 @@
 
 Ilha 2015: as outras redes/features ocupam 2017, 2019, 2022–2026 e 2031–2038.
 """
-from datetime import date, datetime
+from datetime import datetime
 from decimal import Decimal
 
 import pytest

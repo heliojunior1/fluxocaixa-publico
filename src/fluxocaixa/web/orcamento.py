@@ -5,10 +5,9 @@ from decimal import Decimal
 from fastapi import File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse
 
-from . import handle_exceptions, router, templates
 from ..auth.permissoes import requer
 from ..services.dotacao_service import criar_dotacao, registrar_credito, visao_do_ano
-
+from . import handle_exceptions, router, templates
 
 
 def _qualificadores_despesa():
@@ -103,12 +102,11 @@ async def importar_execucao(request: Request, arquivo: UploadFile = File(...),
                             ano_import: int = Form(...)):
     """Importa a execução E/L/P (upload → preview → confirmar)."""
     from ..services.preprocessamento import criar_preview
-    from ..services.preprocessamento_adapters import _AdapterExecucao
     from .importacao import render_preview
 
-    _AdapterExecucao._ano = ano_import
     token, preview = criar_preview(
-        'execucao', await _ler(arquivo), arquivo.filename, request.session)
+        'execucao', await _ler(arquivo), arquivo.filename, request.session,
+        contexto={"ano": ano_import})
     return render_preview(request, 'execucao', token, preview)
 
 
@@ -119,12 +117,11 @@ async def importar_dotacao(request: Request, arquivo: UploadFile = File(...),
                            ano_import: int = Form(...)):
     """Importa a dotação inicial (upload → preview → confirmar)."""
     from ..services.preprocessamento import criar_preview
-    from ..services.preprocessamento_adapters import _AdapterDotacao
     from .importacao import render_preview
 
-    _AdapterDotacao._ano = ano_import
     token, preview = criar_preview(
-        'dotacao', await _ler(arquivo), arquivo.filename, request.session)
+        'dotacao', await _ler(arquivo), arquivo.filename, request.session,
+        contexto={"ano": ano_import})
     return render_preview(request, 'dotacao', token, preview)
 
 

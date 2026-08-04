@@ -9,7 +9,7 @@ credencial, conexão, extração) viram execução com status ERRO.
 """
 import json
 import time
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from pydantic import ValidationError
 
@@ -565,9 +565,18 @@ def listar_execucoes(seq_fonte: int | None = None, status: str | None = None,
 
 
 __all__ = [
-    'criar_fonte', 'alterar_fonte', 'inativar_fonte',
-    'montar_janela', 'executar_fonte', 'testar_conexao_fonte',
-    'listar_fontes', 'obter_fonte_para_edicao', 'montar_config_do_form',
-    'montar_layout_do_form', 'listar_execucoes',
-    'DISPARO_AGENDADO', 'DISPARO_MANUAL', 'JANELA_MAXIMA_DIAS',
+    'DISPARO_AGENDADO',
+    'DISPARO_MANUAL',
+    'JANELA_MAXIMA_DIAS',
+    'alterar_fonte',
+    'criar_fonte',
+    'executar_fonte',
+    'inativar_fonte',
+    'listar_execucoes',
+    'listar_fontes',
+    'montar_config_do_form',
+    'montar_janela',
+    'montar_layout_do_form',
+    'obter_fonte_para_edicao',
+    'testar_conexao_fonte',
 ]

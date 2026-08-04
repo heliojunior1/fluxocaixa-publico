@@ -52,7 +52,7 @@ LAYOUT_TRANSICAO = ["data", "conta", "valor"]
 class _AdapterSaldos:
     tipo = "saldos"
 
-    def parse_validar(self, content: bytes, filename: str) -> Preview:
+    def parse_validar(self, content: bytes, filename: str, contexto: dict | None = None) -> Preview:
         from .validacao import RegraNegocioError
 
         cabecalho, linhas = _ler_csv(content)
@@ -71,16 +71,26 @@ class _AdapterSaldos:
         # cache de contas e fundos e das chaves ativas já existentes
         contas = {(c.cod_banco, c.num_agencia, c.num_conta): c for c in ContaBancaria.query.all()}
         fundos = {f.cod_fundo: f for f in Fundo.query.all()}
+        # UMA query para as chaves ativas — a checagem "substituirá o saldo
+        # existente" era um SELECT POR LINHA do arquivo (5.000 linhas = 5.000
+        # queries), sendo que contas/fundos já eram pré-carregados exatamente
+        # para evitar isso (importacao-arquivos R7 — achado P5).
+        from ..models.base import db as _db
+        chaves_ativas = {
+            (sc, sf, dt) for (sc, sf, dt) in _db.session.query(
+                SaldoContaFundo.seq_conta, SaldoContaFundo.seq_fundo,
+                SaldoContaFundo.dat_saldo).filter_by(ind_status='A').all()
+        }
         idx = {i: _norm(c) for i, c in enumerate(cabecalho)}
 
         preview_linhas = []
         for n, row in enumerate(linhas, start=1):
             campos = {idx.get(i, str(i)): (row[i] if i < len(row) else "") for i in range(len(cabecalho))}
-            preview_linhas.append(self._validar_linha(n, layout, campos, contas, fundos))
+            preview_linhas.append(self._validar_linha(n, layout, campos, contas, fundos, chaves_ativas))
 
         return Preview(tipo=self.tipo, arquivo=filename, colunas=colunas, linhas=preview_linhas)
 
-    def _validar_linha(self, n, layout, campos, contas, fundos) -> LinhaPreview:
+    def _validar_linha(self, n, layout, campos, contas, fundos, chaves_ativas) -> LinhaPreview:
         if layout == "transicao":
             dat_raw = campos.get("data")
             conta_raw = (campos.get("conta") or "").strip()
@@ -125,17 +135,14 @@ class _AdapterSaldos:
         if fundo is None and cod_fundo != "GERAL":
             avisos.append(f"fundo '{cod_fundo}' será auto-cadastrado pendente de revisão")
         elif fundo is not None:
-            existe = SaldoContaFundo.query.filter_by(
-                seq_conta=conta.seq_conta, seq_fundo=fundo.seq_fundo,
-                dat_saldo=dat, ind_status='A').first()
-            if existe:
+            if (conta.seq_conta, fundo.seq_fundo, dat) in chaves_ativas:
                 avisos.append("substituirá o saldo ativo existente")
 
         if avisos:
             return LinhaPreview(n, "aviso", "; ".join(avisos), dados)
         return LinhaPreview(n, "ok", None, dados)
 
-    def gravar(self, linhas_graváveis):
+    def gravar(self, linhas_graváveis, contexto: dict | None = None):
         from .fundo_service import garantir_fundo_geral
         from .importacao_lote_service import LinhaLote, importar_lote
 
@@ -159,22 +166,36 @@ class _AdapterSaldos:
 class _AdapterLancamentos:
     tipo = "lancamentos"
 
-    def parse_validar(self, content: bytes, filename: str) -> Preview:
-        from ..models import Lancamento, OrigemLancamento, Qualificador, TipoLancamento  # noqa: F401
+    def parse_validar(self, content: bytes, filename: str, contexto: dict | None = None) -> Preview:
+        from ..models import (  # noqa: F401
+            Lancamento,
+            OrigemLancamento,
+            Qualificador,
+            TipoLancamento,
+        )
 
         cabecalho, linhas = _ler_csv(content)
         idx = {i: c.strip() for i, c in enumerate(cabecalho)}
-        quals = {(q.dsc_qualificador or "").lower(): q for q in Qualificador.query.all()}
+        # SÓ ATIVOS + detecção de ambiguidade (R18): preview e gravação
+        # aplicam a MESMA recusa — divergência entre os dois é o defeito
+        quals = {}
+        ambiguas = {}
+        for q in Qualificador.query.filter_by(ind_status='A').all():
+            chave = (q.dsc_qualificador or "").lower()
+            if chave in quals:
+                ambiguas.setdefault(chave, [quals[chave]]).append(q)
+            else:
+                quals[chave] = q
         tipos = {(t.dsc_tipo_lancamento or "").lower(): t for t in TipoLancamento.query.all()}
         colunas = ["Data", "Qualificador", "Tipo", "Valor", "Status"]
 
         preview_linhas = []
         for n, row in enumerate(linhas, start=1):
             campos = {idx.get(i, str(i)): (row[i] if i < len(row) else "") for i in range(len(cabecalho))}
-            preview_linhas.append(self._validar(n, campos, quals, tipos))
+            preview_linhas.append(self._validar(n, campos, quals, tipos, ambiguas))
         return Preview(tipo=self.tipo, arquivo=filename, colunas=colunas, linhas=preview_linhas)
 
-    def _validar(self, n, campos, quals, tipos) -> LinhaPreview:
+    def _validar(self, n, campos, quals, tipos, ambiguas) -> LinhaPreview:
         dat_raw = campos.get("Data") or campos.get("data")
         desc = (campos.get("Qualificador") or campos.get("Descrição") or "").strip()
         valor_raw = campos.get("Valor (R$)") or campos.get("Valor") or campos.get("valor")
@@ -184,6 +205,13 @@ class _AdapterLancamentos:
 
         if _parse_data(dat_raw) is None:
             return LinhaPreview(n, "erro", f"Data inválida '{dat_raw}'", dados)
+        if desc.lower() in ambiguas:
+            codigos = ', '.join(sorted(
+                q.num_qualificador for q in ambiguas[desc.lower()]))
+            return LinhaPreview(
+                n, "erro",
+                f"Descrição '{desc}' é ambígua ({codigos}) — classifique pelo código",
+                dados)
         q = quals.get(desc.lower())
         if q is None:
             return LinhaPreview(n, "erro", f"Qualificador '{desc}' não encontrado", dados)
@@ -198,7 +226,7 @@ class _AdapterLancamentos:
             return LinhaPreview(n, "erro", f"Valor inválido '{valor_raw}'", dados)
         return LinhaPreview(n, "ok", None, dados)
 
-    def gravar(self, linhas_graváveis):
+    def gravar(self, linhas_graváveis, contexto: dict | None = None):
         import csv as _csv
         from io import StringIO
 
@@ -218,10 +246,11 @@ class _AdapterLancamentos:
 class _AdapterLoa:
     tipo = "loa"
 
-    def parse_validar(self, content: bytes, filename: str) -> Preview:
-        from ..web.loa import _encontrar_qualificador
+    def parse_validar(self, content: bytes, filename: str, contexto: dict | None = None) -> Preview:
         from ..models import Loa
+        from .loa_service import encontrar_qualificador as _encontrar_qualificador
 
+        ano = int((contexto or {})["ano"])
         cabecalho, linhas = _ler_csv(content)
         idx = {i: _norm(c) for i, c in enumerate(cabecalho)}
         colunas = ["Qualificador", "Valor", "Status"]
@@ -242,25 +271,26 @@ class _AdapterLoa:
             q = _encontrar_qualificador(ref)
             if q is None:
                 preview_linhas.append(LinhaPreview(n, "erro", f"Qualificador '{ref}' não encontrado", dados)); continue
-            existe = Loa.query.filter_by(num_ano=self._ano, seq_qualificador=q.seq_qualificador).first()
+            existe = Loa.query.filter_by(num_ano=ano, seq_qualificador=q.seq_qualificador).first()
             if existe:
                 preview_linhas.append(LinhaPreview(n, "aviso", "atualizará o valor existente do ano/qualificador", dados))
             else:
                 preview_linhas.append(LinhaPreview(n, "ok", None, dados))
         return Preview(tipo=self.tipo, arquivo=filename, colunas=colunas, linhas=preview_linhas)
 
-    # o ano é fixado por atributo antes de parse_validar (a rota informa)
-    _ano = date.today().year
-
-    def gravar(self, linhas_graváveis):
+    def gravar(self, linhas_graváveis, contexto: dict | None = None):
+        # do SERVIÇO, nunca da web (cadastros-nucleo R24 — camadas); o ano
+        # vem do TOKEN do preview (R7), nunca de estado compartilhado
         from ..models.base import db
-        from ..web.loa import _encontrar_qualificador, _upsert_loa
+        from .loa_service import encontrar_qualificador as _encontrar_qualificador
+        from .loa_service import upsert_loa as _upsert_loa
 
+        ano = int((contexto or {})["ano"])
         n = 0
         for l in linhas_graváveis:
             q = _encontrar_qualificador(l.dados["ref"])
             if q is not None:
-                _upsert_loa(self._ano, q.seq_qualificador, _dec(l.dados["valor"]))
+                _upsert_loa(ano, q.seq_qualificador, _dec(l.dados["valor"]))
                 n += 1
         db.session.commit()
         return {"sucesso": n, "erros": []}
@@ -277,9 +307,8 @@ class _AdapterFontesRecurso:
     """
 
     tipo = "fontes_recurso"
-    _exercicio = date.today().year  # a rota informa antes de parse_validar
 
-    def parse_validar(self, content: bytes, filename: str) -> Preview:
+    def parse_validar(self, content: bytes, filename: str, contexto: dict | None = None) -> Preview:
         from ..models import FonteRecurso
         from ..models.fonte_recurso import IDENTIFICADORES_EXERCICIO
 
@@ -287,10 +316,11 @@ class _AdapterFontesRecurso:
         idx = {i: _norm(c) for i, c in enumerate(cabecalho)}
         colunas = ["Código", "Descrição", "Vinculação", "Status"]
 
+        exercicio = int((contexto or {})["exercicio"])
         existentes = {
             (f.cod_identificador_exercicio, f.cod_fonte_stn, f.cod_detalhamento)
             for f in FonteRecurso.query.filter_by(
-                num_exercicio_vigencia=self._exercicio, ind_status='A').all()
+                num_exercicio_vigencia=exercicio, ind_status='A').all()
         }
 
         preview_linhas = []
@@ -323,17 +353,18 @@ class _AdapterFontesRecurso:
                 preview_linhas.append(LinhaPreview(n, "ok", None, dados))
         return Preview(tipo=self.tipo, arquivo=filename, colunas=colunas, linhas=preview_linhas)
 
-    def gravar(self, linhas_graváveis):
+    def gravar(self, linhas_graváveis, contexto: dict | None = None):
+        from ..models.fonte_recurso import ORIGEM_STN
         from .fonte_recurso_service import criar_fonte
         from .validacao import RegraNegocioError
-        from ..models.fonte_recurso import ORIGEM_STN
 
+        exercicio = int((contexto or {})["exercicio"])
         n = 0
         for l in linhas_graváveis:
             try:
                 criar_fonte(
                     l.dados["ident"], l.dados["fonte"], l.dados["dsc"],
-                    self._exercicio, vinculada=l.dados["vinc"],
+                    exercicio, vinculada=l.dados["vinc"],
                     detalhamento=l.dados["det"] or None,
                     grupo_destinacao=l.dados["grupo"] or None,
                     origem=ORIGEM_STN,
@@ -357,9 +388,8 @@ class _AdapterProgramacao:
     """
 
     tipo = "programacao"
-    _ano = date.today().year
 
-    def parse_validar(self, content: bytes, filename: str) -> Preview:
+    def parse_validar(self, content: bytes, filename: str, contexto: dict | None = None) -> Preview:
         from ..models import Orgao
 
         cabecalho, linhas = _ler_csv(content)
@@ -392,12 +422,13 @@ class _AdapterProgramacao:
             preview_linhas.append(LinhaPreview(n, "ok", None, dados))
         return Preview(tipo=self.tipo, arquivo=filename, colunas=colunas, linhas=preview_linhas)
 
-    def gravar(self, linhas_graváveis):
+    def gravar(self, linhas_graváveis, contexto: dict | None = None):
         from .programacao_service import registrar_cota
 
+        ano = int((contexto or {})["ano"])
         n = 0
         for l in linhas_graváveis:
-            registrar_cota(self._ano, int(l.dados["mes"]), int(l.dados["orgao"]),
+            registrar_cota(ano, int(l.dados["mes"]), int(l.dados["orgao"]),
                            _dec(l.dados["valor"]), l.dados["ato"])
             n += 1
         return {"sucesso": n, "erros": []}
@@ -415,9 +446,8 @@ class _AdapterDotacao:
     """
 
     tipo = "dotacao"
-    _ano = date.today().year
 
-    def parse_validar(self, content: bytes, filename: str) -> Preview:
+    def parse_validar(self, content: bytes, filename: str, contexto: dict | None = None) -> Preview:
         from ..models import Qualificador
 
         cabecalho, linhas = _ler_csv(content)
@@ -444,19 +474,36 @@ class _AdapterDotacao:
             preview_linhas.append(LinhaPreview(n, "ok", None, dados))
         return Preview(tipo=self.tipo, arquivo=filename, colunas=colunas, linhas=preview_linhas)
 
-    def gravar(self, linhas_graváveis):
+    def gravar(self, linhas_graváveis, contexto: dict | None = None):
+        # Lote ATÔMICO (R8): savepoint por linha coleta os erros sem sujar a
+        # sessão; QUALQUER erro desfaz o lote inteiro — carga parcial de
+        # dotação mentiria no funil orçamentário.
+        from ..models.base import db
         from .dotacao_service import criar_dotacao
+        from .validacao import RegraNegocioError
 
+        # Sem savepoint (não confiável no pysqlite — ver models/base.py):
+        # as validações do serviço levantam ANTES do add/flush, então o
+        # try/except por linha não suja a sessão; erro inesperado pós-flush
+        # interrompe a coleta e o rollback final desfaz tudo igual.
+        ano = int((contexto or {})["ano"])
         n = 0
         erros = []
         for l in linhas_graváveis:
             try:
-                criar_dotacao(self._ano, int(l.dados["seq_qualificador"]),
-                              _dec(l.dados["valor"]))
+                criar_dotacao(ano, int(l.dados["seq_qualificador"]),
+                              _dec(l.dados["valor"]), commit=False)
                 n += 1
-            except Exception as exc:  # dotação repetida na planilha, etc.
+            except RegraNegocioError as exc:  # dotação repetida na planilha…
                 erros.append(f"linha {l.numero}: {exc}")
-        return {"sucesso": n, "erros": erros}
+            except Exception as exc:  # falha de flush — sessão inutilizada
+                erros.append(f"linha {l.numero}: {exc}")
+                break
+        if erros:
+            db.session.rollback()
+            return {"sucesso": 0, "erros": erros}
+        db.session.commit()
+        return {"sucesso": n, "erros": []}
 
 
 registrar_adapter("dotacao", _AdapterDotacao())
@@ -473,9 +520,8 @@ class _AdapterExecucao:
     """
 
     tipo = "execucao"
-    _ano = date.today().year
 
-    def parse_validar(self, content: bytes, filename: str) -> Preview:
+    def parse_validar(self, content: bytes, filename: str, contexto: dict | None = None) -> Preview:
         from ..models import Orgao, Qualificador
 
         cabecalho, linhas = _ler_csv(content)
@@ -526,25 +572,56 @@ class _AdapterExecucao:
             preview_linhas.append(LinhaPreview(n, "ok", None, dados))
         return Preview(tipo=self.tipo, arquivo=filename, colunas=colunas, linhas=preview_linhas)
 
-    def gravar(self, linhas_graváveis):
+    def gravar(self, linhas_graváveis, contexto: dict | None = None):
+        # Lote ATÔMICO (R8): falha no meio de uma planilha E/L/P deixava a
+        # carga pela metade — o funil exibia um estado que nunca existiu.
+        # Savepoint por linha coleta TODOS os erros; qualquer erro desfaz o
+        # lote inteiro (sucesso 0), sem erros um único commit.
+        from ..models.base import db
         from .execucao_orcamentaria_service import registrar_documento
+        from .fonte_recurso_service import obter_ou_criar_pendente
+        from .validacao import RegraNegocioError
 
+        ano = int((contexto or {})["ano"])
+
+        # Fontes ANTES do laço atômico: o auto-cadastro pendente (F9.1)
+        # comita por dentro — dentro do savepoint ele fecharia a transação do
+        # lote. Catálogo é idempotente e inofensivo se o lote falhar depois:
+        # não é a carga, é dimensão.
+        for codigo in {l.dados["fonte"] for l in linhas_graváveis if l.dados["fonte"]}:
+            try:
+                obter_ou_criar_pendente(codigo, ano)
+            except Exception:
+                pass  # código imprestável falha na linha, com mensagem própria
+
+        # Sem savepoint (não confiável no pysqlite — ver models/base.py):
+        # as validações do serviço levantam ANTES do add/flush; erro de
+        # negócio não suja a sessão e a coleta continua. Falha de flush
+        # interrompe; o rollback final desfaz o lote igual.
         n = 0
         erros = []
         for l in linhas_graváveis:
             try:
                 registrar_documento(
                     cod_estagio=l.dados["estagio"], num_documento=l.dados["numero"],
-                    num_ano=self._ano, cod_orgao=int(l.dados["orgao"]),
+                    num_ano=ano, cod_orgao=int(l.dados["orgao"]),
                     seq_qualificador=int(l.dados["seq_qualificador"]),
                     val_documento=_dec(l.dados["valor"]),
                     dat_documento=date.fromisoformat(l.dados["data"]),
                     codigo_fonte=l.dados["fonte"] or None,
-                    num_documento_pai=l.dados["pai"] or None)
+                    num_documento_pai=l.dados["pai"] or None,
+                    commit=False)
                 n += 1
-            except Exception as exc:  # pai ausente, estouro, duplicado…
+            except RegraNegocioError as exc:  # pai ausente, estouro, duplicado…
                 erros.append(f"linha {l.numero}: {exc}")
-        return {"sucesso": n, "erros": erros}
+            except Exception as exc:  # falha de flush — sessão inutilizada
+                erros.append(f"linha {l.numero}: {exc}")
+                break
+        if erros:
+            db.session.rollback()
+            return {"sucesso": 0, "erros": erros}
+        db.session.commit()
+        return {"sucesso": n, "erros": []}
 
 
 registrar_adapter("execucao", _AdapterExecucao())
@@ -560,9 +637,8 @@ class _AdapterDisponibilidadeContabil:
     """
 
     tipo = "disponibilidade_contabil"
-    _data = date.today()
 
-    def parse_validar(self, content: bytes, filename: str) -> Preview:
+    def parse_validar(self, content: bytes, filename: str, contexto: dict | None = None) -> Preview:
         cabecalho, linhas = _ler_csv(content)
         idx = {i: _norm(c) for i, c in enumerate(cabecalho)}
         colunas = ["Fonte", "Valor", "Status"]
@@ -583,14 +659,15 @@ class _AdapterDisponibilidadeContabil:
             preview_linhas.append(LinhaPreview(n, "ok", None, dados))
         return Preview(tipo=self.tipo, arquivo=filename, colunas=colunas, linhas=preview_linhas)
 
-    def gravar(self, linhas_graváveis):
+    def gravar(self, linhas_graváveis, contexto: dict | None = None):
         from .conciliacao_fonte_service import registrar_disponibilidade
 
+        data = date.fromisoformat((contexto or {})["data"])
         n = 0
         erros = []
         for l in linhas_graváveis:
             try:
-                registrar_disponibilidade(self._data, l.dados["fonte"],
+                registrar_disponibilidade(data, l.dados["fonte"],
                                           _dec(l.dados["valor"]))
                 n += 1
             except Exception as exc:

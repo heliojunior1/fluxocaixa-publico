@@ -9,17 +9,16 @@ from datetime import date
 from fastapi import File, Request, UploadFile
 from fastapi.responses import RedirectResponse
 
-from . import handle_exceptions, router, templates
 from ..auth.permissoes import requer
 from ..models import Fundo
 from ..services import list_contas_bancarias
 from ..services.saldo_conta_service import (
-
     criar_saldo_tela,
     editar_saldo_tela,
     inativar_saldo_tela,
     listar_saldos_tela,
 )
+from . import handle_exceptions, router, templates
 
 
 def _data(valor):

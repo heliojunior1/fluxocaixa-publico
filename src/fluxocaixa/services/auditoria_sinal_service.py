@@ -89,7 +89,7 @@ def auditar_coerencia_sinal_tipo(
 
 
 __all__ = [
-    'auditar_coerencia_sinal_tipo',
-    'MOTIVO_RECEITA_NEGATIVA',
     'MOTIVO_DESPESA_POSITIVA',
+    'MOTIVO_RECEITA_NEGATIVA',
+    'auditar_coerencia_sinal_tipo',
 ]

@@ -69,8 +69,8 @@ def _gravar(ident: str, cod_fundo: str, dat: str, valor: str):
         seq_fundo=_fundo(cod_fundo).seq_fundo,
         dat_saldo=date.fromisoformat(dat),
         val_saldo=Decimal(valor),
-        val_aplicacoes=Decimal("0"),
-        val_resgates=Decimal("0"),
+        val_aplicacoes=Decimal(0),
+        val_resgates=Decimal(0),
         sigla_tipo_origem="MANUAL",
         sigla_sistema_origem=None,
     )
@@ -119,7 +119,9 @@ def conta_com_saldo_fundo(app, ident, fundo, valor, dat):
 def lancamento_entrada(app, valor, ident, dat):
     from fluxocaixa.models import Lancamento, Qualificador
     from fluxocaixa.services.dominio_lancamento import (
-        TIPO_ENTRADA, resolver_origem, resolver_tipo,
+        TIPO_ENTRADA,
+        resolver_origem,
+        resolver_tipo,
     )
 
     db = _db()

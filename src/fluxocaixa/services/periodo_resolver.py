@@ -178,9 +178,20 @@ def serie_de_datas(periodicidade: str, ano_base: int, quantidade: int) -> list[d
 
 
 __all__ = [
-    'ANUAL', 'MENSAL', 'QUINZENAL', 'SEMANAL', 'PERIODICIDADES',
-    'MAXIMO_POR_PERIODICIDADE', 'Periodo',
-    'normalizar', 'resolver', 'quinzena', 'mes_do_periodo', 'validar_periodo',
-    'data_inicial_do_periodo', 'serie_de_datas', 'primeiro_dia_da_semana_iso',
+    'ANUAL',
+    'MAXIMO_POR_PERIODICIDADE',
+    'MENSAL',
+    'PERIODICIDADES',
+    'QUINZENAL',
+    'SEMANAL',
+    'Periodo',
+    'data_inicial_do_periodo',
+    'mes_do_periodo',
+    'normalizar',
+    'primeiro_dia_da_semana_iso',
+    'quinzena',
+    'resolver',
     'rotulo_periodo',
+    'serie_de_datas',
+    'validar_periodo',
 ]

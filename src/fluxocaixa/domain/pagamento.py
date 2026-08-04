@@ -1,6 +1,8 @@
 from datetime import date
 from decimal import Decimal
+
 from pydantic import BaseModel
+
 
 class PagamentoCreate(BaseModel):
     dat_pagamento: date

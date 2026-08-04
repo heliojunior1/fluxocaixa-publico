@@ -2,7 +2,6 @@
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 
-from . import handle_exceptions, router, templates
 from ..auth.permissoes import requer
 from ..services.orgao_service import (
     alterar_orgao,
@@ -10,6 +9,7 @@ from ..services.orgao_service import (
     inativar_orgao,
     listar_orgaos,
 )
+from . import handle_exceptions, router, templates
 
 
 @router.get('/orgaos', name='orgaos', dependencies=[requer('FC_CONS_ORGAO')])

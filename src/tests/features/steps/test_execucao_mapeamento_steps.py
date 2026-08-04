@@ -88,10 +88,11 @@ def fonte_lancamento(app, contexto, sigla):
     """Conector fake de destino LANCAMENTO: emite linhas com json_atributos."""
     from decimal import Decimal
 
+    from pydantic import BaseModel
+
     from fluxocaixa.extracao import registry
     from fluxocaixa.extracao.conector import LinhaExtraida
     from fluxocaixa.services.extracao_service import criar_fonte
-    from pydantic import BaseModel
 
     class _ConfigLanc(BaseModel):
         pass

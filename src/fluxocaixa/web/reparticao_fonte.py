@@ -4,7 +4,6 @@ from decimal import Decimal
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 
-from . import handle_exceptions, router, templates
 from ..auth.permissoes import requer
 from ..services.fonte_recurso_service import listar_fontes
 from ..services.reparticao_fonte_service import (
@@ -12,6 +11,7 @@ from ..services.reparticao_fonte_service import (
     reparticoes_de,
     sugestao_do_historico,
 )
+from . import handle_exceptions, router, templates
 
 
 @router.get('/reparticao-fonte', name='reparticao_fonte',

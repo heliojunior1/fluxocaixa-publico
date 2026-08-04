@@ -32,7 +32,11 @@ def _db():
 
 def _limpar():
     from fluxocaixa.models import (
-        Lancamento, ProjecaoValor, ProjecaoVersao, Qualificador, SimuladorCenario,
+        Lancamento,
+        ProjecaoValor,
+        ProjecaoVersao,
+        Qualificador,
+        SimuladorCenario,
     )
 
     db = _db()

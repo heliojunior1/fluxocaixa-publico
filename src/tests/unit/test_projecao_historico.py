@@ -4,7 +4,6 @@ Foca no service e repository, sem depender da execução real de modelos
 econômicos. O DataFrame de projeção é mockado via monkeypatch em
 `executar_simulacao` e `obter_simulador_completo`.
 """
-from datetime import datetime
 import pandas as pd
 import pytest
 
@@ -12,7 +11,7 @@ import pytest
 @pytest.fixture
 def cenario_fake(client):
     """Cria um SimuladorCenario mínimo apenas para satisfazer a FK."""
-    from fluxocaixa.models import db, SimuladorCenario
+    from fluxocaixa.models import SimuladorCenario, db
     s = SimuladorCenario(
         nom_cenario='Cenário Teste Histórico',
         dsc_cenario='para tests',
@@ -181,14 +180,15 @@ def test_rota_listar_versoes_responde(client, cenario_fake):
 def test_atualizar_realizados_de_lancamentos(client, cenario_fake, monkeypatch):
     """Smoke do RF-24: agrega flc_lancamento em val_realizado."""
     from datetime import date as _date
+
     import pandas as pd
 
     from fluxocaixa.models import (
-        db,
         Lancamento,
+        OrigemLancamento,
         Qualificador,
         TipoLancamento,
-        OrigemLancamento,
+        db,
     )
     from fluxocaixa.services import projecao_versao_service as svc
 

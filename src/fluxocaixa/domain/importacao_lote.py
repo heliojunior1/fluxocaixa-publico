@@ -19,8 +19,8 @@ class LinhaImportacaoIn(BaseModel):
     cod_fundo: str = Field(alias="codFundo")
     dsc_fundo: str = Field(default="", alias="dscFundo")
     val_saldo: Decimal = Field(alias="valSaldo")
-    val_aplicacoes: Decimal = Field(default=Decimal("0"), alias="valAplicacoes")
-    val_resgates: Decimal = Field(default=Decimal("0"), alias="valResgates")
+    val_aplicacoes: Decimal = Field(default=Decimal(0), alias="valAplicacoes")
+    val_resgates: Decimal = Field(default=Decimal(0), alias="valResgates")
     dat_saldo: date | None = Field(default=None, alias="datSaldo")
 
 

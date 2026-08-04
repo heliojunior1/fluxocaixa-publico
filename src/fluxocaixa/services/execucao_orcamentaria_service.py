@@ -67,8 +67,12 @@ def registrar_documento(cod_estagio: str, num_documento: str, num_ano: int,
                         cod_orgao: int, seq_qualificador: int,
                         val_documento: Decimal, dat_documento: date,
                         codigo_fonte: str | None = None,
-                        num_documento_pai: str | None = None) -> ExecucaoOrcamentaria:
-    """Documento + evento I na MESMA transação (R4–R6)."""
+                        num_documento_pai: str | None = None,
+                        commit: bool = True) -> ExecucaoOrcamentaria:
+    """Documento + evento I na MESMA transação (R4–R6).
+
+    `commit=False` só faz flush — o lote de importação (importacao-arquivos
+    R8) é o dono da transação e comita uma vez, tudo-ou-nada."""
     from .fonte_recurso_service import obter_ou_criar_pendente
 
     pai = None
@@ -130,7 +134,10 @@ def registrar_documento(cod_estagio: str, num_documento: str, num_ano: int,
     db.session.add(documento)
     db.session.flush()
     _evento(documento, EVENTO_INSCRICAO, val_documento, dat_documento)
-    db.session.commit()
+    if commit:
+        db.session.commit()
+    else:
+        db.session.flush()
     return documento
 
 

@@ -1,0 +1,23 @@
+# CI mínimo (infraestrutura-banco R11): lint + suíte pytest a cada push/PR.
+# O E2E Playwright fica fora — exige browser + servidor; roda local (ver e2e/).
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+      - name: Instalar dependências
+        run: pip install -r requirements-dev.txt
+      - name: Lint (ruff)
+        run: python -m ruff check src/fluxocaixa src/tests
+      - name: Testes (pytest + BDD)
+        run: PYTHONPATH=src python -m pytest src/tests/ -q

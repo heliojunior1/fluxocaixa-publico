@@ -24,8 +24,8 @@ def gravar_saldo(
     seq_fundo: int,
     dat_saldo: date,
     val_saldo: Decimal,
-    val_aplicacoes: Decimal = Decimal("0"),
-    val_resgates: Decimal = Decimal("0"),
+    val_aplicacoes: Decimal = Decimal(0),
+    val_resgates: Decimal = Decimal(0),
     sigla_tipo_origem: str = 'MANUAL',
     sigla_sistema_origem: str | None = None,
 ) -> SaldoContaFundo:

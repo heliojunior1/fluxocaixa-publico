@@ -116,11 +116,11 @@ async def verificar_csrf(request: Request) -> None:
 
 
 __all__ = [
-    "verificar_csrf",
-    "CsrfInvalidoError",
-    "obter_token",
-    "CAMPO_FORM",
     "CABECALHO",
+    "CAMPO_FORM",
     "CHAVE_SESSAO",
     "METODOS_SEGUROS",
+    "CsrfInvalidoError",
+    "obter_token",
+    "verificar_csrf",
 ]

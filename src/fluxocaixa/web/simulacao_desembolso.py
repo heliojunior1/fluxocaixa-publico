@@ -5,7 +5,6 @@ from decimal import Decimal
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 
-from . import handle_exceptions, router, templates
 from ..auth.permissoes import requer
 from ..services.simulacao_desembolso_service import (
     MODO_PRUDENTE,
@@ -14,6 +13,7 @@ from ..services.simulacao_desembolso_service import (
     definir_colchao,
     simular,
 )
+from . import handle_exceptions, router, templates
 
 
 def _params(request: Request) -> dict:

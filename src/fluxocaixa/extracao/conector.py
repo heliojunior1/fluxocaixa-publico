@@ -6,10 +6,11 @@ com `json_schema_extra={"secreto": True}`), sabe testar conexão e extrair
 linhas para uma janela de datas. Conectores de produção chegam nas features
 F3.2 (FTP/arquivo), F3.3 (API REST) e F3.4 (banco SQL).
 """
+from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
-from typing import Iterable, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel
 
@@ -32,8 +33,8 @@ class LinhaExtraida:
     cod_fundo: str
     dsc_fundo: str
     val_saldo: Decimal
-    val_aplicacoes: Decimal = Decimal("0")
-    val_resgates: Decimal = Decimal("0")
+    val_aplicacoes: Decimal = Decimal(0)
+    val_resgates: Decimal = Decimal(0)
     dat_saldo: date | None = None  # default: data fim da janela
     # Linha crua da origem, preenchida quando o layout liga `capturar_atributos`
     # (destino LANCAMENTO → staging). O caminho de saldo ignora este campo.

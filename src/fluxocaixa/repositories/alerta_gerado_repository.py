@@ -1,10 +1,11 @@
 from datetime import date, datetime
+
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from ..domain import AlertaGeradoCreate, AlertaGeradoUpdate
 from ..models import AlertaGerado
 from ..models.base import db
-from ..domain import AlertaGeradoCreate, AlertaGeradoUpdate
 
 
 class AlertaGeradoRepository:
@@ -32,7 +33,7 @@ class AlertaGeradoRepository:
             .filter(AlertaGerado.ind_lido == 'N')
             .filter(
                 or_(
-                    AlertaGerado.dat_processamento == None,  # Alertas de demonstração
+                    AlertaGerado.dat_processamento.is_(None),  # Alertas de demonstração
                     AlertaGerado.dat_processamento == hoje   # Alertas do dia
                 )
             )

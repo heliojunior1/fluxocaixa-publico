@@ -30,7 +30,7 @@ from .. import periodo_resolver
 from ..dominio_lancamento import TIPO_ENTRADA, TIPO_SAIDA, resolver_tipo
 from ..validacao import RegraNegocioError
 
-_UM_DOZE_AVOS = Decimal("1") / Decimal("12")
+_UM_DOZE_AVOS = Decimal(1) / Decimal(12)
 _TIPO_LANCAMENTO_POR_COD = {'C': TIPO_ENTRADA, 'D': TIPO_SAIDA}
 
 
@@ -88,7 +88,7 @@ def _mapa_da_versao(versao, ano: int, periodicidade: str) -> dict:
         mes = periodo_resolver.mes_do_periodo(periodicidade, linha.ano,
                                               linha.num_periodo)
         chave = (linha.seq_qualificador, linha.cod_tipo, mes)
-        bruto[chave] = bruto.get(chave, Decimal("0")) + abs(_dec(linha.val_projetado))
+        bruto[chave] = bruto.get(chave, Decimal(0)) + abs(_dec(linha.val_projetado))
     return bruto
 
 
@@ -118,7 +118,7 @@ def _mapa_ao_vivo(cenario_id: int, ano: int, periodicidade: str) -> dict:
         mes = periodo_resolver.mes_do_periodo(periodicidade, linha["ano"],
                                               linha["num_periodo"])
         chave = (linha["seq_qualificador"], linha["cod_tipo"], mes)
-        bruto[chave] = bruto.get(chave, Decimal("0")) + abs(_dec(linha["val_projetado"]))
+        bruto[chave] = bruto.get(chave, Decimal(0)) + abs(_dec(linha["val_projetado"]))
     return bruto
 
 
@@ -160,17 +160,17 @@ def perfil_mensal_ativo(
         )
 
     valores = {int(mes): _dec(total) for mes, total in query.group_by("mes").all()}
-    total_ano = sum(valores.values(), Decimal("0"))
+    total_ano = sum(valores.values(), Decimal(0))
     if total_ano <= 0:
         return {m: _UM_DOZE_AVOS for m in range(1, 13)}
-    return {m: valores.get(m, Decimal("0")) / total_ano for m in range(1, 13)}
+    return {m: valores.get(m, Decimal(0)) / total_ano for m in range(1, 13)}
 
 
 def _redistribuir_por_perfil(bruto: dict, ano_base: int | None) -> dict:
     """Total anual de cada (qualificador, tipo) rateado pelo perfil mensal."""
     totais: dict = {}
     for (seq, tipo, _mes), valor in bruto.items():
-        totais[(seq, tipo)] = totais.get((seq, tipo), Decimal("0")) + valor
+        totais[(seq, tipo)] = totais.get((seq, tipo), Decimal(0)) + valor
 
     redistribuido: dict = {}
     for (seq, tipo), total in totais.items():

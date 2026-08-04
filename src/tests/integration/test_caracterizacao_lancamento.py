@@ -68,7 +68,8 @@ def test_massa_e_coerente_e_cobre_as_formas_estruturais(massa):
     from fluxocaixa.models import Lancamento
     from fluxocaixa.models.lancamento import TIPO_CREDITO, TIPO_DEBITO
     from fluxocaixa.services.dominio_lancamento import (
-        ORIGEM_AUTOMATICO, resolver_origem,
+        ORIGEM_AUTOMATICO,
+        resolver_origem,
     )
 
     da_ilha = Lancamento.query.filter(

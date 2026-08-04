@@ -1,9 +1,9 @@
-from fastapi.templating import Jinja2Templates
 import os
 
-from ..utils import format_currency
+from fastapi.templating import Jinja2Templates
 
 from ..config import BASE_DIR, modo_demo
+from ..utils import format_currency
 from .safe_router import SafeAPIRouter, handle_exceptions
 
 # Shared router and templates object used by the route modules
@@ -49,6 +49,33 @@ def _fundos_pendentes(request) -> int:
 templates.env.globals['fundos_pendentes'] = _fundos_pendentes
 
 # Import routes so they register themselves with the router
-from . import base, pagamentos, liberacoes, orgaos, simulacao_desembolso, transferencias, reservas, programacao, orcamento, mapeamentos, processamento, termos_regra, relatorios, alertas, qualificadores, saldos_bancarios, simulador_cenarios, loa, formulas, fundos, fontes_recurso, reparticao_fonte, contas_bancarias, importacao_lote, importacao, extracao  # noqa: E402,F401
+from . import (  # noqa: E402, F401 - import de efeito colateral, DEPOIS do router
+    alertas,
+    base,
+    contas_bancarias,
+    extracao,
+    fontes_recurso,
+    formulas,
+    fundos,
+    importacao,
+    importacao_lote,
+    liberacoes,
+    loa,
+    mapeamentos,
+    orcamento,
+    orgaos,
+    pagamentos,
+    processamento,
+    programacao,
+    qualificadores,
+    relatorios,
+    reparticao_fonte,
+    reservas,
+    saldos_bancarios,
+    simulacao_desembolso,
+    simulador_cenarios,
+    termos_regra,
+    transferencias,
+)
 
-__all__ = ['router', 'templates', 'handle_exceptions']
+__all__ = ['handle_exceptions', 'router', 'templates']

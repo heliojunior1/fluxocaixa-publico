@@ -26,8 +26,8 @@ class LinhaLote:
     cod_fundo: str
     dsc_fundo: str
     val_saldo: Decimal
-    val_aplicacoes: Decimal = Decimal("0")
-    val_resgates: Decimal = Decimal("0")
+    val_aplicacoes: Decimal = Decimal(0)
+    val_resgates: Decimal = Decimal(0)
     dat_saldo: date | None = None  # default: data do lote
 
 

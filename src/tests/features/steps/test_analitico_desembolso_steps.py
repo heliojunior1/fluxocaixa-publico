@@ -132,7 +132,9 @@ def apropriacao_datada(app, valor, dat):
 
 @when(parsers.parse('abro o painel analítico de {ano:d}'))
 def abre_painel(app, contexto, ano):
-    from fluxocaixa.services.relatorio.analitico_desembolso_service import dados_analitico
+    from fluxocaixa.services.relatorio.analitico_desembolso_service import (
+        dados_analitico,
+    )
 
     contexto["dados"] = dados_analitico(ano)
 
@@ -141,7 +143,7 @@ def abre_painel(app, contexto, ano):
 def linha_do_orgao(contexto, cod, liberado, pago, pendente):
     linha = contexto["dados"]["por_orgao"].get(cod)
     assert linha is not None, contexto["dados"]["por_orgao"]
-    q2 = lambda v: Decimal(v).quantize(Decimal("0.01"))  # noqa: E731
+    q2 = lambda v: Decimal(v).quantize(Decimal("0.01"))
     assert linha["liberado"] == q2(liberado), linha
     assert linha["pago"] == q2(pago), linha
     assert linha["pendente"] == q2(pendente), linha

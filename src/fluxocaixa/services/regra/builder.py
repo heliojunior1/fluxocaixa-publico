@@ -9,8 +9,8 @@ representável no builder quando é uma comparação, ou uma cadeia de UM único
 conectivo apenas entre comparações. `não`, parênteses aninhados e conectivos
 misturados abrem no modo avançado, sem perda.
 """
+from ..validacao import RegraNegocioError
 from .ast import (
-    OP_COMECA_COM,
     OP_EM,
     ROTULO_OP,
     Comparacao,
@@ -18,7 +18,6 @@ from .ast import (
     Nao,
     Ou,
 )
-from ..validacao import RegraNegocioError
 from .parser import parsear
 
 # Rótulo pt-BR de cada operador, para os selects do builder
@@ -155,4 +154,4 @@ def _linha(comparacao: Comparacao) -> dict:
     }
 
 
-__all__ = ['montar_regra', 'regra_para_builder', 'ROTULOS_OPERADOR']
+__all__ = ['ROTULOS_OPERADOR', 'montar_regra', 'regra_para_builder']

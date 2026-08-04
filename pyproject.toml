@@ -1,11 +1,25 @@
 [project]
 name = "fluxocaixa"
 version = "0.1.0"
+# Dependências: a fonte ÚNICA é requirements.txt (faixas e tetos deliberados,
+# ver comentários lá). Uma lista parcial aqui produzia `pip install .` quebrado
+# com aparência de sucesso (infraestrutura-banco R11).
 requires-python = ">=3.10,<3.12"
-dependencies = [
-    "fastapi",
-    "sqlalchemy",
-    "alembic",
-    "uvicorn",
-    "httpx"
-]
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+# Régua focada em DEFEITO, não em estilo (infraestrutura-banco R11): pyflakes
+# completo + os blocos de erro do pycodestyle. Ampliar (I, UP, B...) é decisão
+# separada — misturar estilo com a rede de defeitos esconderia o valor dela.
+select = ["E4", "E7", "E9", "F"]
+# `l` de lançamento/linha em laços é idioma do projeto — não é ambíguo aqui.
+# E702/E731: one-liners compactos (`if x: a; b`, `D2 = lambda ...`) são idioma
+# deliberado dos adapters/parser/steps — estilo, não defeito; a régua é defeito.
+ignore = ["E741", "E702", "E731"]
+
+[tool.ruff.lint.per-file-ignores]
+# Import tardio DELIBERADO: o conftest força DATABASE_URL antes do primeiro
+# import de `fluxocaixa` (ver CLAUDE.md — 44 falhas de ordem sem isso).
+"src/tests/**" = ["E402"]

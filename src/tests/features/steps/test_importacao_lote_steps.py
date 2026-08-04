@@ -11,7 +11,7 @@ from ..conftest_permissoes import criar_usuario_com_perfil
 scenarios("../saldo-por-fundo/importacao_lote.feature")
 
 DATA_LOTE = date(2026, 7, 10)
-D2 = lambda v: Decimal(str(v)).quantize(Decimal("0.01"))  # noqa: E731
+D2 = lambda v: Decimal(str(v)).quantize(Decimal("0.01"))
 
 
 @pytest.fixture()

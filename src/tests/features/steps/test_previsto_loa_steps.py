@@ -97,7 +97,10 @@ def saida_realizada(app, valor, dat, num):
 @given(parsers.parse('uma liberação confirmada de {valor} em "{dat}" no órgão "{cod:d}", qualificador "{num}" e fonte "{codigo}" da vigência {vigencia:d}'),
        target_fixture="liberacao_atual")
 def liberacao_confirmada(app, valor, dat, cod, num, codigo, vigencia):
-    from fluxocaixa.services.liberacao_service import confirmar_liberacao, criar_liberacao
+    from fluxocaixa.services.liberacao_service import (
+        confirmar_liberacao,
+        criar_liberacao,
+    )
 
     q = garantir_qualificador(num)
     fonte = _fonte(codigo, vigencia)

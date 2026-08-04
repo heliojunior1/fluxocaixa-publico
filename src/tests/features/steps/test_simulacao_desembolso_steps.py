@@ -87,12 +87,14 @@ def fonte_cadastrada(app, codigo, vigencia, vinculada):
 @given(parsers.parse('um qualificador folha de receita "{num}" repartido 100% na fonte "{codigo}" da vigência {vigencia:d}'))
 def qualificador_repartido(app, num, codigo, vigencia):
     from fluxocaixa.services.reparticao_fonte_service import (
-        definir_reparticao, reparticoes_de)
+        definir_reparticao,
+        reparticoes_de,
+    )
 
     q = garantir_qualificador(num)
     if not reparticoes_de(q.seq_qualificador, vigencia):
         definir_reparticao(q.seq_qualificador, vigencia,
-                           [(_fonte(codigo, vigencia).seq_fonte_recurso, Decimal("100"))])
+                           [(_fonte(codigo, vigencia).seq_fonte_recurso, Decimal(100))])
 
 
 @given(parsers.parse('um qualificador folha de receita "{num}" sem repartição'))
@@ -140,7 +142,9 @@ def cenario_publicado(app, nome, ano, rec1, q1, rec2, q2, desp, q3):
 
 def _criar_liberacao_prevista(situacao, valor, cod, num, codigo, vigencia, prevista):
     from fluxocaixa.services.liberacao_service import (
-        confirmar_liberacao, criar_liberacao)
+        confirmar_liberacao,
+        criar_liberacao,
+    )
 
     q = garantir_qualificador(num)
     fonte = _fonte(codigo, vigencia)

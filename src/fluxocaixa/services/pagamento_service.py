@@ -38,7 +38,7 @@ def create_pagamento(data: PagamentoCreate, repo: PagamentoRepository | None = N
     if data.val_pagamento is None or Decimal(data.val_pagamento) <= 0:
         raise RegraNegocioError("Valor do pagamento deve ser positivo")
     repo = repo or PagamentoRepository()
-    pag = repo.create(data)
+    pag = repo.create(data, cod_pessoa=cod_pessoa_atual())
     return PagamentoOut(
         seq_pagamento=pag.seq_pagamento,
         dat_pagamento=pag.dat_pagamento,

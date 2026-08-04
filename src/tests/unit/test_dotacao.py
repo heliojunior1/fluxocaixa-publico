@@ -28,4 +28,4 @@ class TestSomarEventos:
 
     def test_quantizacao_em_duas_casas(self):
         assert _somar()(Decimal("0.005"), []) == Decimal("0.00")
-        assert _somar()(Decimal("10"), [('S', Decimal("0.1"))]) == Decimal("10.10")
+        assert _somar()(Decimal(10), [('S', Decimal("0.1"))]) == Decimal("10.10")

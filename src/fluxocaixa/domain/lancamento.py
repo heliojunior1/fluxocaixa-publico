@@ -1,6 +1,8 @@
 from datetime import date
 from decimal import Decimal
+
 from pydantic import BaseModel
+
 
 class LancamentoCreate(BaseModel):
     dat_lancamento: date

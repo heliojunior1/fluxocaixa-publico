@@ -4,7 +4,6 @@ Puros — sem banco. Imports de `fluxocaixa` lazy (isolamento de banco).
 """
 from decimal import Decimal
 
-
 LAYOUT = {
     "lista_path": "listaFundosInvestimento",
     "campos": [

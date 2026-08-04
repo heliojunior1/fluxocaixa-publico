@@ -1,0 +1,14 @@
+# Ambiente de DESENVOLVIMENTO — um comando instala tudo:
+#   uv pip install --python .venv/bin/python -r requirements-dev.txt
+# O build de produção (render.yaml) instala SÓ o requirements.txt: dependência
+# de teste não entra no deploy (infraestrutura-banco R11).
+-r requirements.txt
+
+pytest>=9.1.1,<10
+pytest-bdd>=8.1.0,<9
+# Linter (régua em [tool.ruff] do pyproject.toml) — a guarda estrutural
+# `test_ferramental.py` roda `ruff check` na suíte.
+ruff>=0.16.0,<0.17
+# Auditoria de dependências: rodar ao mexer em requirements.txt (repo público,
+# nada mais vigia isso). Ver CLAUDE.md, seção Notas.
+pip-audit>=2.7.0

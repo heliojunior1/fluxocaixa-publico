@@ -1,16 +1,16 @@
 from fastapi import Request
-from ..auth.permissoes import requer
 from fastapi.responses import RedirectResponse
 
-from . import router, templates, handle_exceptions
+from ..auth.permissoes import requer
 from ..services import (
-    list_root_qualificadores,
-    list_active_qualificadores,
     create_qualificador,
-    update_qualificador,
     delete_qualificador_service,
-    get_qualificador,
+    list_active_qualificadores,
+    list_root_qualificadores,
+    update_qualificador,
 )
+from . import handle_exceptions, router, templates
+
 
 @router.get('/qualificadores', dependencies=[requer('FC_CONS_QUALIFICADOR')])
 @handle_exceptions
@@ -45,7 +45,9 @@ async def qualificadores(request: Request):
     # saúde?" não pode ser pergunta que só o código responde, que é justamente
     # a situação da heurística que estamos removendo.
     from ..services.categoria_fiscal_service import (
-        categoria_resolvida, criar_memo, siglas_ativas,
+        categoria_resolvida,
+        criar_memo,
+        siglas_ativas,
     )
 
     memo = criar_memo()

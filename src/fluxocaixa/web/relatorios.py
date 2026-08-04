@@ -1,25 +1,29 @@
-import calendar
+import logging
 from datetime import date
 
 from fastapi import Request
 from fastapi.responses import JSONResponse
-from . import router, templates, handle_exceptions
+
+from ..auth.permissoes import requer
+from .entrada import data_iso, inteiro, lista_de_inteiros
 from ..services import (
-    get_available_years,
-    get_resumo_data,
-    get_indicadores_data,
     get_analise_comparativa_data,
-    get_saldos_diarios_data,
+    get_available_years,
+    get_controle_despesa_data,
     get_dfc_data,
     get_dfc_eventos,
-    list_active_simuladores,
-    list_active_qualificadores,
-    get_previsao_receita_data,
-    get_controle_despesa_data,
+    get_indicadores_data,
     get_ldo_orcamento_data,
+    get_previsao_receita_data,
+    get_resumo_data,
+    get_saldos_diarios_data,
+    list_active_qualificadores,
+    list_active_simuladores,
 )
 from ..utils.constants import MONTH_NAME_PT
-from ..auth.permissoes import requer
+from . import handle_exceptions, router, templates
+
+logger = logging.getLogger(__name__)
 
 
 @router.get('/relatorios', dependencies=[requer('FC_EXI_DASHBOARD')])
@@ -60,12 +64,10 @@ async def relatorio_previsao_receita(request: Request):
 async def relatorio_previsao_receita_data(request: Request):
     """API JSON para dados do gráfico de Previsão de Receita."""
     params = request.query_params
-    ano = int(params.get("ano", date.today().year))
-    cenario_id = int(params.get("cenario")) if params.get("cenario") else None
-    qualificadores_ids = [
-        int(q) for q in params.get("qualificadores", "").split(",") if q
-    ]
-    meses = [int(m) for m in params.get("meses", "").split(",") if m] or None
+    ano = inteiro(params.get("ano"), "ano", default=date.today().year)
+    cenario_id = inteiro(params.get("cenario"), "cenario")
+    qualificadores_ids = lista_de_inteiros(params.get("qualificadores"), "qualificadores")
+    meses = lista_de_inteiros(params.get("meses"), "meses") or None
     
     data = get_previsao_receita_data(ano, cenario_id, qualificadores_ids, meses)
     return JSONResponse(data)
@@ -103,12 +105,10 @@ async def relatorio_controle_despesa(request: Request):
 async def relatorio_controle_despesa_data(request: Request):
     """API JSON para dados do gráfico de Controle de Despesa."""
     params = request.query_params
-    ano = int(params.get("ano", date.today().year))
-    cenario_id = int(params.get("cenario")) if params.get("cenario") else None
-    qualificadores_ids = [
-        int(q) for q in params.get("qualificadores", "").split(",") if q
-    ]
-    meses = [int(m) for m in params.get("meses", "").split(",") if m] or None
+    ano = inteiro(params.get("ano"), "ano", default=date.today().year)
+    cenario_id = inteiro(params.get("cenario"), "cenario")
+    qualificadores_ids = lista_de_inteiros(params.get("qualificadores"), "qualificadores")
+    meses = lista_de_inteiros(params.get("meses"), "meses") or None
     
     data = get_controle_despesa_data(ano, cenario_id, qualificadores_ids, meses)
     return JSONResponse(data)
@@ -149,7 +149,7 @@ async def relatorio_ldo_orcamento(request: Request):
 async def relatorio_ldo_orcamento_data(request: Request):
     """API JSON para dados do gráfico de LDO & Orçamento."""
     params = request.query_params
-    ano = int(params.get("ano", date.today().year))
+    ano = inteiro(params.get("ano"), "ano", default=date.today().year)
     tipo_fluxo = params.get("tipo", "ambos")  # receita, despesa, ambos
     
     data = get_ldo_orcamento_data(ano, tipo_fluxo)
@@ -191,12 +191,10 @@ async def relatorio_previsao_realizado_data(request: Request):
     from ..services.previsao_service import get_previsao_realizado_data
     
     params = request.query_params
-    ano = int(params.get("ano", date.today().year))
-    cenario_id = int(params.get("cenario")) if params.get("cenario") else None
-    meses = [int(m) for m in params.get("meses", "").split(",") if m]
-    qualificadores_ids = [
-        int(q) for q in params.get("qualificadores", "").split(",") if q
-    ]
+    ano = inteiro(params.get("ano"), "ano", default=date.today().year)
+    cenario_id = inteiro(params.get("cenario"), "cenario")
+    meses = lista_de_inteiros(params.get("meses"), "meses")
+    qualificadores_ids = lista_de_inteiros(params.get("qualificadores"), "qualificadores")
     
     data = get_previsao_realizado_data(ano, cenario_id, meses, qualificadores_ids)
     return JSONResponse(data)
@@ -207,11 +205,11 @@ async def relatorio_resumo(request: Request):
     anos_disponiveis = get_available_years()
     ano_default = anos_disponiveis[0] if anos_disponiveis else date.today().year
     form = await request.form() if request.method == "POST" else {}
-    ano_selecionado = int(form.get("ano", ano_default))
+    ano_selecionado = inteiro(form.get("ano"), "ano", default=ano_default)
     estrategia = form.get("estrategia", "realizado")
     cenario_id = form.get("cenario_id")
     cenarios_disponiveis = list_active_simuladores()
-    cenario_selecionado_id = int(cenario_id) if cenario_id else None
+    cenario_selecionado_id = inteiro(cenario_id, "cenario_id")
     meses_selecionados_str = form.getlist("meses") if hasattr(form, "getlist") else []
     meses_selecionados = (
         list(range(1, 13))
@@ -249,7 +247,7 @@ async def relatorio_indicadores(request: Request):
     anos_disponiveis = get_available_years()
     ano_default = anos_disponiveis[0] if anos_disponiveis else date.today().year
     form = await request.form() if request.method == "POST" else {}
-    ano_selecionado = int(form.get("ano", ano_default))
+    ano_selecionado = inteiro(form.get("ano"), "ano", default=ano_default)
     tipo_selecionado = form.get("tipo", "ambos")
     meses_selecionados_str = form.getlist("meses") if hasattr(form, "getlist") else []
     meses_selecionados = (
@@ -287,8 +285,8 @@ async def relatorio_analise_comparativa(request: Request):
         anos_disponiveis[1] if len(anos_disponiveis) > 1 else (date.today().year - 1)
     )
     ano2_default = anos_disponiveis[0] if anos_disponiveis else date.today().year
-    ano1 = int(form.get("ano1", ano1_default))
-    ano2 = int(form.get("ano2", ano2_default))
+    ano1 = inteiro(form.get("ano1"), "ano1", default=ano1_default)
+    ano2 = inteiro(form.get("ano2"), "ano2", default=ano2_default)
     meses_selecionados_str = form.getlist("meses") if hasattr(form, "getlist") else []
     meses_selecionados = (
         list(range(1, 13))
@@ -323,9 +321,9 @@ async def relatorio_saldos_diarios(request: Request):
     params = await request.form() if request.method == "POST" else request.query_params
     data_ref_str = params.get("data_ref")
     hoje = date.today()
-    data_ref = date.fromisoformat(data_ref_str) if data_ref_str else hoje
+    data_ref = data_iso(data_ref_str, "data", default=hoje)
     visao = params.get("visao") or "agregado"
-    seq_conta = int(params["seq_conta"]) if params.get("seq_conta") else None
+    seq_conta = inteiro(params.get("seq_conta"), "seq_conta")
 
     data = get_saldos_diarios_data(data_ref, visao=visao, seq_conta=seq_conta)
 
@@ -381,7 +379,7 @@ async def relatorio_dfc(request: Request):
 
     estrategia = form.get("estrategia", "realizado")
     cenario_id = form.get("cenario_id")
-    cenario_selecionado_id = int(cenario_id) if cenario_id else None
+    cenario_selecionado_id = inteiro(cenario_id, "cenario_id")
 
     meses_selecionados_str = form.getlist("meses") if hasattr(form, "getlist") else []
     meses_selecionados = (
@@ -430,9 +428,9 @@ async def relatorio_dfc(request: Request):
 async def dfc_eventos(request: Request):
     """Retorna os eventos (lançamentos) para um qualificador e coluna."""
 
-    seq = int(request.query_params.get("seq"))
+    seq = inteiro(request.query_params.get("seq"), "seq", obrigatorio=True)
     periodo = request.query_params.get("periodo", "mes")
-    col = int(request.query_params.get("col"))
+    col = inteiro(request.query_params.get("col"), "col", obrigatorio=True)
     mes_ano = request.query_params.get("mes_ano")
     estrategia = request.query_params.get("estrategia", "realizado")
     cenario_id = request.query_params.get("cenario_id")
@@ -522,11 +520,14 @@ async def relatorio_backtest_executar(request: Request):
         )
         return JSONResponse(resultado)
     except ValueError as e:
+        # erro de negócio do backtest — a mensagem é para o usuário
         return JSONResponse({'error': str(e)}, status_code=400)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JSONResponse({'error': f'Erro interno: {str(e)}'}, status_code=500)
+    except Exception:
+        # NUNCA str(e) de exceção arbitrária: vaza caminho/SQL/schema (R15)
+        logger.exception("Erro interno ao executar o backtest")
+        return JSONResponse(
+            {'error': 'Erro interno ao executar o backtest — consulte o log '
+                      'do servidor'}, status_code=500)
 
 
 @router.post('/relatorios/backtest/salvar-recomendacao', name="backtest_salvar_recomendacao", dependencies=[requer('FC_INS_BACKTEST')])
@@ -591,7 +592,7 @@ async def relatorio_kpis_data(request: Request):
     from ..services import get_kpis_data
 
     params = request.query_params
-    seq_conta = int(params["seq_conta"]) if params.get("seq_conta") else None
+    seq_conta = inteiro(params.get("seq_conta"), "seq_conta")
     cod_banco = params.get("cod_banco") or None
     data = get_kpis_data(
         data_referencia=_param_data(params, "data_referencia"),

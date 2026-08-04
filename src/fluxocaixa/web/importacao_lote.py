@@ -5,10 +5,10 @@ POST /login (cookie de sessão, perfil EXTRACAO) e envia lotes aqui.
 """
 from fastapi.responses import JSONResponse
 
-from . import handle_exceptions, router
 from ..auth.permissoes import requer
 from ..domain.importacao_lote import LoteImportacaoIn, ResultadoImportacaoOut
 from ..services.importacao_lote_service import LinhaLote, importar_lote
+from . import handle_exceptions, router
 
 
 @router.post('/api/saldo/importacao-lote', dependencies=[requer('FC_IMP_SALDO_FUNDO')])

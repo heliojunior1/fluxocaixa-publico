@@ -35,15 +35,21 @@ class SaldoContaRepository:
         ).mappings().first()
         return self._para_obj(row)
 
-    def get_saldo_total_by_date(self, data: date) -> float:
+    def get_saldo_total_by_date(self, data: date) -> float | None:
+        """`None` = NÃO há registro na data; `0.0` = há registro e soma zero.
+
+        O COALESCE antigo colapsava os dois em `0`, e o fallback de carry dos
+        relatórios trocava um zero VERDADEIRO pelo último saldo não-zero
+        (relatorios R22 — achado L9). SUM sem linhas devolve NULL.
+        """
         row = self.session.execute(
-            text("SELECT COALESCE(SUM(a.val_saldo), 0) AS total "
+            text("SELECT SUM(a.val_saldo) AS total "
                  "FROM vw_flc_saldo_conta_agregado a "
                  "JOIN flc_conta_bancaria c ON c.seq_conta = a.seq_conta "
                  "WHERE a.dat_saldo = :d AND c.ind_status = 'A'"),
             {"d": data},
         ).scalar()
-        return float(row or 0)
+        return float(row) if row is not None else None
 
     def get_latest_saldo_before_date(self, seq_conta: int, data: date) -> "SaldoAgregado | None":
         row = self.session.execute(

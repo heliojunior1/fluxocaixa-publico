@@ -99,7 +99,7 @@ def _criar_fonte_local(contexto, nome, diretorio):
             json_layout=LAYOUT_ARQUIVO,
         )
         contexto["erro"] = None
-    except (RegraNegocioError, Exception) as exc:  # noqa: B014 - ver nota abaixo
+    except (RegraNegocioError, Exception) as exc:
         # Pydantic embrulha o RegraNegocioError do validador em ValidationError;
         # o que importa ao cenário é a MENSAGEM chegar ao usuário.
         contexto["erro"] = str(exc)

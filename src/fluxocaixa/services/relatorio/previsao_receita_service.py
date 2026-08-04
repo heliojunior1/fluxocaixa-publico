@@ -1,13 +1,13 @@
 """Previsão de Receita service - Refatorado para usar Repository Pattern."""
 from datetime import date
-import calendar
+
 import pandas as pd
 
 from ...models import Qualificador
 from ...repositories.lancamento_repository import LancamentoRepository
-from .base import get_tipo_lancamento_ids
 from ...utils.constants import MONTH_NAME_PT
 from ..simulador_cenario_service import executar_simulacao
+from .base import get_tipo_lancamento_ids
 
 
 def get_previsao_receita_data(
@@ -83,12 +83,12 @@ def get_previsao_receita_data(
         # Calcular valores realizados para meses históricos usando repository
         realizado_mes = None
         if not is_futuro:
-            realizado_mes = lancamento_repo.get_sum_by_qualificadores_and_month(
+            realizado_mes = float(lancamento_repo.get_sum_by_qualificadores_and_month(
                 qualificadores_ids=qualificadores_ids,
                 cod_tipo=id_entrada,
                 ano=ano,
                 mes=mes
-            )
+            ))
         
         # Calcular previsão para meses futuros (ou todos se cenário selecionado)
         previsao_mes = None
@@ -122,11 +122,11 @@ def get_previsao_receita_data(
             continue
         
         # Total realizado no ano usando repository
-        realizado_total = lancamento_repo.get_sum_by_qualificadores_and_year(
+        realizado_total = float(lancamento_repo.get_sum_by_qualificadores_and_year(
             qualificadores_ids=[qual_id],
             cod_tipo=id_entrada,
             ano=ano
-        )
+        ))
         
         # Total previsto no cenário (todos os 12 meses)
         previsao_total = 0

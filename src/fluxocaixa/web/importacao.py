@@ -6,9 +6,9 @@ descartar exigem a permissão do TIPO do preview.
 from fastapi import Form, Request
 from fastapi.responses import RedirectResponse
 
-from . import handle_exceptions, router, templates
 from ..auth.permissoes import permissoes_do_request
 from ..services.preprocessamento import confirmar, descartar, obter_preview
+from . import handle_exceptions, router, templates
 
 # tipo de importação -> (permissão exigida, rota de retorno)
 _TIPOS = {

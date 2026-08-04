@@ -1,14 +1,12 @@
 """Repository for Fórmulas Parametrizáveis."""
 
-from typing import List, Optional
 
 from ..models import db
-from ..models.formula import RubricaFormula, ParametroGlobal, CenarioParametroValor
-
+from ..models.formula import CenarioParametroValor, ParametroGlobal, RubricaFormula
 
 # ==================== RubricaFormula ====================
 
-def get_all_formulas() -> List[RubricaFormula]:
+def get_all_formulas() -> list[RubricaFormula]:
     """Retorna todas as fórmulas ativas."""
     return (
         RubricaFormula.query
@@ -18,12 +16,12 @@ def get_all_formulas() -> List[RubricaFormula]:
     )
 
 
-def get_formula_by_id(seq_rubrica_formula: int) -> Optional[RubricaFormula]:
+def get_formula_by_id(seq_rubrica_formula: int) -> RubricaFormula | None:
     """Busca fórmula por ID."""
     return RubricaFormula.query.get(seq_rubrica_formula)
 
 
-def get_formula_by_qualificador(seq_qualificador: int) -> Optional[RubricaFormula]:
+def get_formula_by_qualificador(seq_qualificador: int) -> RubricaFormula | None:
     """Busca fórmula pelo qualificador associado."""
     return (
         RubricaFormula.query
@@ -32,7 +30,7 @@ def get_formula_by_qualificador(seq_qualificador: int) -> Optional[RubricaFormul
     )
 
 
-def get_formulas_by_qualificadores(seq_qualificadores: List[int]) -> List[RubricaFormula]:
+def get_formulas_by_qualificadores(seq_qualificadores: list[int]) -> list[RubricaFormula]:
     """Busca fórmulas para uma lista de qualificadores."""
     return (
         RubricaFormula.query
@@ -57,7 +55,7 @@ def update_formula(formula: RubricaFormula) -> RubricaFormula:
     return formula
 
 
-def delete_formula(seq_rubrica_formula: int) -> Optional[RubricaFormula]:
+def delete_formula(seq_rubrica_formula: int) -> RubricaFormula | None:
     """Inativa logicamente uma fórmula."""
     formula = get_formula_by_id(seq_rubrica_formula)
     if formula:
@@ -68,7 +66,7 @@ def delete_formula(seq_rubrica_formula: int) -> Optional[RubricaFormula]:
 
 # ==================== ParametroGlobal ====================
 
-def get_all_parametros_globais() -> List[ParametroGlobal]:
+def get_all_parametros_globais() -> list[ParametroGlobal]:
     """Retorna todos os parâmetros globais ativos."""
     return (
         ParametroGlobal.query
@@ -78,12 +76,12 @@ def get_all_parametros_globais() -> List[ParametroGlobal]:
     )
 
 
-def get_parametro_global_by_id(seq_parametro_global: int) -> Optional[ParametroGlobal]:
+def get_parametro_global_by_id(seq_parametro_global: int) -> ParametroGlobal | None:
     """Busca parâmetro global por ID."""
     return ParametroGlobal.query.get(seq_parametro_global)
 
 
-def get_parametro_global_by_nome(nom_parametro: str) -> Optional[ParametroGlobal]:
+def get_parametro_global_by_nome(nom_parametro: str) -> ParametroGlobal | None:
     """Busca parâmetro global pelo nome."""
     return (
         ParametroGlobal.query
@@ -105,7 +103,7 @@ def update_parametro_global(parametro: ParametroGlobal) -> ParametroGlobal:
     return parametro
 
 
-def delete_parametro_global(seq_parametro_global: int) -> Optional[ParametroGlobal]:
+def delete_parametro_global(seq_parametro_global: int) -> ParametroGlobal | None:
     """Inativa logicamente um parâmetro global."""
     parametro = get_parametro_global_by_id(seq_parametro_global)
     if parametro:
@@ -116,7 +114,7 @@ def delete_parametro_global(seq_parametro_global: int) -> Optional[ParametroGlob
 
 # ==================== CenarioParametroValor ====================
 
-def get_valores_cenario(seq_simulador_cenario: int) -> List[CenarioParametroValor]:
+def get_valores_cenario(seq_simulador_cenario: int) -> list[CenarioParametroValor]:
     """Retorna todos os valores de parâmetros de um cenário."""
     return (
         CenarioParametroValor.query
@@ -128,7 +126,7 @@ def get_valores_cenario(seq_simulador_cenario: int) -> List[CenarioParametroValo
 def get_valor_cenario(
     seq_simulador_cenario: int,
     nom_parametro: str,
-) -> Optional[CenarioParametroValor]:
+) -> CenarioParametroValor | None:
     """Busca o valor de um parâmetro específico num cenário."""
     return (
         CenarioParametroValor.query

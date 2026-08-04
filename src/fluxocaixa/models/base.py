@@ -1,15 +1,15 @@
 import os
 
+from fastapi import HTTPException
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import (
-    declarative_base,
-    sessionmaker,
-    scoped_session,
     Query,
+    declarative_base,
+    scoped_session,
+    sessionmaker,
 )
 from sqlalchemy.pool import NullPool
-from fastapi import HTTPException
 
 from ..config import Config
 
@@ -59,6 +59,12 @@ _garantir_diretorio_sqlite(Config.SQLALCHEMY_DATABASE_URI)
 engine = create_engine(
     Config.SQLALCHEMY_DATABASE_URI, **_engine_kwargs(Config.SQLALCHEMY_DATABASE_URI)
 )
+# ⚠️ SAVEPOINT (begin_nested) NÃO é confiável aqui: o pysqlite emite BEGIN em
+# momentos próprios e "commita" inserts fora do controle da Session. A receita
+# oficial (isolation_level=None + BEGIN explícito) foi MEDIDA e descartada:
+# 22 falhas e o dobro do tempo de suíte — os lotes atômicos de importação
+# (importacao-arquivos R8) usam try/except por linha + rollback único, sem
+# savepoints, por causa disto.
 SessionLocal = scoped_session(sessionmaker(bind=engine, autocommit=False, autoflush=False))
 
 Base = declarative_base(metadata=MetaData(naming_convention=NAMING_CONVENTION))

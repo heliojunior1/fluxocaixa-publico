@@ -1,8 +1,7 @@
 """Repository para histórico de cenários do simulador."""
-from typing import List, Optional
 from datetime import date
 
-from ..models import db, SimuladorCenarioHistorico
+from ..models import SimuladorCenarioHistorico, db
 
 
 class SimuladorCenarioHistoricoRepository:
@@ -20,7 +19,7 @@ class SimuladorCenarioHistoricoRepository:
     def get_snapshots_by_cenario(
         self, 
         seq_simulador_cenario: int
-    ) -> List[SimuladorCenarioHistorico]:
+    ) -> list[SimuladorCenarioHistorico]:
         """Retorna todos os snapshots de um cenário, ordenados por data."""
         return (
             SimuladorCenarioHistorico.query
@@ -32,8 +31,8 @@ class SimuladorCenarioHistoricoRepository:
     def get_primeiro_snapshot(
         self, 
         seq_simulador_cenario: int,
-        ano: Optional[int] = None
-    ) -> Optional[SimuladorCenarioHistorico]:
+        ano: int | None = None
+    ) -> SimuladorCenarioHistorico | None:
         """Retorna o primeiro snapshot de um cenário."""
         query = (
             SimuladorCenarioHistorico.query
@@ -53,8 +52,8 @@ class SimuladorCenarioHistoricoRepository:
     def get_ultimo_snapshot(
         self, 
         seq_simulador_cenario: int,
-        ano: Optional[int] = None
-    ) -> Optional[SimuladorCenarioHistorico]:
+        ano: int | None = None
+    ) -> SimuladorCenarioHistorico | None:
         """Retorna o último snapshot de um cenário."""
         query = (
             SimuladorCenarioHistorico.query
@@ -71,7 +70,7 @@ class SimuladorCenarioHistoricoRepository:
         
         return query.order_by(SimuladorCenarioHistorico.dat_snapshot.desc()).first()
     
-    def get_snapshot_by_id(self, seq_historico: int) -> Optional[SimuladorCenarioHistorico]:
+    def get_snapshot_by_id(self, seq_historico: int) -> SimuladorCenarioHistorico | None:
         """Retorna um snapshot específico por ID."""
         return SimuladorCenarioHistorico.query.get(seq_historico)
     

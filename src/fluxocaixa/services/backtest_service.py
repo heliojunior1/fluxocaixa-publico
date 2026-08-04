@@ -6,17 +6,13 @@ Calcula métricas de acurácia (MAPE, WMAPE, Viés) e gera rankings.
 """
 
 import json
-import traceback
 from datetime import date
-from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
-from dateutil.relativedelta import relativedelta
+from sqlalchemy import extract, text
 
-from ..models import db, Lancamento, Qualificador
-from sqlalchemy import func, extract, and_
-
+from ..models import Lancamento, Qualificador, db
 
 # Modelos suportados no backtest
 MODELOS_DISPONIVEIS = {
@@ -32,7 +28,7 @@ MODELOS_DISPONIVEIS = {
 
 def _obter_dados_treino(
     seq_qualificador: int,
-    anos_treino: List[int],
+    anos_treino: list[int],
 ) -> pd.DataFrame:
     """Obtém dados históricos de treino para os anos selecionados.
 
@@ -74,7 +70,7 @@ def _obter_dados_treino(
 def _obter_real(
     seq_qualificador: int,
     ano: int,
-) -> Dict[int, float]:
+) -> dict[int, float]:
     """Obtém valores reais (mensais) de um qualificador para um ano.
 
     Returns:
@@ -103,8 +99,8 @@ def _executar_modelo(
     dados_treino: pd.DataFrame,
     ano_teste: int,
     seq_qualificador: int,
-    anos_treino: List[int],
-) -> Optional[Dict[int, float]]:
+    anos_treino: list[int],
+) -> dict[int, float] | None:
     """Executa um modelo de projeção e retorna projeção mensal.
 
     Returns:
@@ -192,9 +188,9 @@ def _executar_modelo(
 
 
 def _calcular_metricas(
-    projecao: Dict[int, float],
-    real: Dict[int, float],
-) -> Dict[str, float]:
+    projecao: dict[int, float],
+    real: dict[int, float],
+) -> dict[str, float]:
     """Calcula métricas de acurácia entre projeção e valores reais.
 
     Returns:
@@ -237,7 +233,7 @@ def _calcular_metricas(
     }
 
 
-def _determinar_semaforo(mape: Optional[float]) -> str:
+def _determinar_semaforo(mape: float | None) -> str:
     """Determina o semáforo de acurácia.
 
     Returns:
@@ -252,44 +248,52 @@ def _determinar_semaforo(mape: Optional[float]) -> str:
     return 'vermelho'
 
 
-def _obter_hierarquia_qualificadores() -> Dict:
-    """Retorna a hierarquia de qualificadores: pais com seus filhos.
+def _obter_hierarquia_qualificadores() -> dict:
+    """Ancestral → FOLHAS descendentes, em qualquer profundidade (R16).
+
+    A forma antiga agrupava pelo pai IMEDIATO: numa árvore de 3+ níveis o
+    pai de nível 1 mediava só os filhos de nível 2 (sem lançamentos) e nunca
+    alcançava as folhas — o agregado ficava vazio. E o backtest treinava
+    modelos em nós intermediários, sem dados, para produzir métricas nulas.
+    Folha via `is_folha()` — origem única (F6.4).
 
     Returns:
         {
-          seq_pai: {
+          seq_ancestral: {
             'qualificador': Qualificador,
-            'filhos': [Qualificador, ...]
+            'filhos': [Qualificador folha, ...],  # folhas descendentes
           }
         }
     """
     todos = Qualificador.query.filter_by(ind_status='A').all()
-
-    # Mapear por seq
     por_seq = {q.seq_qualificador: q for q in todos}
+    folhas = [q for q in todos if q.is_folha()]
 
-    # Agrupar filhos por pai
-    hierarquia = {}
-    for q in todos:
-        if q.cod_qualificador_pai is not None:
-            pai = por_seq.get(q.cod_qualificador_pai)
-            if pai:
-                if pai.seq_qualificador not in hierarquia:
-                    hierarquia[pai.seq_qualificador] = {
-                        'qualificador': pai,
-                        'filhos': [],
-                    }
-                hierarquia[pai.seq_qualificador]['filhos'].append(q)
+    hierarquia: dict = {}
+    for folha in folhas:
+        vistos = {folha.seq_qualificador}
+        pai_seq = folha.cod_qualificador_pai
+        while pai_seq is not None and pai_seq not in vistos:
+            vistos.add(pai_seq)
+            ancestral = por_seq.get(pai_seq)
+            if ancestral is None:
+                break
+            balde = hierarquia.setdefault(pai_seq, {
+                'qualificador': ancestral,
+                'filhos': [],
+            })
+            balde['filhos'].append(folha)
+            pai_seq = ancestral.cod_qualificador_pai
 
     return hierarquia
 
 
 def executar_backtest(
-    anos_treino: List[int],
-    anos_teste: List[int],
-    modelos: List[str],
-    qualificadores_ids: Optional[List[int]] = None,
-) -> Dict:
+    anos_treino: list[int],
+    anos_teste: list[int],
+    modelos: list[str],
+    qualificadores_ids: list[int] | None = None,
+) -> dict:
     """Executa backtest completo de todos os modelos para todos os qualificadores.
 
     Args:
@@ -313,10 +317,16 @@ def executar_backtest(
     hierarquia = _obter_hierarquia_qualificadores()
 
     filhos_validos = []
+    vistos = set()
     for pai_data in hierarquia.values():
         for filho in pai_data['filhos']:
+            # a MESMA folha aparece sob todos os seus ancestrais (R16) —
+            # o backtest roda uma vez por folha
+            if filho.seq_qualificador in vistos:
+                continue
             if qualificadores_ids is None or filho.seq_qualificador in qualificadores_ids:
                 filhos_validos.append(filho)
+                vistos.add(filho.seq_qualificador)
 
     if not filhos_validos:
         raise ValueError('Nenhum qualificador-filho selecionado')
@@ -422,20 +432,21 @@ def executar_backtest(
 
 
 def _agregar_pais(
-    resultados_filho: List[Dict],
-    hierarquia: Dict,
-    modelos_validos: List[str],
-) -> List[Dict]:
+    resultados_filho: list[dict],
+    hierarquia: dict,
+    modelos_validos: list[str],
+) -> list[dict]:
     """Agrega resultados dos filhos para calcular métricas dos pais."""
     resultados_pai = []
 
     for pai_seq, pai_data in hierarquia.items():
         pai_q = pai_data['qualificador']
 
-        # Filhos que têm resultados
+        # Folhas descendentes com resultado — em qualquer profundidade (R16)
+        seqs_folhas = {f.seq_qualificador for f in pai_data['filhos']}
         filhos_com_resultado = [
             r for r in resultados_filho
-            if r['pai_seq'] == pai_seq and r['modelos']
+            if r['seq_qualificador'] in seqs_folhas and r['modelos']
         ]
 
         if not filhos_com_resultado:
@@ -496,9 +507,9 @@ def _agregar_pais(
 
 
 def _rankear_modelos(
-    resultados_filho: List[Dict],
-    modelos_validos: List[str],
-) -> Dict:
+    resultados_filho: list[dict],
+    modelos_validos: list[str],
+) -> dict:
     """Gera ranking geral: melhor modelo globalmente."""
     ranking = []
 
@@ -540,7 +551,7 @@ def _rankear_modelos(
 
 # ==================== RECOMENDAÇÕES ====================
 
-def salvar_recomendacoes(resultados_backtest: Dict) -> int:
+def salvar_recomendacoes(resultados_backtest: dict) -> int:
     """Salva o melhor modelo por qualificador na tabela de recomendações.
 
     Args:
@@ -549,51 +560,59 @@ def salvar_recomendacoes(resultados_backtest: Dict) -> int:
     Returns:
         Número de recomendações salvas
     """
-    from ..models.formula import db as formula_db
 
-    # Limpar recomendações anteriores
-    db.session.execute(
-        db.text('DELETE FROM flc_backtest_recomendacao')
-    )
+    # Limpar + inserir é ATÔMICO (previsao R13): falha no meio faz rollback —
+    # a sessão é global/scoped, e um DELETE pendente seria efetivado pelo
+    # commit da PRÓXIMA operação, apagando tudo sem gravar nada. (`db.text`
+    # nem existia no helper _DB — a função quebrava na primeira linha; a
+    # tabela tampouco tinha migração: model + 0034 entraram neste change.)
+    try:
+        db.session.execute(
+            text('DELETE FROM flc_backtest_recomendacao')
+        )
 
-    count = 0
-    anos_json = json.dumps(resultados_backtest.get('anos_teste', []))
+        count = 0
+        anos_json = json.dumps(resultados_backtest.get('anos_teste', []))
 
-    for filho_r in resultados_backtest.get('resultados_filho', []):
-        melhor = filho_r.get('melhor_modelo')
-        if melhor and melhor in filho_r.get('modelos', {}):
-            m_data = filho_r['modelos'][melhor]
-            db.session.execute(
-                db.text(
-                    '''INSERT INTO flc_backtest_recomendacao
-                    (seq_qualificador, cod_modelo, val_mape, val_wmape, val_bias,
-                     anos_teste, dat_execucao)
-                    VALUES (:seq_q, :modelo, :mape, :wmape, :bias, :anos, :data)'''
-                ),
-                {
-                    'seq_q': filho_r['seq_qualificador'],
-                    'modelo': melhor,
-                    'mape': m_data.get('mape'),
-                    'wmape': m_data.get('wmape'),
-                    'bias': m_data.get('bias'),
-                    'anos': anos_json,
-                    'data': date.today().isoformat(),
-                },
-            )
-            count += 1
+        for filho_r in resultados_backtest.get('resultados_filho', []):
+            melhor = filho_r.get('melhor_modelo')
+            if melhor and melhor in filho_r.get('modelos', {}):
+                m_data = filho_r['modelos'][melhor]
+                db.session.execute(
+                    text(
+                        '''INSERT INTO flc_backtest_recomendacao
+                        (seq_qualificador, cod_modelo, val_mape, val_wmape,
+                         val_bias, anos_teste, dat_execucao)
+                        VALUES (:seq_q, :modelo, :mape, :wmape, :bias,
+                                :anos, :data)'''
+                    ),
+                    {
+                        'seq_q': filho_r['seq_qualificador'],
+                        'modelo': melhor,
+                        'mape': m_data.get('mape'),
+                        'wmape': m_data.get('wmape'),
+                        'bias': m_data.get('bias'),
+                        'anos': anos_json,
+                        'data': date.today().isoformat(),
+                    },
+                )
+                count += 1
 
-    db.session.commit()
-    return count
+        db.session.commit()
+        return count
+    except Exception:
+        db.session.rollback()
+        raise
 
 
-def obter_recomendacoes() -> Dict[int, Dict]:
+def obter_recomendacoes() -> dict[int, dict]:
     """Obtém recomendações salvas do último backtest.
 
     Returns:
         Dict {seq_qualificador: {modelo, nome, mape, wmape, bias}}
     """
     rows = db.session.execute(
-        db.text(
+        text(
             '''SELECT seq_qualificador, cod_modelo, val_mape, val_wmape, val_bias,
                       anos_teste, dat_execucao
                FROM flc_backtest_recomendacao
@@ -607,9 +626,11 @@ def obter_recomendacoes() -> Dict[int, Dict]:
         resultado[row[0]] = {
             'modelo': cod_modelo,
             'nome': MODELOS_DISPONIVEIS.get(cod_modelo, {}).get('nome', cod_modelo),
-            'mape': float(row[2]) if row[2] else None,
-            'wmape': float(row[3]) if row[3] else None,
-            'bias': float(row[4]) if row[4] else None,
+            # `is not None` (R16): viés 0.0 é MEDIÇÃO — a sentinela falsy o
+            # exibia como ausência
+            'mape': float(row[2]) if row[2] is not None else None,
+            'wmape': float(row[3]) if row[3] is not None else None,
+            'bias': float(row[4]) if row[4] is not None else None,
             'anos_teste': json.loads(row[5]) if row[5] else [],
             'dat_execucao': row[6],
         }

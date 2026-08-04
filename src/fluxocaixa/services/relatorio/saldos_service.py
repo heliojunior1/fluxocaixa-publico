@@ -222,7 +222,7 @@ def _evolucao_30_dias(data_ref: date) -> tuple[list[str], list[float]]:
     dia = data_ref - timedelta(days=29)
     while dia <= data_ref:
         total_dia = saldo_repo.get_saldo_total_by_date(dia)
-        if total_dia == 0:
+        if total_dia is None:  # ausência → carry; zero registrado fica (R22)
             total_dia = saldo_repo.get_latest_saldo_total_before_date(dia)
         labels.append(dia.strftime("%Y-%m-%d"))
         serie.append(float(total_dia))

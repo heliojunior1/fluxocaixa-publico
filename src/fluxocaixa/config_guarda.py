@@ -79,7 +79,7 @@ def validar_configuracao(env: dict) -> None:
 
 
 __all__ = [
-    "validar_configuracao",
-    "ConfiguracaoInseguraError",
     "SECRET_KEY_TAMANHO_MINIMO",
+    "ConfiguracaoInseguraError",
+    "validar_configuracao",
 ]

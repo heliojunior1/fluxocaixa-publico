@@ -158,7 +158,9 @@ def dado_meta_superavit(app, contexto, valor):
 # --------------------------------------------------------------------------
 
 def _consultar(contexto):
-    from fluxocaixa.services.relatorio.ldo_orcamento_service import get_ldo_orcamento_data
+    from fluxocaixa.services.relatorio.ldo_orcamento_service import (
+        get_ldo_orcamento_data,
+    )
 
     _db().session.expire_all()
     contexto["metas"] = get_ldo_orcamento_data(ANO)["metas_fiscais"]

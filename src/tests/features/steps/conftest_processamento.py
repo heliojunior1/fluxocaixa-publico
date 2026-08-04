@@ -91,7 +91,11 @@ def ultima_execucao_mapeamento(seq_mapeamento=None):
 def limpar_estado_processamento():
     """Cada módulo do processamento conta linhas/lançamentos: parte do zero."""
     from fluxocaixa.models import (
-        EtlStaging, ExecucaoMapeamento, ItemMapeamento, Lancamento, Mapeamento,
+        EtlStaging,
+        ExecucaoMapeamento,
+        ItemMapeamento,
+        Lancamento,
+        Mapeamento,
     )
     from fluxocaixa.models.base import db
 

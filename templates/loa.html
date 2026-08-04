@@ -33,17 +33,17 @@
             </h2>
 
             {% if tem_permissao(request, 'FC_INS_LOA') %}
-            <form action="{{ url_for('loa_add') }}" method="POST" class="space-y-4">
+            <form action="{{ url_for('loa_add') }}" method="POST" class="space-y-4" data-testid="loa-form">
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">Ano</label>
-                    <input type="number" name="num_ano" value="{{ ano_filtro or 2026 }}" min="2020" max="2035"
+                    <input type="number" name="num_ano" value="{{ ano_filtro or 2026 }}" min="2020" max="2100" data-testid="loa-ano"
                         class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500"
                         required>
                 </div>
 
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">Qualificador</label>
-                    <select name="seq_qualificador"
+                    <select name="seq_qualificador" data-testid="loa-qualificador"
                         class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500"
                         required>
                         <option value="">Selecione...</option>
@@ -55,7 +55,7 @@
 
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">Valor LOA (R$)</label>
-                    <input type="text" name="val_loa" placeholder="850.000.000,00"
+                    <input type="text" name="val_loa" data-testid="loa-valor" placeholder="850.000.000,00"
                         class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-indigo-200 focus:border-indigo-500"
                         required>
                 </div>
@@ -80,7 +80,7 @@
             <form action="{{ url_for('loa_importar') }}" method="POST" enctype="multipart/form-data" class="space-y-4">
                 <div>
                     <label class="block text-sm font-medium text-slate-600 mb-1">Ano de Referência</label>
-                    <input type="number" name="ano_import" value="{{ ano_filtro or 2026 }}" min="2020" max="2035"
+                    <input type="number" name="ano_import" value="{{ ano_filtro or 2026 }}" min="2020" max="2100" data-testid="loa-ano-import"
                         class="w-full border border-slate-300 rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-emerald-200 focus:border-emerald-500"
                         required>
                 </div>
@@ -173,7 +173,7 @@
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                         {% for r in registros %}
-                        <tr class="hover:bg-slate-50/50 transition-colors">
+                        <tr class="hover:bg-slate-50/50 transition-colors" data-testid="loa-linha">
                             <td class="px-6 py-3">
                                 <span class="px-2 py-0.5 text-xs font-semibold bg-indigo-100 text-indigo-700 rounded-full">{{ r.num_ano }}</span>
                             </td>

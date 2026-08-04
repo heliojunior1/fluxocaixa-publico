@@ -1,8 +1,10 @@
 from datetime import date
-from sqlalchemy import Column, Integer, String, Date, ForeignKey
+
+from sqlalchemy import Column, Date, ForeignKey, Integer, String
 from sqlalchemy.orm import relationship
 
 from .base import Base
+
 
 class Qualificador(Base):
     __tablename__ = 'flc_qualificador'

@@ -7,7 +7,7 @@ from pytest_bdd import given, parsers, scenarios, then, when
 
 scenarios("../saldo-por-fundo/telas_migracao.feature")
 
-D2 = lambda v: Decimal(str(v)).quantize(Decimal("0.01"))  # noqa: E731
+D2 = lambda v: Decimal(str(v)).quantize(Decimal("0.01"))
 
 
 @pytest.fixture()
@@ -106,7 +106,7 @@ def importa_csv_tela(app, contexto, valor, ident, dat):
 
     banco, ag, num = ident.split("/")
     _conta(ident)
-    conteudo = f"Data;Conta;Valor\n{dat};{banco}/{ag}/{num};{valor}\n".encode("utf-8")
+    conteudo = f"Data;Conta;Valor\n{dat};{banco}/{ag}/{num};{valor}\n".encode()
     sessao = {}
     token, _ = criar_preview("saldos", conteudo, "saldos.csv", sessao)
     contexto["resultado"] = confirmar(token, sessao)

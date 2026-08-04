@@ -33,7 +33,12 @@ def _db():
 
 def _limpar():
     """Remove tudo do ramo 1.7 — filhos antes dos pais, pela FK."""
-    from fluxocaixa.models import CenarioAjuste, Lancamento, Qualificador, SimuladorCenario
+    from fluxocaixa.models import (
+        CenarioAjuste,
+        Lancamento,
+        Qualificador,
+        SimuladorCenario,
+    )
 
     db = _db()
     db.session.rollback()
@@ -215,7 +220,8 @@ def quando_inativo_a_ponta(contexto):
 def quando_confronto(contexto):
     from fluxocaixa.models import Qualificador
     from fluxocaixa.services.qualificador_service import (
-        list_despesa_qualificadores_folha, list_receita_qualificadores_folha,
+        list_despesa_qualificadores_folha,
+        list_receita_qualificadores_folha,
     )
 
     listadas = {q.seq_qualificador for q in list_receita_qualificadores_folha()}
@@ -227,9 +233,8 @@ def quando_confronto(contexto):
 
 @when(parsers.parse('cadastro a cadeia até o código "{codigo}"'))
 def quando_cadastro_codigo_longo(app, contexto, codigo):
-    from fluxocaixa.services.qualificador_service import create_qualificador
-
     from fluxocaixa.models import Qualificador
+    from fluxocaixa.services.qualificador_service import create_qualificador
 
     partes = codigo.split('.')
     # a raiz "1" vem do seed de domínio; recriá-la bateria na unicidade

@@ -38,5 +38,5 @@ def test_toda_rota_de_negocio_exige_permissao(app):
 
     assert faltantes == [], (
         "Rotas de negócio sem requer('FC_...'): adicione a dependency de "
-        f"permissão ou registre exceção justificada.\n" + "\n".join(faltantes)
+        "permissão ou registre exceção justificada.\n" + "\n".join(faltantes)
     )

@@ -18,7 +18,7 @@ from .validacao import RegraNegocioError
 #: Grupo do que não tem repartição — fora do veredicto autorizativo (F7.2).
 GRUPO_NAO_CLASSIFICADO = 'N'
 
-CEM = Decimal("100")
+CEM = Decimal(100)
 
 
 def reparticoes_de(seq_qualificador: int, vigencia: int) -> list[QualificadorFonte]:
@@ -39,7 +39,7 @@ def definir_reparticao(seq_qualificador: int, vigencia: int,
     if not percentuais:
         raise RegraNegocioError("Nenhum percentual informado")
 
-    soma = Decimal("0")
+    soma = Decimal(0)
     for seq_fonte, pct in percentuais:
         pct = Decimal(pct)
         if pct <= 0:
@@ -107,11 +107,11 @@ def sugestao_do_historico(seq_qualificador: int) -> list[dict]:
                            Lancamento.seq_fonte_recurso.isnot(None))
                    .all())
     por_fonte: dict = {}
-    total = Decimal("0")
+    total = Decimal(0)
     for lancamento in lancamentos:
         magnitude = abs(Decimal(lancamento.val_lancamento))
         por_fonte[lancamento.seq_fonte_recurso] = (
-            por_fonte.get(lancamento.seq_fonte_recurso, Decimal("0")) + magnitude)
+            por_fonte.get(lancamento.seq_fonte_recurso, Decimal(0)) + magnitude)
         total += magnitude
     if total == 0:
         return []

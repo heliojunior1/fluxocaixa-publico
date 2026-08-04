@@ -26,7 +26,8 @@ def dotacao_de(num_ano: int, seq_qualificador: int) -> Dotacao | None:
 
 
 def criar_dotacao(num_ano: int, seq_qualificador: int,
-                  val_dotacao_inicial: Decimal) -> Dotacao:
+                  val_dotacao_inicial: Decimal,
+                  commit: bool = True) -> Dotacao:
     _validar_qualificador(seq_qualificador)
     if Decimal(val_dotacao_inicial) < 0:
         raise RegraNegocioError("Valor da dotação inicial não pode ser negativo")
@@ -37,7 +38,11 @@ def criar_dotacao(num_ano: int, seq_qualificador: int,
         val_dotacao_inicial=Decimal(val_dotacao_inicial).quantize(Decimal("0.01")),
         ind_status='A', cod_pessoa_inclusao=cod_pessoa_atual())
     db.session.add(dotacao)
-    db.session.commit()
+    if commit:
+        db.session.commit()
+    else:
+        # lote de importação atômico (importacao-arquivos R8)
+        db.session.flush()
     return dotacao
 
 

@@ -1,26 +1,27 @@
-from datetime import date, timedelta
-from sqlalchemy import func, and_
 import calendar
-from ..models import (
-    ItemMapeamento,
-    Mapeamento,
-    Pagamento,
-    Lancamento,
-    Qualificador,
-    Orgao,
-    OrigemLancamento,
-    TipoLancamento,
+from datetime import date, timedelta
 
-    Conferencia,
+from sqlalchemy import and_, func
+
+from ..models import (
     Alerta,
     AlertaGerado,
-    SimuladorCenario,
-    CenarioConfig,
     CenarioAjuste,
+    CenarioConfig,
+    ContaBancaria,
+    ItemMapeamento,
+    Lancamento,
     Loa,
+    Mapeamento,
+    Orgao,
+    OrigemLancamento,
+    Pagamento,
+    Qualificador,
+    SimuladorCenario,
+    TipoLancamento,
 )
 from ..models.base import db
-from ..models import ContaBancaria
+
 
 def seed_data(session=None):
     """Populate the database with some basic records for testing."""
@@ -1067,23 +1068,7 @@ def seed_data(session=None):
     if not SimuladorCenario.query.first():
         ano_base = 2025
         num_periodos = 12
-        
-        # Listas de qualificadores de receita e despesa (todos os nós folha)
-        qualificadores_receita = [
-            'ICMS', 'IPVA', 'ITCMD',  # Impostos
-            'FPE',  # Transferências Federais
-            'COMBATE À POBREZA', 'ROYALTIES', 'APLICAÇÕES FINANCEIRAS', 'IR', 'OUTRAS RECEITAS'  # Demais Receitas
-        ]
-        
-        qualificadores_despesa = [
-            'FOLHA', 'PASEP',  # Pessoal
-            'DÍVIDAS', 'PRECATÓRIOS',  # Serviço da Dívida
-            'CUSTEIO',  # Custeio
-            'INVESTIMENTO + AUMENTO DE CAPITAL',  # Investimento
-            'REPASSE MUNICÍPIOS', 'REPASSE FUNDEB', 'SAÚDE - PISO CONSTITUCIONAL', 'EDUCAÇÃO - PISO CONSTITUCIONAL', 'PODERES',  # Encargos Gerais
-            'RESTOS A PAGAR TESOURO e DEMAIS', 'COMBATE À POBREZA - RESTOS A PAGAR - FONTE 999'  # Restos a Pagar
-        ]
-        
+
         # ========== CENÁRIO 1: CONSERVADOR (Manual/LOA) ==========
         cenario1 = SimuladorCenario(
             nom_cenario='Cenário Conservador',
@@ -1249,7 +1234,7 @@ def seed_data(session=None):
                     ))
         
         session.commit()
-        print(f"Seeded 2 complete simulador scenarios with adjustments for ALL qualifiers across 12 months")
+        print("Seeded 2 complete simulador scenarios with adjustments for ALL qualifiers across 12 months")
 
     # ==================== Seed LOA (Lei Orçamentária Anual) ====================
     if not Loa.query.first():

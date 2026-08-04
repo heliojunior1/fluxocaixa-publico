@@ -1,6 +1,7 @@
-from sqlalchemy import Column, Integer, String
+from sqlalchemy import Column, String
 
 from .base import Base
+
 
 class TipoLancamento(Base):
     __tablename__ = 'flc_tipo_lancamento'

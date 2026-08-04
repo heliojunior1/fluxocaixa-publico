@@ -1,6 +1,6 @@
 """Common utilities and base classes for relatorio services."""
-from datetime import date
-from sqlalchemy import extract, or_
+from sqlalchemy import extract
+
 from ...repositories.tipo_lancamento_repository import TipoLancamentoRepository
 
 

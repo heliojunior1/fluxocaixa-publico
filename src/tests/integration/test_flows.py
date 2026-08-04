@@ -3,11 +3,11 @@ from fastapi.testclient import TestClient
 
 def test_add_lancamento_flow(client: TestClient):
     from fluxocaixa.models import (
-        db,
         Lancamento,
+        OrigemLancamento,
         Qualificador,
         TipoLancamento,
-        OrigemLancamento,
+        db,
     )
 
     # initial count
@@ -32,7 +32,7 @@ def test_add_lancamento_flow(client: TestClient):
 
 
 def test_add_pagamento_flow(client: TestClient):
-    from fluxocaixa.models import db, Pagamento, Orgao, Qualificador
+    from fluxocaixa.models import Orgao, Pagamento, Qualificador, db
 
     initial = db.session.query(Pagamento).count()
     orgao = Orgao.query.first()
@@ -62,7 +62,7 @@ def test_relatorio_resumo_page(client: TestClient):
     assert 'Resumo do Fluxo de Caixa' in resp.text
 
 def test_criar_alerta_flow(client: TestClient):
-    from fluxocaixa.models import db, Alerta
+    from fluxocaixa.models import Alerta, db
 
     initial = db.session.query(Alerta).count()
     resp = client.post(
@@ -82,7 +82,7 @@ def test_criar_alerta_flow(client: TestClient):
 
 
 def test_editar_e_desativar_alerta_flow(client: TestClient):
-    from fluxocaixa.models import db, Alerta
+    from fluxocaixa.models import Alerta, db
 
     alerta = Alerta(
         nom_alerta='Editar',

@@ -297,7 +297,37 @@ def _cenarios_deterministicos() -> dict:
                 json_config_base=json.dumps({"anos": [ANO_HISTORICO]}),
             )
         seqs[nome] = existente.seq_simulador_cenario
+
+    _garantir_parametros_formula(seqs["FORMULA"])
     return seqs
+
+
+def _garantir_parametros_formula(seq_cenario: int) -> None:
+    """Registra valor 0 para toda variável das fórmulas cadastradas (demo).
+
+    O Q04 (previsao R12) tornou parâmetro faltante um `RegraNegocioError`
+    explícito — a massa dependia do fallback silencioso (faltante → base).
+    Com todas as variáveis em 0, a projeção avalia para a própria base, que
+    na ilha 2017 é 0 para os qualificadores da demo: a grade congelada na
+    golden permanece IDÊNTICA, e é por isso que a golden não foi regerada.
+    """
+    from fluxocaixa.models import RubricaFormula
+    from fluxocaixa.models.base import db
+    from fluxocaixa.models.formula import CenarioParametroValor
+    from fluxocaixa.services.formula_engine import extrair_variaveis
+
+    variaveis = set()
+    for formula in RubricaFormula.query.all():
+        variaveis.update(extrair_variaveis(formula.dsc_formula_expressao))
+    variaveis.discard("base")
+
+    existentes = {v.nom_parametro for v in CenarioParametroValor.query
+                  .filter_by(seq_simulador_cenario=seq_cenario).all()}
+    for nome in sorted(variaveis - existentes):
+        db.session.add(CenarioParametroValor(
+            seq_simulador_cenario=seq_cenario, nom_parametro=nome,
+            val_parametro=0))
+    db.session.commit()
 
 
 # ---------------------------------------------------------------------------

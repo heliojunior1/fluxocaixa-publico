@@ -173,12 +173,12 @@ def validar_url_conexao(url: str | None) -> str:
 
 
 __all__ = [
-    "VAR_RAIZ",
     "VAR_HOSTS_PERMITIDOS",
-    "raiz_pasta_local",
+    "VAR_RAIZ",
     "hosts_permitidos",
+    "raiz_pasta_local",
     "validar_diretorio_local",
     "validar_host_externo",
-    "validar_url_externa",
     "validar_url_conexao",
+    "validar_url_externa",
 ]

@@ -16,18 +16,22 @@ import os
 import secrets
 
 from ..config import modo_demo
+from ..models import OrigemLancamento, TipoLancamento, Usuario
+from ..models.base import db
+from ..models.categoria_fiscal import (
+    BASE_DESPESA_TOTAL,
+    BASE_RCL,
+    SENTIDO_PISO,
+    SENTIDO_TETO,
+    CategoriaFiscal,
+)
+from ..models.formula import ParametroGlobal
 
 logger = logging.getLogger(__name__)
 
 # Credencial que a TELA DE LOGIN exibe em modo demo (templates/login.html).
 # Mudar aqui exige mudar lá — o banner e a senha são a mesma decisão.
 SENHA_DEMO_ADMIN = "admin"
-from ..models import OrigemLancamento, TipoLancamento, Usuario
-from ..models.base import db
-from ..models.categoria_fiscal import (
-    BASE_DESPESA_TOTAL, BASE_RCL, SENTIDO_PISO, SENTIDO_TETO, CategoriaFiscal,
-)
-from ..models.formula import ParametroGlobal
 
 # (código, descrição) — PK textual desde a F6.1b; o autoincremento
 # deixou de existir, então a chave é explícita. Idempotente por chave.

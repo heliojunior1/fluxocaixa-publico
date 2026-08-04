@@ -117,7 +117,11 @@ def mapeamento_com_inversao(app, contexto, tipo_map, valor):
 
 def _montar_mapeamento(contexto, tipo_map: str, valor: str, inverter: bool):
     from fluxocaixa.models import (
-        EtlStaging, FonteExtracao, ItemMapeamento, Mapeamento, SistemaOrigem,
+        EtlStaging,
+        FonteExtracao,
+        ItemMapeamento,
+        Mapeamento,
+        SistemaOrigem,
     )
     from fluxocaixa.models.extracao import ExecucaoExtracao
 
@@ -213,7 +217,9 @@ def soma_ilha(contexto):
 def cria_lancamento(app, contexto, valor):
     from fluxocaixa.domain import LancamentoCreate
     from fluxocaixa.services.dominio_lancamento import (
-        TIPO_ENTRADA, resolver_origem, resolver_tipo,
+        TIPO_ENTRADA,
+        resolver_origem,
+        resolver_tipo,
     )
     from fluxocaixa.services.lancamento_service import create_lancamento
     from fluxocaixa.services.validacao import RegraNegocioError

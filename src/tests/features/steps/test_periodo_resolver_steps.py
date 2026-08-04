@@ -182,7 +182,8 @@ def salva_versao(contexto, cenario):
 @when("apuro os realizados da versão")
 def apura_realizados(contexto, cenario):
     from fluxocaixa.services.projecao_versao_service import (
-        atualizar_realizados_de_lancamentos, salvar_projecao_como_versao,
+        atualizar_realizados_de_lancamentos,
+        salvar_projecao_como_versao,
     )
 
     versao = salvar_projecao_como_versao(

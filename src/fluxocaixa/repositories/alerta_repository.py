@@ -1,10 +1,10 @@
 from datetime import date
-from ..auth.contexto import cod_pessoa_atual
+
 from sqlalchemy.orm import Session
 
+from ..domain import AlertaCreate, AlertaUpdate
 from ..models import Alerta, Qualificador
 from ..models.base import db
-from ..domain import AlertaCreate, AlertaUpdate
 
 
 class AlertaRepository:
@@ -24,7 +24,7 @@ class AlertaRepository:
             .all()
         )
 
-    def create(self, data: AlertaCreate) -> Alerta:
+    def create(self, data: AlertaCreate, cod_pessoa: int) -> Alerta:
         alerta = Alerta(
             nom_alerta=data.nom_alerta,
             metric=data.metric,
@@ -34,7 +34,7 @@ class AlertaRepository:
             period=data.period,
             notif_system=data.notif_system,
             notif_email=data.notif_email,
-            cod_pessoa_inclusao=cod_pessoa_atual(),
+            cod_pessoa_inclusao=cod_pessoa,
         )
         self.session.add(alerta)
         self.session.commit()
@@ -43,7 +43,7 @@ class AlertaRepository:
     def get(self, ident: int) -> Alerta:
         return self.session.query(Alerta).get_or_404(ident)
 
-    def update(self, ident: int, data: AlertaUpdate) -> Alerta:
+    def update(self, ident: int, data: AlertaUpdate, cod_pessoa: int) -> Alerta:
         alerta = self.get(ident)
         alerta.nom_alerta = data.nom_alerta
         alerta.metric = data.metric
@@ -54,13 +54,13 @@ class AlertaRepository:
         alerta.notif_system = data.notif_system
         alerta.notif_email = data.notif_email
         alerta.dat_alteracao = data.dat_alteracao or date.today()
-        alerta.cod_pessoa_alteracao = cod_pessoa_atual()
+        alerta.cod_pessoa_alteracao = cod_pessoa
         self.session.commit()
         return alerta
 
-    def soft_delete(self, ident: int) -> None:
+    def soft_delete(self, ident: int, cod_pessoa: int) -> None:
         alerta = self.get(ident)
         alerta.ind_status = 'I'
         alerta.dat_alteracao = date.today()
-        alerta.cod_pessoa_alteracao = cod_pessoa_atual()
+        alerta.cod_pessoa_alteracao = cod_pessoa
         self.session.commit()

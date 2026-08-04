@@ -19,12 +19,11 @@ muda a resposta para a subárvore inteira — uma coluna gravada exigiria
 repropagar a cada edição e ficaria errada no primeiro esquecimento. Mesmo
 princípio do saldo agregado (F2.1) e do mês da projeção (F6.3).
 """
-from typing import Dict, Optional
 
 from ..models import CategoriaFiscal
 
 
-def categoria_resolvida(qualificador, memo: Optional[Dict] = None):
+def categoria_resolvida(qualificador, memo: dict | None = None):
     """`CategoriaFiscal` efetiva do qualificador, ou `None`.
 
     `memo` é um dicionário `{seq_qualificador: CategoriaFiscal | None}` opcional
@@ -65,7 +64,7 @@ def categoria_resolvida(qualificador, memo: Optional[Dict] = None):
     return resolvida
 
 
-def criar_memo() -> Dict:
+def criar_memo() -> dict:
     """Memória para uma passada de relatório. Não sobrevive à requisição."""
     return {}
 

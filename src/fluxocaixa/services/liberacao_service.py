@@ -9,7 +9,14 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from ..auth.contexto import cod_pessoa_atual
-from ..models import FonteRecurso, Liberacao, LiberacaoEvento, Orgao, PagamentoLiberacao, Qualificador
+from ..models import (
+    FonteRecurso,
+    Liberacao,
+    LiberacaoEvento,
+    Orgao,
+    PagamentoLiberacao,
+    Qualificador,
+)
 from ..models.base import db
 from ..models.liberacao import (
     APROPRIACAO,

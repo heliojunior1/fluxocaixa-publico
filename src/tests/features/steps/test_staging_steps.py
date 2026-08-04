@@ -1,6 +1,5 @@
 """Steps BDD — staging genérica da automação de lançamentos (spec R1–R4)."""
 from datetime import date
-from decimal import Decimal
 
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
@@ -268,7 +267,6 @@ def detalhe_menciona(contexto, trecho):
 @then(parsers.parse('a linha da staging fica com status "{status}" e dsc_erro com no máximo {n:d} caracteres'))
 def linha_status_trunc(app, contexto, status, n):
     from fluxocaixa.models import EtlStaging
-
     from fluxocaixa.models.base import db
     db.session.expire_all()
     ln = EtlStaging.query.get(contexto["seq_linha"])

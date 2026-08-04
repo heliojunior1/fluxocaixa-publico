@@ -14,7 +14,7 @@ __all__ = [
     'exigir_login',
     'obter_secret_key',
     'registrar_handlers',
-    'sessao_atual',
     'router_publico',
     'router_sessao',
+    'sessao_atual',
 ]

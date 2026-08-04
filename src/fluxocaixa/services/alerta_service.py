@@ -1,5 +1,5 @@
 from ..domain import AlertaCreate, AlertaUpdate
-from ..repositories import AlertaRepository, AlertaGeradoRepository
+from ..repositories import AlertaGeradoRepository, AlertaRepository
 
 
 def list_alertas(repo: AlertaRepository | None = None):
@@ -9,17 +9,23 @@ def list_alertas(repo: AlertaRepository | None = None):
 
 def create_alerta(data: AlertaCreate, repo: AlertaRepository | None = None):
     repo = repo or AlertaRepository()
-    return repo.create(data)
+    from ..auth.contexto import cod_pessoa_atual
+
+    return repo.create(data, cod_pessoa=cod_pessoa_atual())
 
 
 def update_alerta(ident: int, data: AlertaUpdate, repo: AlertaRepository | None = None):
     repo = repo or AlertaRepository()
-    return repo.update(ident, data)
+    from ..auth.contexto import cod_pessoa_atual
+
+    return repo.update(ident, data, cod_pessoa=cod_pessoa_atual())
 
 
 def delete_alerta(ident: int, repo: AlertaRepository | None = None):
     repo = repo or AlertaRepository()
-    repo.soft_delete(ident)
+    from ..auth.contexto import cod_pessoa_atual
+
+    repo.soft_delete(ident, cod_pessoa=cod_pessoa_atual())
 
 
 def get_alerta_by_id(ident: int, repo: AlertaRepository | None = None):

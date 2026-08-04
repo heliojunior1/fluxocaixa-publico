@@ -11,12 +11,11 @@ apurar apenas moveria a invenção para uma tela de configuração e lhe daria
 aparência de dado apurado.
 """
 from decimal import Decimal
-from typing import Optional
 
 from ..models import MetaFiscalAno, db
 
 
-def obter_meta_superavit(ano: int) -> Optional[Decimal]:
+def obter_meta_superavit(ano: int) -> Decimal | None:
     """Meta informada para o ano, ou `None` se não houver.
 
     `None` é resposta legítima: sem meta informada, o relatório não inventa uma

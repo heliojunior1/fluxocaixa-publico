@@ -12,7 +12,7 @@ from decimal import Decimal, InvalidOperation
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from .conector import ErroLinha, LinhaExtraida
-from .parser_arquivo import _DESTINOS_SIMPLES, _DESTINO_COMPOSTO, TRANSFORMACOES
+from .parser_arquivo import _DESTINO_COMPOSTO, _DESTINOS_SIMPLES, TRANSFORMACOES
 
 _MONETARIOS = {"val_saldo", "val_aplicacoes", "val_resgates"}
 # Transformações aplicáveis a valor de API (as que não dependem de layout de arquivo)
@@ -139,9 +139,9 @@ def mapear_item(item, layout, *, cod_banco: str, agencia: str, conta: str):
         num_conta=destino_vals.get("num_conta", conta),
         cod_fundo=destino_vals.get("cod_fundo", ""),
         dsc_fundo=destino_vals.get("dsc_fundo", ""),
-        val_saldo=destino_vals.get("val_saldo", Decimal("0")),
-        val_aplicacoes=destino_vals.get("val_aplicacoes", Decimal("0")),
-        val_resgates=destino_vals.get("val_resgates", Decimal("0")),
+        val_saldo=destino_vals.get("val_saldo", Decimal(0)),
+        val_aplicacoes=destino_vals.get("val_aplicacoes", Decimal(0)),
+        val_resgates=destino_vals.get("val_resgates", Decimal(0)),
         dat_saldo=destino_vals.get("dat_saldo"),
         # Linha crua para a staging (F4.1) — só quando o layout pede
         json_atributos=dict(item) if getattr(cfg, "capturar_atributos", False)

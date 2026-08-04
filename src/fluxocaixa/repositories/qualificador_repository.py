@@ -1,4 +1,5 @@
-from ..models import db, Qualificador
+from ..models import Qualificador, db
+
 
 def get_all_qualificadores():
     return Qualificador.query.order_by(Qualificador.num_qualificador).all()

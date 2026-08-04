@@ -5,7 +5,6 @@ from decimal import Decimal
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 
-from . import handle_exceptions, router, templates
 from ..auth.permissoes import requer
 from ..services.fonte_recurso_service import listar_fontes
 from ..services.reserva_service import (
@@ -15,6 +14,7 @@ from ..services.reserva_service import (
     reduzir_reserva,
     reforcar_reserva,
 )
+from . import handle_exceptions, router, templates
 
 
 @router.get('/reservas', name='reservas', dependencies=[requer('FC_CONS_RESERVA')])

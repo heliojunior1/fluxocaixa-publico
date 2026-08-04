@@ -226,5 +226,9 @@ def listar_mapeamentos(apenas_ativos: bool = True) -> list[Mapeamento]:
         Mapeamento.num_ano_exercicio.desc(), Mapeamento.ind_tipo).all()
 
 
-__all__ = ['criar_mapeamento', 'alterar_mapeamento', 'inativar_mapeamento',
-           'listar_mapeamentos']
+__all__ = [
+    'alterar_mapeamento',
+    'criar_mapeamento',
+    'inativar_mapeamento',
+    'listar_mapeamentos',
+]

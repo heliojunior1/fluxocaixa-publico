@@ -8,8 +8,9 @@ round-trip do valor.
 """
 import sqlite3
 
-from alembic import command
 from sqlalchemy import create_engine, inspect
+
+from alembic import command
 
 from .test_migracoes import _cfg
 

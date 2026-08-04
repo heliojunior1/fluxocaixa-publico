@@ -1,25 +1,23 @@
 """Repository for Simulador de Cenários functionality."""
 
-from typing import List, Optional
-from sqlalchemy import and_
+
 
 from ..models import (
-    db,
-    SimuladorCenario,
-    CenarioConfig,
     CenarioAjuste,
+    CenarioConfig,
     ModeloEconomicoParametro,
+    SimuladorCenario,
+    db,
 )
-
 
 # ==================== SimuladorCenario ====================
 
-def get_all_simuladores() -> List[SimuladorCenario]:
+def get_all_simuladores() -> list[SimuladorCenario]:
     """Retorna todos os cenários simuladores."""
     return SimuladorCenario.query.order_by(SimuladorCenario.dat_criacao.desc()).all()
 
 
-def get_active_simuladores() -> List[SimuladorCenario]:
+def get_active_simuladores() -> list[SimuladorCenario]:
     """Retorna apenas cenários ativos."""
     return (
         SimuladorCenario.query
@@ -29,15 +27,23 @@ def get_active_simuladores() -> List[SimuladorCenario]:
     )
 
 
-def get_simulador_by_id(seq_simulador_cenario: int) -> Optional[SimuladorCenario]:
+def get_simulador_by_id(seq_simulador_cenario: int) -> SimuladorCenario | None:
     """Busca um cenário simulador por ID."""
     return SimuladorCenario.query.get(seq_simulador_cenario)
 
 
-def create_simulador(simulador: SimuladorCenario) -> SimuladorCenario:
-    """Cria um novo cenário simulador."""
+def create_simulador(simulador: SimuladorCenario,
+                     commit: bool = True) -> SimuladorCenario:
+    """Cria um novo cenário simulador.
+
+    `commit=False` só faz flush — o serviço é o dono da transação
+    (previsao R13): falha depois do cabeçalho não pode deixar órfão.
+    """
     db.session.add(simulador)
-    db.session.commit()
+    if commit:
+        db.session.commit()
+    else:
+        db.session.flush()
     return simulador
 
 
@@ -47,7 +53,7 @@ def update_simulador(simulador: SimuladorCenario) -> SimuladorCenario:
     return simulador
 
 
-def delete_simulador_logical(seq_simulador_cenario: int, user_id: int = 1) -> Optional[SimuladorCenario]:
+def delete_simulador_logical(seq_simulador_cenario: int, user_id: int) -> SimuladorCenario | None:
     """Inativa logicamente um cenário simulador."""
     from datetime import date
     
@@ -65,7 +71,7 @@ def delete_simulador_logical(seq_simulador_cenario: int, user_id: int = 1) -> Op
 # Uma função por operação, com a perna como PARÂMETRO — antes havia um par
 # espelhado (receita/despesa) para cada uma delas.
 
-def get_configs_by_simulador(seq_simulador_cenario: int) -> List[CenarioConfig]:
+def get_configs_by_simulador(seq_simulador_cenario: int) -> list[CenarioConfig]:
     return (CenarioConfig.query
             .filter_by(seq_simulador_cenario=seq_simulador_cenario)
             .order_by(CenarioConfig.cod_tipo_lancamento)
@@ -73,17 +79,20 @@ def get_configs_by_simulador(seq_simulador_cenario: int) -> List[CenarioConfig]:
 
 
 def get_config_by_perna(seq_simulador_cenario: int,
-                        cod_tipo_lancamento: str) -> Optional[CenarioConfig]:
+                        cod_tipo_lancamento: str) -> CenarioConfig | None:
     return CenarioConfig.query.filter_by(
         seq_simulador_cenario=seq_simulador_cenario,
         cod_tipo_lancamento=cod_tipo_lancamento,
     ).first()
 
 
-def create_config(config: CenarioConfig) -> CenarioConfig:
+def create_config(config: CenarioConfig, commit: bool = True) -> CenarioConfig:
     db.session.add(config)
-    db.session.commit()
-    db.session.refresh(config)
+    if commit:
+        db.session.commit()
+        db.session.refresh(config)
+    else:
+        db.session.flush()
     return config
 
 
@@ -100,31 +109,38 @@ def delete_config(seq_cenario_config: int) -> None:
         db.session.commit()
 
 
-def get_ajustes_by_config(seq_cenario_config: int) -> List[CenarioAjuste]:
+def get_ajustes_by_config(seq_cenario_config: int) -> list[CenarioAjuste]:
     return CenarioAjuste.query.filter_by(seq_cenario_config=seq_cenario_config).all()
 
 
-def get_ajustes_by_config_and_year(seq_cenario_config: int, ano: int) -> List[CenarioAjuste]:
+def get_ajustes_by_config_and_year(seq_cenario_config: int, ano: int) -> list[CenarioAjuste]:
     return (CenarioAjuste.query
             .filter_by(seq_cenario_config=seq_cenario_config, ano=ano)
             .all())
 
 
-def create_ajuste(ajuste: CenarioAjuste) -> CenarioAjuste:
+def create_ajuste(ajuste: CenarioAjuste, commit: bool = True) -> CenarioAjuste:
     db.session.add(ajuste)
-    db.session.commit()
-    db.session.refresh(ajuste)
+    if commit:
+        db.session.commit()
+        db.session.refresh(ajuste)
+    else:
+        db.session.flush()
     return ajuste
 
 
-def delete_ajustes_by_config_ano(seq_cenario_config: int, ano: int) -> None:
+def delete_ajustes_by_config_ano(seq_cenario_config: int, ano: int,
+                                 commit: bool = True) -> None:
     CenarioAjuste.query.filter_by(
         seq_cenario_config=seq_cenario_config, ano=ano
     ).delete(synchronize_session=False)
-    db.session.commit()
+    if commit:
+        db.session.commit()
+    # sem commit: a exclusão fica PENDENTE — se os ajustes novos falharem,
+    # o rollback do serviço devolve os antigos (previsao R13)
 
 
-def get_parametros_by_config(seq_cenario_config: int) -> List[ModeloEconomicoParametro]:
+def get_parametros_by_config(seq_cenario_config: int) -> list[ModeloEconomicoParametro]:
     """Retorna parâmetros econômicos de um cenário de receita."""
     return ModeloEconomicoParametro.query.filter_by(seq_cenario_config=seq_cenario_config).all()
 
@@ -135,10 +151,11 @@ def create_parametro_economico(parametro: ModeloEconomicoParametro) -> ModeloEco
     return parametro
 
 
-def delete_parametros_by_config(seq_cenario_config: int):
+def delete_parametros_by_config(seq_cenario_config: int, commit: bool = True):
     """Remove todos os parâmetros de um cenário de receita."""
     ModeloEconomicoParametro.query.filter_by(seq_cenario_config=seq_cenario_config).delete()
-    db.session.commit()
+    if commit:
+        db.session.commit()
 
 
 # ==================== Commit ====================

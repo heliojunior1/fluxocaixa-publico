@@ -1,10 +1,7 @@
 """Comparative analysis service."""
-from datetime import date
-import calendar
 
 from ...repositories.lancamento_repository import LancamentoRepository
 from ...repositories.pagamento_repository import PagamentoRepository
-from ...repositories.tipo_lancamento_repository import TipoLancamentoRepository
 from ...utils.constants import MONTH_NAME_PT
 
 
@@ -32,12 +29,8 @@ def get_analise_comparativa_data(
 
     if tipo_analise == "receitas":
         from ...models import Qualificador
-        tipo_repo = TipoLancamentoRepository()
         lancamento_repo = LancamentoRepository()
-        
-        tipo_entrada = tipo_repo.get_by_descricao("Entrada")
-        id_entrada = tipo_entrada.cod_tipo_lancamento if tipo_entrada else -1
-        
+
         # Get all leaf qualifiers for revenues
         qualificadores = Qualificador.query.filter_by(ind_status='A').all()
         qualificadores_folha = [q for q in qualificadores if q.is_folha() and q.tipo_fluxo == 'receita']

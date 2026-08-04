@@ -348,6 +348,7 @@ def coletar_snapshot() -> dict:
     Só estratégia REALIZADO no DFC e sem o bloco de defasagem dos KPIs — ver
     CAMPOS_EXCLUIDOS.
     """
+    from fluxocaixa.services.previsao_service import get_previsao_realizado_data
     from fluxocaixa.services.relatorio import (
         get_analise_comparativa_data,
         get_controle_despesa_data,
@@ -358,7 +359,6 @@ def coletar_snapshot() -> dict:
         get_resumo_data,
         get_saldos_diarios_data,
     )
-    from fluxocaixa.services.previsao_service import get_previsao_realizado_data
 
     meses = list(range(1, 13))
     quals_despesa = [

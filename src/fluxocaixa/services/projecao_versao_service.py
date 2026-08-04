@@ -1,23 +1,22 @@
 """Service para o histórico de projeções (versões salvas)."""
 import json
 from datetime import date, datetime
-from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 from sqlalchemy import func
 
-from ..models import db, ProjecaoVersao, ProjecaoValor, Lancamento
+from ..models import Lancamento, ProjecaoValor, ProjecaoVersao, SimuladorCenario, db
 from ..repositories import projecao_versao_repository as repo
-from . import periodo_resolver
+
 # ⚠️ Import do MÓDULO, não dos nomes: `from ... import executar_simulacao`
 # congela a função no momento do import, e um teste que faz stub no simulador
 # ANTES deste módulo ser importado deixava o stub grudado para o resto da
 # suíte (ordem de coleta virava resultado de teste).
-from . import simulador_cenario_service
+from . import periodo_resolver, simulador_cenario_service
 from .simulador_cenario_service import obter_simulador_completo
 
 
-def _tipo_lancamento_para_projecao() -> Dict:
+def _tipo_lancamento_para_projecao() -> dict:
     """Mapa cod_tipo_lancamento → cod_tipo de `flc_projecao_valor` ('C'/'D').
 
     Resolvido em runtime pela DESCRIÇÃO (`dominio_lancamento`), nunca pelo
@@ -55,8 +54,8 @@ def _periodicidade_da_versao(versao) -> str:
 def salvar_projecao_como_versao(
     seq_simulador_cenario: int,
     nom_versao: str,
-    dsc_motivo: Optional[str] = None,
-    user_id: Optional[int] = None,
+    dsc_motivo: str | None = None,
+    user_id: int | None = None,
     publicar: bool = False,
 ) -> ProjecaoVersao:
     """Executa a simulação atual do cenário e persiste como uma versão.
@@ -104,7 +103,7 @@ def salvar_projecao_como_versao(
         raise
 
 
-def _serializar_inputs(cenario_completo: Optional[Dict]) -> str:
+def _serializar_inputs(cenario_completo: dict | None) -> str:
     """Serializa config + ajustes do cenário para auditoria (json_inputs)."""
     if not cenario_completo:
         return json.dumps({})
@@ -152,15 +151,15 @@ def _serializar_inputs(cenario_completo: Optional[Dict]) -> str:
     }, default=str)
 
 
-def _montar_linhas_valor(seq_versao: int, resultado: Dict,
-                         periodicidade: str = 'MENSAL') -> List[Dict]:
+def _montar_linhas_valor(seq_versao: int, resultado: dict,
+                         periodicidade: str = 'MENSAL') -> list[dict]:
     """Constrói lista de dicts para bulk_insert em flc_projecao_valor.
 
     Prefere o DataFrame `_detalhada` (com seq_qualificador). Se não houver
     (modelos agregados como ARIMA/HOLT_WINTERS), persiste com
     seq_qualificador NULL — o total ainda é consultável.
     """
-    linhas: List[Dict] = []
+    linhas: list[dict] = []
 
     receita_df = resultado.get('projecao_receita_detalhada')
     if receita_df is None or len(receita_df) == 0:
@@ -176,10 +175,10 @@ def _montar_linhas_valor(seq_versao: int, resultado: Dict,
 
 
 def _df_para_linhas(df, seq_versao: int, cod_tipo: str,
-                    periodicidade: str = 'MENSAL') -> List[Dict]:
+                    periodicidade: str = 'MENSAL') -> list[dict]:
     if df is None or len(df) == 0:
         return []
-    out: List[Dict] = []
+    out: list[dict] = []
     for _, row in df.iterrows():
         data = row.get('data')
         if pd.isna(data):
@@ -209,7 +208,7 @@ def _df_para_linhas(df, seq_versao: int, cod_tipo: str,
 
 # ==================== Listagem / leitura ====================
 
-def list_versoes(seq_simulador_cenario: int) -> List[Dict]:
+def list_versoes(seq_simulador_cenario: int) -> list[dict]:
     """Lista versões com resumo expandido para a tela de histórico."""
     versoes = repo.list_versoes_by_simulador(seq_simulador_cenario)
     out = []
@@ -234,7 +233,7 @@ def list_versoes(seq_simulador_cenario: int) -> List[Dict]:
     return out
 
 
-def get_versao_detalhe(seq_projecao_versao: int) -> Optional[Dict]:
+def get_versao_detalhe(seq_projecao_versao: int) -> dict | None:
     versao = repo.get_versao_by_id(seq_projecao_versao)
     if versao is None:
         return None
@@ -275,7 +274,7 @@ def get_versao_detalhe(seq_projecao_versao: int) -> Optional[Dict]:
     }
 
 
-def comparar_versoes(seq_versao_a: int, seq_versao_b: int) -> Optional[Dict]:
+def comparar_versoes(seq_versao_a: int, seq_versao_b: int) -> dict | None:
     versao_a = repo.get_versao_by_id(seq_versao_a)
     versao_b = repo.get_versao_by_id(seq_versao_b)
     if versao_a is None or versao_b is None:
@@ -319,7 +318,7 @@ def deletar_versao(seq_projecao_versao: int) -> int:
     return repo.delete_versao(seq_projecao_versao)
 
 
-def publicar_versao(seq_projecao_versao: int) -> Optional[ProjecaoVersao]:
+def publicar_versao(seq_projecao_versao: int) -> ProjecaoVersao | None:
     return repo.publicar_versao(seq_projecao_versao)
 
 
@@ -327,7 +326,7 @@ def publicar_versao(seq_projecao_versao: int) -> Optional[ProjecaoVersao]:
 
 def atualizar_realizados_de_lancamentos(
     seq_projecao_versao: int,
-    ate_data: Optional[date] = None,
+    ate_data: date | None = None,
 ) -> int:
     """Preenche val_realizado em ProjecaoValor agregando flc_lancamento.
 
@@ -407,7 +406,7 @@ def atualizar_realizados_de_lancamentos(
         .all()
     )
     mapa_tipo = _tipo_lancamento_para_projecao()
-    realizados_idx: Dict[Tuple[int, str, int, int], float] = {}
+    realizados_idx: dict[tuple[int, str, int, int], float] = {}
     for sq, cod_tipo_lanc, data_lanc, total in rows:
         tipo = mapa_tipo.get(cod_tipo_lanc)
         if tipo is None:
@@ -417,9 +416,71 @@ def atualizar_realizados_de_lancamentos(
         realizados_idx[chave] = realizados_idx.get(chave, 0.0) + float(total or 0)
 
     # 3. Períodos fechados sem lançamento ficam com 0 — "fechado e zerado".
-    realizados: List[Tuple[int, str, int, int, float]] = [
+    realizados: list[tuple[int, str, int, int, float]] = [
         (sq, tipo, ano, periodo, realizados_idx.get((sq, tipo, ano, periodo), 0.0))
         for sq, tipo, ano, periodo in chaves_fechadas
     ]
 
     return repo.atualizar_realizado(seq_projecao_versao, realizados)
+
+
+def resultado_da_versao(seq_simulador_cenario: int):
+    """Reconstrói o shape de `executar_simulacao` a partir da última versão
+    PUBLICADA (previsao R14 — achado A7): abrir a página de um cenário não
+    treina modelos. Devolve `(resultado, versao)` ou `(None, None)` quando
+    não há versão publicada — aí o chamador executa ao vivo (não há o que
+    servir; o Executar continua sendo a ação explícita).
+    """
+    versao = repo.get_ultima_publicada(seq_simulador_cenario)
+    if versao is None:
+        return None, None
+
+    simulador = SimuladorCenario.query.get(seq_simulador_cenario)
+    periodicidade = getattr(simulador, 'cod_periodicidade', None) or 'MENSAL'
+    valores = repo.get_valores_by_versao(versao.seq_projecao_versao)
+
+    # agrega por (tipo, data) — a visão consome o total por período
+    por_tipo: dict = {'C': {}, 'D': {}}
+    for valor in valores:
+        mes = periodo_resolver.mes_do_periodo(
+            periodicidade, valor.ano, valor.num_periodo) or 1
+        chave = date(valor.ano, mes, 1)
+        balde = por_tipo.setdefault(valor.cod_tipo, {})
+        balde[chave] = balde.get(chave, 0.0) + float(valor.val_projetado or 0)
+
+    def _df(tipo):
+        itens = sorted(por_tipo.get(tipo, {}).items())
+        return pd.DataFrame(
+            [{'data': dia, 'valor_projetado': total} for dia, total in itens],
+            columns=['data', 'valor_projetado'])
+
+    receita, despesa = _df('C'), _df('D')
+    datas = sorted({*por_tipo.get('C', {}), *por_tipo.get('D', {})})
+    # colunas do shape de `_calcular_cenario_total` (o template consome
+    # row.receita/row.despesa/row.saldo)
+    total = pd.DataFrame([
+        {'data': dia,
+         'receita': por_tipo.get('C', {}).get(dia, 0.0),
+         'despesa': por_tipo.get('D', {}).get(dia, 0.0),
+         'saldo': por_tipo.get('C', {}).get(dia, 0.0)
+         - por_tipo.get('D', {}).get(dia, 0.0)}
+        for dia in datas
+    ], columns=['data', 'receita', 'despesa', 'saldo'])
+
+    total_receita = float(receita['valor_projetado'].sum()) if len(receita) else 0.0
+    total_despesa = float(despesa['valor_projetado'].sum()) if len(despesa) else 0.0
+    resultado = {
+        'simulador': simulador,
+        'projecao_receita': receita,
+        'projecao_despesa': despesa,
+        'projecao_receita_detalhada': None,
+        'projecao_despesa_detalhada': None,
+        'cenario_total': total,
+        'resumo': {
+            'total_receita': total_receita,
+            'total_despesa': total_despesa,
+            'saldo_final': total_receita - abs(total_despesa),
+        },
+        'degradacoes': [],
+    }
+    return resultado, versao

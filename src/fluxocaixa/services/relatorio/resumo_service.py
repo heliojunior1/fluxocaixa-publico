@@ -1,15 +1,13 @@
 """Resumo (Cash Flow Summary) service."""
 from datetime import date, timedelta
-import calendar
-import pandas as pd
-from sqlalchemy import extract
 
-from ...models import db
+import pandas as pd
+
 from ...repositories.lancamento_repository import LancamentoRepository
 from ...repositories.saldo_conta_repository import SaldoContaRepository
-from .base import get_tipo_lancamento_ids
 from ...utils.constants import MONTH_NAME_PT
 from ..simulador_cenario_service import executar_simulacao
+from .base import get_tipo_lancamento_ids
 
 
 def get_resumo_data(
@@ -39,17 +37,17 @@ def get_resumo_data(
     saldo_repo = SaldoContaRepository()
 
     # Calculate period totals using repository
-    total_entradas_periodo = lancamento_repo.get_total_by_tipo_and_period(
+    total_entradas_periodo = float(lancamento_repo.get_total_by_tipo_and_period(
         cod_tipo=id_entrada,
         ano=ano_selecionado,
         meses=meses_selecionados
-    )
+    ))
     
-    total_saidas_lanc = lancamento_repo.get_total_by_tipo_and_period(
+    total_saidas_lanc = float(lancamento_repo.get_total_by_tipo_and_period(
         cod_tipo=id_saida,
         ano=ano_selecionado,
         meses=meses_selecionados
-    )
+    ))
     total_saidas_periodo = abs(total_saidas_lanc)
     disponibilidade_periodo = total_entradas_periodo - total_saidas_periodo
     
@@ -59,8 +57,9 @@ def get_resumo_data(
     data_inicio_periodo = date(ano_selecionado, primeiro_mes, 1)
     data_saldo_inicial = data_inicio_periodo - timedelta(days=1)  # Day before period
     
+    # `is None` = ausência de registro → carry; zero registrado é respeitado (R22)
     saldo_inicial_conta = saldo_repo.get_saldo_total_by_date(data_saldo_inicial)
-    if saldo_inicial_conta == 0:
+    if saldo_inicial_conta is None:
         saldo_inicial_conta = saldo_repo.get_latest_saldo_total_before_date(data_saldo_inicial)
     
     # Calculate final bank balance
@@ -125,17 +124,17 @@ def get_resumo_data(
                 despesas_mes = float(val)
         else:
             # Use actual data from repository
-            receitas_mes = lancamento_repo.get_monthly_summary(
+            receitas_mes = float(lancamento_repo.get_monthly_summary(
                 ano=ano_selecionado,
                 mes=mes,
                 cod_tipo=id_entrada
-            )
+            ))
             
-            despesas_lanc_mes = lancamento_repo.get_monthly_summary(
+            despesas_lanc_mes = float(lancamento_repo.get_monthly_summary(
                 ano=ano_selecionado,
                 mes=mes,
                 cod_tipo=id_saida
-            )
+            ))
             despesas_mes = abs(despesas_lanc_mes or 0)
         
         cash_flow_data["labels"].append(meses_nomes[mes][:3])

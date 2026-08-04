@@ -2,7 +2,6 @@
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 
-from . import handle_exceptions, router, templates
 from ..auth.permissoes import requer
 from ..services.conta_bancaria_service import (
     alterar_conta,
@@ -12,6 +11,7 @@ from ..services.conta_bancaria_service import (
     listar_contas,
     reativar_conta,
 )
+from . import handle_exceptions, router, templates
 
 
 @router.get('/contas-bancarias', dependencies=[requer('FC_CONS_CONTA')])

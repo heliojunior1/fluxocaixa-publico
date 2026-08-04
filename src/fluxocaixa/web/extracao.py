@@ -9,26 +9,28 @@ As permissões são as da F3.1a; toda rota declara a sua.
 from fastapi import File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse, RedirectResponse
 
-from . import handle_exceptions, router, templates
 from ..auth.permissoes import requer
 from ..domain.extracao import ExecucaoManualIn, ExecucaoOut
 from ..extracao import registry
+from ..extracao.conector import ErroLinha, LinhaExtraida
 from ..extracao.form_schema import descrever_formulario
+from ..extracao.mapeamento_json import (
+    _TRANSF_API,
+    LayoutApiRest,
+    mapear_item,
+)
+from ..extracao.mapeamento_json import (
+    itens as itens_mapeamento,
+)
 from ..extracao.parser_arquivo import (
-    _DESTINOS_SIMPLES,
     _DESTINO_COMPOSTO,
+    _DESTINOS_SIMPLES,
     TRANSFORMACOES,
     LayoutArquivo,
     ParserArquivoError,
     parsear,
 )
-from ..extracao.mapeamento_json import (
-    _TRANSF_API,
-    LayoutApiRest,
-    itens as itens_mapeamento,
-    mapear_item,
-)
-from ..extracao.conector import ErroLinha, LinhaExtraida
+from ..models import SistemaOrigem
 from ..services.extracao_service import (
     DISPARO_MANUAL,
     alterar_fonte,
@@ -44,7 +46,7 @@ from ..services.extracao_service import (
     testar_conexao_fonte,
 )
 from ..services.validacao import RegraNegocioError
-from ..models import SistemaOrigem
+from . import handle_exceptions, router, templates
 
 # Opções expostas ao editor de layout (R17) — acompanham o registro de
 # transformações; a UI não hardcoda nomes.

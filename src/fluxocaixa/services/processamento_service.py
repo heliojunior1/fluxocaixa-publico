@@ -53,14 +53,25 @@ def _linhas_candidatas(mapeamento):
     """Linhas PENDENTES do sistema de origem + ano do mapeamento, com valor ≠ 0.
 
     Mesmo join do preview (F4.2): o recorte é a chave do cabeçalho.
+
+    Defesa em profundidade (R12): linha que JÁ possui lançamento ativo
+    referenciando-a não é candidata, ainda que esteja pendente — estado que só
+    aparece se uma janela se abrir por fora da transação única (restore
+    parcial, escrita manual no banco). A transação resolve o defeito; este
+    filtro faz a duplicação exigir dois erros independentes, não um.
     """
+    ja_lancada = (db.session.query(Lancamento.seq_lancamento)
+                  .filter(Lancamento.seq_etl_staging == EtlStaging.seq_etl_staging)
+                  .filter(Lancamento.ind_status == 'A')
+                  .exists())
     return (EtlStaging.query
             .join(FonteExtracao,
                   FonteExtracao.seq_fonte_extracao == EtlStaging.seq_fonte_extracao)
             .filter(FonteExtracao.seq_sistema_origem == mapeamento.seq_sistema_origem)
             .filter(EtlStaging.num_ano_exercicio == mapeamento.num_ano_exercicio)
             .filter(EtlStaging.ind_status_processamento == STATUS_PENDENTE)
-            .filter(EtlStaging.val_referencia != 0))
+            .filter(EtlStaging.val_referencia != 0)
+            .filter(~ja_lancada))
 
 
 def _itens_ativos(mapeamento):
@@ -179,7 +190,7 @@ def _itens_sujos(itens):
     return [i for i in itens if i.dat_ultima_execucao is None]
 
 
-def _resync(item, cod_origem) -> int:
+def _resync(item, cod_origem, mapeamento) -> int:
     """Remove os lançamentos do item e devolve à staging EXATAMENTE as linhas
     que os originaram. Devolve quantos foram removidos.
 
@@ -187,11 +198,25 @@ def _resync(item, cod_origem) -> int:
     item sujo. Apaga (não inativa) — ver design D5: é linha de máquina,
     reproduzível a partir da staging, e inativar acumularia lixo que todo
     relatório teria de filtrar para sempre.
+
+    O escopo é o do MAPEAMENTO dono do item (R14): qualificador + ano de
+    exercício + sistema de origem, via join com a staging e a fonte. O mesmo
+    qualificador-folha é destino de itens em mapeamentos de exercícios
+    diferentes no uso normal (um mapeamento por ano) — sem o recorte, o resync
+    de um item de um exercício apagaria os lançamentos dos outros, que este
+    mapeamento não é capaz de regerar. O inner join com a staging já garante
+    a FK não-nula.
     """
     lancamentos = (Lancamento.query
-                   .filter_by(seq_qualificador=item.seq_qualificador,
-                              cod_origem_lancamento=cod_origem)
-                   .filter(Lancamento.seq_etl_staging.isnot(None))
+                   .join(EtlStaging,
+                         EtlStaging.seq_etl_staging == Lancamento.seq_etl_staging)
+                   .join(FonteExtracao,
+                         FonteExtracao.seq_fonte_extracao == EtlStaging.seq_fonte_extracao)
+                   .filter(Lancamento.seq_qualificador == item.seq_qualificador)
+                   .filter(Lancamento.cod_origem_lancamento == cod_origem)
+                   .filter(EtlStaging.num_ano_exercicio == mapeamento.num_ano_exercicio)
+                   .filter(FonteExtracao.seq_sistema_origem
+                           == mapeamento.seq_sistema_origem)
                    .all())
     if not lancamentos:
         return 0
@@ -259,7 +284,7 @@ def processar_mapeamento(seq_mapeamento: int,
         # 1) resync dos itens sujos (R14) — antes de classificar
         sujos = _itens_sujos(itens)
         for item in sujos:
-            removidos += _resync(item, cod_origem)
+            removidos += _resync(item, cod_origem, mapeamento)
         if sujos:
             # regra mudou ⇒ reavaliar também as linhas que estavam em erro
             _reabrir_linhas_em_erro(mapeamento)
@@ -269,15 +294,21 @@ def processar_mapeamento(seq_mapeamento: int,
             mapeamento, itens)
         erros = len(pares_erro)
 
-        # 3) status das linhas, em lote (um commit)
-        db.session.commit()
-        staging_service.marcar_ok_lote(seqs_ok)
-        staging_service.marcar_erro_lote(pares_erro)
+        # 3) status das linhas, na MESMA transação dos inserts (R12) —
+        # comitar antes de marcar abria a janela em que o lançamento existe
+        # com a linha ainda pendente: queda do processo ali e o próximo
+        # processamento reclassificava as mesmas linhas, duplicando o caixa
+        staging_service.marcar_ok_lote(seqs_ok, commit=False)
+        staging_service.marcar_erro_lote(pares_erro, commit=False)
 
         # 4) carimba dat_ultima_execucao — primeiro escritor da coluna
         hoje = date.today()
         for item in itens:
             item.dat_ultima_execucao = hoje
+
+        # 5) transação ÚNICA: lançamentos + resync + status + marco,
+        # tudo-ou-nada — interrupção em qualquer ponto deixa o banco
+        # ou com tudo aplicado, ou com nada
         db.session.commit()
 
         detalhe = _detalhe(itens_detalhe)
@@ -292,6 +323,8 @@ def processar_mapeamento(seq_mapeamento: int,
     except Exception as exc:
         db.session.rollback()
         status = STATUS_ERRO
+        # com a transação única, zerar é VERDADE: o rollback desfez tudo o que
+        # esta execução tentou — os contadores descrevem o banco (R15)
         gerados = erros = removidos = 0
         mensagem = getattr(exc, "mensagem", None) or str(exc)
         detalhe = _detalhe([{"mensagem": mensagem}])

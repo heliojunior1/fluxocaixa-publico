@@ -4,9 +4,9 @@ from decimal import Decimal
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 
-from . import router, templates, handle_exceptions
+from ..auth.permissoes import requer
 from ..domain import PagamentoCreate
-from ..services import list_pagamentos, create_pagamento
+from ..services import create_pagamento, list_pagamentos
 from ..services.pagamento_service import (
     alterar_pagamento,
     apropriacoes_do,
@@ -16,7 +16,7 @@ from ..services.pagamento_service import (
     estornar_apropriacao,
     excluir_pagamento,
 )
-from ..auth.permissoes import requer
+from . import handle_exceptions, router, templates
 
 
 @router.get('/pagamentos', name='pagamentos', dependencies=[requer('FC_CONS_PAGAMENTO')])

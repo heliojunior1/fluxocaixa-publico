@@ -14,10 +14,10 @@ import sys
 from pathlib import Path
 
 import pytest
+from alembic.config import Config as AlembicConfig
 from sqlalchemy import create_engine, inspect
 
 from alembic import command
-from alembic.config import Config as AlembicConfig
 
 ROOT = Path(__file__).resolve().parents[3]
 SRC = ROOT / "src"
@@ -103,6 +103,7 @@ def test_sem_deriva_entre_models_e_migracoes(db_url):
 
     from alembic.autogenerate import compare_metadata
     from alembic.migration import MigrationContext
+
     from fluxocaixa.models import Base
 
     engine = create_engine(db_url)

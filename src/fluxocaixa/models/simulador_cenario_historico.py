@@ -1,6 +1,7 @@
 """Modelo para histórico de cenários do simulador."""
 from datetime import date
-from sqlalchemy import Column, Integer, Date, Text, ForeignKey
+
+from sqlalchemy import Column, Date, ForeignKey, Integer, Text
 
 from .base import Base
 

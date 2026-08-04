@@ -1,16 +1,32 @@
 """Service for economic forecasting models."""
 
-from typing import List, Dict, Optional, Tuple
-from datetime import date, datetime
-from dateutil.relativedelta import relativedelta
-import json
+import logging
+import warnings
+from contextlib import contextmanager
+from datetime import date
+
 import numpy as np
 import pandas as pd
-import warnings
+from dateutil.relativedelta import relativedelta
 
-# Suppress convergence warnings from statsmodels
-warnings.filterwarnings('ignore', category=UserWarning)
-warnings.filterwarnings('ignore', category=FutureWarning)
+from ..models import Lancamento
+
+logger = logging.getLogger(__name__)
+
+
+@contextmanager
+def _sem_avisos_de_convergencia():
+    """Confina a supressão de warnings aos `fit()` (previsao R12).
+
+    O `filterwarnings('ignore')` global no import silenciava UserWarning e
+    FutureWarning do PROCESSO INTEIRO (pandas, SQLAlchemy, pydantic) como
+    efeito colateral de importar este módulo.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore', UserWarning)
+        warnings.simplefilter('ignore', FutureWarning)
+        warnings.simplefilter('ignore', RuntimeWarning)
+        yield
 
 # Statistical models
 HAS_STATSMODELS = False
@@ -23,18 +39,17 @@ HAS_SKLEARN = False
 # junto os modelos que não têm nada a ver com ML (MEDIA_HISTORICA, LOA) e a
 # própria `executar_simulacao`. A degradação graciosa era a intenção original.
 try:
-    from statsmodels.tsa.holtwinters import ExponentialSmoothing
     from statsmodels.tsa.arima.model import ARIMA
+    from statsmodels.tsa.holtwinters import ExponentialSmoothing
     from statsmodels.tsa.statespace.sarimax import SARIMAX
     HAS_STATSMODELS = True
 except Exception as e:  # noqa: BLE001 - ver nota acima
-    print(f"Warning: statsmodels indisponível: {e}")
+    logger.warning("statsmodels indisponível: %s", e)
 
 try:
-    from sklearn.linear_model import LinearRegression
     HAS_SKLEARN = True
 except Exception as e:  # noqa: BLE001 - ver nota acima
-    print(f"Warning: sklearn indisponível: {e}")
+    logger.warning("sklearn indisponível: %s", e)
 
 HAS_XGBOOST = False
 HAS_LIGHTGBM = False
@@ -43,20 +58,28 @@ try:
     from xgboost import XGBRegressor
     HAS_XGBOOST = True
 except Exception as e:  # noqa: BLE001 - ver nota acima
-    print(f"Warning: xgboost indisponível: {e}")
+    logger.warning("xgboost indisponível: %s", e)
 
 try:
     from lightgbm import LGBMRegressor
     HAS_LIGHTGBM = True
 except Exception as e:  # noqa: BLE001 - ver nota acima
-    print(f"Warning: lightgbm indisponível: {e}")
+    logger.warning("lightgbm indisponível: %s", e)
 
-
-from ..models import db, Lancamento, Qualificador
-from sqlalchemy import func, extract, and_
 
 
 # ==================== Helper Functions ====================
+
+def _datas_do_ano_base(ano_base: int, num_periodos: int) -> list[date]:
+    """Datas mensais a partir de jan/ano_base, por aritmética de calendário.
+
+    A forma antiga (mês = i+1 fixo no ano-base) estourava com 13+ períodos
+    (`ValueError: month must be in 1..12`) — e quinzenal/semanal usam até 52.
+    Com relativedelta os períodos atravessam para os anos seguintes.
+    """
+    inicio = date(ano_base, 1, 1)
+    return [inicio + relativedelta(months=i) for i in range(num_periodos)]
+
 
 def obter_dados_historicos(
     seq_qualificador: int,
@@ -83,6 +106,7 @@ def obter_dados_historicos(
             Lancamento.seq_qualificador == seq_qualificador,
             Lancamento.dat_lancamento >= data_inicio,
             Lancamento.dat_lancamento <= data_fim,
+            Lancamento.ind_status == 'A',
         )
         .all()
     )
@@ -112,10 +136,10 @@ def obter_dados_historicos(
 
 
 def obter_dados_historicos_multiplos(
-    seq_qualificadores: List[int],
+    seq_qualificadores: list[int],
     data_inicio: date,
     data_fim: date,
-) -> Dict[int, pd.DataFrame]:
+) -> dict[int, pd.DataFrame]:
     """Obtém dados históricos para múltiplos qualificadores."""
     resultado = {}
     for seq_q in seq_qualificadores:
@@ -128,7 +152,7 @@ def obter_dados_historicos_multiplos(
 def projetar_holt_winters(
     dados_historicos: pd.DataFrame,
     num_periodos: int,
-    config: Dict,
+    config: dict,
     ano_base: int = None,
 ) -> pd.DataFrame:
     """
@@ -154,7 +178,7 @@ def projetar_holt_winters(
     if len(dados_historicos) < 24:  # Mínimo de 2 anos de dados
         # Tentar com menos dados se houver pelo menos 12 meses
         if len(dados_historicos) >= 12:
-            print("Aviso: Usando Holt-Winters com menos de 24 meses de dados")
+            logger.info("Usando Holt-Winters com menos de 24 meses de dados")
         else:
             raise ValueError("Holt-Winters requer pelo menos 12 meses de dados históricos")
     
@@ -173,12 +197,18 @@ def projetar_holt_winters(
     df_sorted = dados_historicos.sort_values('data')
     series = df_sorted.set_index('data')['valor']
     
-    # Garantir valores positivos para multiplicativo ou Box-Cox
+    # Garantir valores positivos para multiplicativo ou Box-Cox.
+    # O deslocamento é REVERTIDO depois do forecast (previsao R12): treinar
+    # no espaço deslocado e devolver sem subtrair inflava toda projeção em
+    # (1 - min) — inclusive no fallback, que retreina a série já deslocada.
+    deslocamento = 0.0
     if seasonal == 'mul' or use_boxcox:
         min_val = series.min()
         if min_val <= 0:
             series = series - min_val + 1  # Ajustar para valores positivos
-    
+            deslocamento = float(min_val) - 1.0  # original = deslocada + (min−1)
+
+    degradacao = None
     try:
         # Treinar modelo
         model = ExponentialSmoothing(
@@ -189,27 +219,35 @@ def projetar_holt_winters(
             damped_trend=damped_trend,
             use_boxcox=use_boxcox,
         )
-        fitted_model = model.fit(optimized=True)
-        
+        with _sem_avisos_de_convergencia():
+            fitted_model = model.fit(optimized=True)
+
         # Fazer projeção
         forecast = fitted_model.forecast(steps=num_periodos)
-        
+
     except Exception as e:
-        # Fallback para modelo mais simples
-        print(f"Erro no Holt-Winters complexo: {e}. Tentando versão simplificada.")
+        # Fallback NUNCA silencioso (R12): a degradação viaja no resultado
+        degradacao = (f"Holt-Winters (trend={trend}, seasonal={seasonal}) "
+                      f"falhou: {e}; usado Holt-Winters aditivo simples")
+        logger.warning("%s", degradacao)
         model = ExponentialSmoothing(
             series,
             seasonal_periods=seasonal_periods,
             trend='add',
             seasonal='add',
         )
-        fitted_model = model.fit()
+        with _sem_avisos_de_convergencia():
+            fitted_model = model.fit()
         forecast = fitted_model.forecast(steps=num_periodos)
+
+    # Reverter o deslocamento ANTES do clamp de não-negatividade
+    if deslocamento:
+        forecast = forecast + deslocamento
     
     # Criar DataFrame de resultado
     if ano_base:
         # Usar ano base especificado
-        datas_futuras = [date(ano_base, i+1, 1) for i in range(num_periodos)]
+        datas_futuras = _datas_do_ano_base(ano_base, num_periodos)
     else:
         ultima_data = df_sorted['data'].max()
         datas_futuras = [ultima_data + relativedelta(months=i+1) for i in range(num_periodos)]
@@ -222,14 +260,15 @@ def projetar_holt_winters(
         'data': datas_futuras,
         'valor_projetado': valores
     })
-    
+    if degradacao:
+        resultado.attrs['degradacao'] = degradacao
     return resultado
 
 
 def projetar_arima(
     dados_historicos: pd.DataFrame,
     num_periodos: int,
-    config: Dict,
+    config: dict,
     ano_base: int = None,
 ) -> pd.DataFrame:
     """
@@ -263,44 +302,50 @@ def projetar_arima(
     # Criar série temporal
     df_sorted = dados_historicos.sort_values('data')
     series = df_sorted.set_index('data')['valor']
-    
+
+    degradacao = None
     try:
         if auto_order:
             # Tentar encontrar melhor ordem automaticamente
             best_aic = float('inf')
             best_order = (p, d, q)
             
-            for p_try in range(0, 4):
-                for d_try in range(0, 3):
-                    for q_try in range(0, 4):
+            for p_try in range(4):
+                for d_try in range(3):
+                    for q_try in range(4):
                         try:
                             model = ARIMA(series, order=(p_try, d_try, q_try))
                             fitted = model.fit()
                             if fitted.aic < best_aic:
                                 best_aic = fitted.aic
                                 best_order = (p_try, d_try, q_try)
-                        except:
+                        except Exception:
+                            # nunca `except:` nu — capturaria KeyboardInterrupt
+                            # bem onde o usuário interromperia por lentidão
                             continue
             
             p, d, q = best_order
         
         # Treinar modelo
         model = ARIMA(series, order=(p, d, q))
-        fitted_model = model.fit()
-        
+        with _sem_avisos_de_convergencia():
+            fitted_model = model.fit()
+
         # Fazer projeção
         forecast = fitted_model.forecast(steps=num_periodos)
-        
+
     except Exception as e:
-        # Fallback para modelo mais simples
-        print(f"Erro no ARIMA({p},{d},{q}): {e}. Tentando (1,1,1).")
+        # Fallback NUNCA silencioso (R12)
+        degradacao = (f"ARIMA({p},{d},{q}) falhou: {e}; usado ARIMA(1,1,1)")
+        logger.warning("%s", degradacao)
         model = ARIMA(series, order=(1, 1, 1))
-        fitted_model = model.fit()
+        with _sem_avisos_de_convergencia():
+            fitted_model = model.fit()
         forecast = fitted_model.forecast(steps=num_periodos)
     
     # Criar DataFrame de resultado
     if ano_base:
-        datas_futuras = [date(ano_base, i+1, 1) for i in range(num_periodos)]
+        datas_futuras = _datas_do_ano_base(ano_base, num_periodos)
     else:
         ultima_data = df_sorted['data'].max()
         datas_futuras = [ultima_data + relativedelta(months=i+1) for i in range(num_periodos)]
@@ -313,14 +358,15 @@ def projetar_arima(
         'data': datas_futuras,
         'valor_projetado': valores
     })
-    
+    if degradacao:
+        resultado.attrs['degradacao'] = degradacao
     return resultado
 
 
 def projetar_sarima(
     dados_historicos: pd.DataFrame,
     num_periodos: int,
-    config: Dict,
+    config: dict,
     ano_base: int = None,
 ) -> pd.DataFrame:
     """
@@ -345,7 +391,7 @@ def projetar_sarima(
     if len(dados_historicos) < 24:
         # Tentar com menos dados se houver pelo menos 12 meses
         if len(dados_historicos) >= 12:
-            print("Aviso: Usando SARIMA com menos de 24 meses de dados")
+            logger.info("Usando SARIMA com menos de 24 meses de dados")
         else:
             raise ValueError("SARIMA requer pelo menos 12 meses de dados históricos")
     
@@ -367,6 +413,7 @@ def projetar_sarima(
     df_sorted = dados_historicos.sort_values('data')
     series = df_sorted.set_index('data')['valor']
     
+    degradacao = None
     try:
         # Treinar modelo SARIMA
         model = SARIMAX(
@@ -376,27 +423,32 @@ def projetar_sarima(
             enforce_stationarity=enforce_stationarity,
             enforce_invertibility=enforce_invertibility,
         )
-        fitted_model = model.fit(disp=False, maxiter=200)
-        
+        with _sem_avisos_de_convergencia():
+            fitted_model = model.fit(disp=False, maxiter=200)
+
         # Fazer projeção
         forecast = fitted_model.forecast(steps=num_periodos)
-        
+
     except Exception as e:
-        # Fallback para modelo mais simples
-        print(f"Erro no SARIMA: {e}. Tentando ARIMA simples.")
+        # Fallback NUNCA silencioso (R12) — dois níveis, ambos registrados
+        degradacao = f"SARIMA falhou: {e}; usado ARIMA(1,1,1)"
+        logger.warning("%s", degradacao)
         try:
             model = ARIMA(series, order=(1, 1, 1))
-            fitted_model = model.fit()
+            with _sem_avisos_de_convergencia():
+                fitted_model = model.fit()
             forecast = fitted_model.forecast(steps=num_periodos)
         except Exception as e2:
-            print(f"Erro no ARIMA fallback: {e2}. Usando média móvel.")
+            degradacao = (f"SARIMA falhou: {e}; ARIMA(1,1,1) também falhou: "
+                          f"{e2}; usada a média dos últimos 12 meses")
+            logger.warning("%s", degradacao)
             # Fallback final: média dos últimos 12 meses
             media = series.tail(12).mean()
             forecast = pd.Series([media] * num_periodos)
     
     # Criar DataFrame de resultado
     if ano_base:
-        datas_futuras = [date(ano_base, i+1, 1) for i in range(num_periodos)]
+        datas_futuras = _datas_do_ano_base(ano_base, num_periodos)
     else:
         ultima_data = df_sorted['data'].max()
         datas_futuras = [ultima_data + relativedelta(months=i+1) for i in range(num_periodos)]
@@ -409,13 +461,14 @@ def projetar_sarima(
         'data': datas_futuras,
         'valor_projetado': valores
     })
-    
+    if degradacao:
+        resultado.attrs['degradacao'] = degradacao
     return resultado
 
 
 def projetar_regressao_multipla(
     num_periodos: int,
-    config: Dict,
+    config: dict,
     ano_base: int = None,
 ) -> pd.DataFrame:
     """
@@ -482,7 +535,7 @@ def projetar_regressao_multipla(
     
     # Criar DataFrame de resultado
     if ano_base:
-        datas_futuras = [date(ano_base, i+1, 1) for i in range(num_periodos)]
+        datas_futuras = _datas_do_ano_base(ano_base, num_periodos)
     else:
         data_base = date.today().replace(day=1)
         datas_futuras = [data_base + relativedelta(months=i) for i in range(num_periodos)]
@@ -498,7 +551,7 @@ def projetar_regressao_multipla(
 def projetar_xgboost(
     dados_historicos: pd.DataFrame,
     num_periodos: int,
-    config: Dict,
+    config: dict,
     ano_base: int = None,
 ) -> pd.DataFrame:
     """
@@ -525,16 +578,16 @@ def projetar_xgboost(
     
     if len(dados_historicos) < 24:
         if len(dados_historicos) >= 13:
-            print("Aviso: Usando XGBoost com menos de 24 meses de dados")
+            logger.info("Usando XGBoost com menos de 24 meses de dados")
         else:
             raise ValueError("XGBoost requer pelo menos 13 meses de dados históricos (12 para lags + 1 para treino)")
     
     from .feature_engineering import (
-        criar_features_serie_temporal,
-        criar_features_futuras,
-        preparar_dados_treino,
-        get_feature_columns,
         atualizar_lags_recursivo,
+        criar_features_futuras,
+        criar_features_serie_temporal,
+        get_feature_columns,
+        preparar_dados_treino,
     )
     
     # Parameters
@@ -595,7 +648,7 @@ def projetar_xgboost(
 def projetar_lightgbm(
     dados_historicos: pd.DataFrame,
     num_periodos: int,
-    config: Dict,
+    config: dict,
     ano_base: int = None,
 ) -> pd.DataFrame:
     """
@@ -622,16 +675,16 @@ def projetar_lightgbm(
     
     if len(dados_historicos) < 24:
         if len(dados_historicos) >= 13:
-            print("Aviso: Usando LightGBM com menos de 24 meses de dados")
+            logger.info("Usando LightGBM com menos de 24 meses de dados")
         else:
             raise ValueError("LightGBM requer pelo menos 13 meses de dados históricos (12 para lags + 1 para treino)")
     
     from .feature_engineering import (
-        criar_features_serie_temporal,
-        criar_features_futuras,
-        preparar_dados_treino,
-        get_feature_columns,
         atualizar_lags_recursivo,
+        criar_features_futuras,
+        criar_features_serie_temporal,
+        get_feature_columns,
+        preparar_dados_treino,
     )
     
     # Parameters
@@ -695,7 +748,7 @@ def projetar_lightgbm(
 
 def projetar_loa(
     num_periodos: int,
-    config: Dict,
+    config: dict,
 ) -> pd.DataFrame:
     """
     Projeta despesas usando valores da LOA (Lei Orçamentária Anual).
@@ -744,7 +797,7 @@ def projetar_loa(
 def projetar_media_historica(
     dados_historicos: pd.DataFrame,
     num_periodos: int,
-    config: Dict,
+    config: dict,
     ano_base: int = None,
 ) -> pd.DataFrame:
     """
@@ -807,7 +860,7 @@ def projetar_media_historica(
     
     # Criar DataFrame de resultado
     if ano_base:
-        datas_futuras = [date(ano_base, i+1, 1) for i in range(num_periodos)]
+        datas_futuras = _datas_do_ano_base(ano_base, num_periodos)
     else:
         ultima_data = df['data'].max()
         datas_futuras = [ultima_data + relativedelta(months=i+1) for i in range(num_periodos)]
@@ -823,7 +876,7 @@ def projetar_media_historica(
 # ==================== Aggregated Historical Data ====================
 
 def obter_dados_historicos_agregados(
-    seq_qualificadores: List[int],
+    seq_qualificadores: list[int],
     data_inicio: date,
     data_fim: date,
     agregacao: str = 'mensal'
@@ -850,6 +903,7 @@ def obter_dados_historicos_agregados(
             Lancamento.seq_qualificador.in_(seq_qualificadores),
             Lancamento.dat_lancamento >= data_inicio,
             Lancamento.dat_lancamento <= data_fim,
+            Lancamento.ind_status == 'A',
         )
         .all()
     )
@@ -882,10 +936,10 @@ def obter_dados_historicos_agregados(
 
 
 def obter_dados_historicos_por_qualificador(
-    seq_qualificadores: List[int],
+    seq_qualificadores: list[int],
     data_inicio: date,
     data_fim: date,
-) -> Dict[int, pd.DataFrame]:
+) -> dict[int, pd.DataFrame]:
     """
     Obtém dados históricos separados por qualificador.
     
@@ -901,3 +955,77 @@ def obter_dados_historicos_por_qualificador(
     for seq_q in seq_qualificadores:
         resultado[seq_q] = obter_dados_historicos(seq_q, data_inicio, data_fim)
     return resultado
+
+
+# ==================== Despacho por modelo (previsao R14) ====================
+
+def calcular_projecao(tipo_modelo: str, seq_qualificadores: list[int],
+                      num_periodos: int, ano_base: int, config: dict,
+                      anos_selecionados: list[int] | None = None):
+    """Despacho ÚNICO modelo → (janela, mínimo, motor) — antes eram 160
+    linhas na rota, com o bloco "busca histórico + valida mínimo" repetido
+    seis vezes (achado A2). Dados insuficientes e modelo desconhecido são
+    erro de NEGÓCIO, nunca 500.
+    """
+    from .validacao import RegraNegocioError
+
+    config = config or {}
+    data_fim = date(ano_base - 1, 12, 31)
+
+    def _historico(janela_anos: int):
+        data_inicio = data_fim - relativedelta(years=janela_anos)
+        if len(seq_qualificadores) > 1:
+            return obter_dados_historicos_agregados(
+                seq_qualificadores, data_inicio, data_fim)
+        return obter_dados_historicos(
+            seq_qualificadores[0], data_inicio, data_fim)
+
+    # modelo -> (janela em anos, mínimo de observações, motor)
+    tabela = {
+        'HOLT_WINTERS': (3, 12, projetar_holt_winters),
+        'ARIMA': (3, 12, projetar_arima),
+        'SARIMA': (4, 12, projetar_sarima),
+        'MEDIA_HISTORICA': (3, 1, projetar_media_historica),
+        'XGBOOST': (3, 13, projetar_xgboost),
+        'LIGHTGBM': (3, 13, projetar_lightgbm),
+    }
+
+    if tipo_modelo in tabela:
+        janela, minimo, motor = tabela[tipo_modelo]
+        dados_hist = _historico(janela)
+        if len(dados_hist) < minimo:
+            raise RegraNegocioError(
+                f"Dados históricos insuficientes para {tipo_modelo}: "
+                f"encontrados {len(dados_hist)} meses, mínimo {minimo}")
+        return motor(dados_hist, num_periodos, config, ano_base)
+
+    if tipo_modelo == 'REGRESSAO':
+        return projetar_regressao_multipla(num_periodos, config, ano_base)
+
+    if tipo_modelo in ('CRESCIMENTO_ANO', 'MEDIA_CRESCIMENTO'):
+        from .formula_engine import (
+            projetar_crescimento_ultimo_ano,
+            projetar_media_crescimento_anos,
+        )
+
+        mes_referencia = int(config.get('mes_referencia', 6))
+        anos = anos_selecionados or []
+        if tipo_modelo == 'CRESCIMENTO_ANO':
+            return projetar_crescimento_ultimo_ano(
+                seq_qualificadores=seq_qualificadores,
+                ano_projecao=ano_base,
+                ano_referencia=max(anos) if anos else ano_base - 1,
+                mes_referencia=mes_referencia,
+                num_periodos=num_periodos)
+        if not anos:
+            raise RegraNegocioError(
+                "Selecione pelo menos um ano na Base Histórica")
+        return projetar_media_crescimento_anos(
+            seq_qualificadores=seq_qualificadores,
+            ano_projecao=ano_base,
+            anos_referencia=anos,
+            mes_referencia=mes_referencia,
+            num_periodos=num_periodos)
+
+    raise RegraNegocioError(
+        f"Modelo '{tipo_modelo}' não suportado para cálculo automático")

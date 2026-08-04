@@ -37,4 +37,4 @@ def validar_regra(txt_regra: str) -> tuple[bool, str | None]:
         return False, exc.mensagem
 
 
-__all__ = ['traduzir_regra', 'validar_regra', 'preview_regra', 'parsear', 'renderizar']
+__all__ = ['parsear', 'preview_regra', 'renderizar', 'traduzir_regra', 'validar_regra']

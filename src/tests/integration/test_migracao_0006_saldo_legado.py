@@ -5,7 +5,6 @@ saldos legados não cria GERAL; downgrade recria a tabela e repovoa do GERAL.
 """
 import sqlite3
 
-import pytest
 from sqlalchemy import create_engine, inspect
 
 from alembic import command

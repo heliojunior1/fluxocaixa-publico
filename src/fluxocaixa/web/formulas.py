@@ -1,27 +1,24 @@
 """Web endpoints para Fórmulas Parametrizáveis e Parâmetros Globais."""
 
-from datetime import date
-from fastapi import Request
-from fastapi.responses import RedirectResponse, JSONResponse
 import json
 
-from . import router, templates, handle_exceptions
-from ..services import (
-    list_receita_qualificadores_folha,
-    list_despesa_qualificadores_folha,
-    get_qualificador,
-)
-from ..repositories import formula_repository as formula_repo
-from ..services.formula_engine import (
-    extrair_variaveis,
-    validar_formula,
-    avaliar_formula,
-    listar_anos_disponiveis,
-    calcular_base,
-)
-from ..models.formula import RubricaFormula, ParametroGlobal, CenarioParametroValor
-from ..auth.permissoes import requer
+from fastapi import Request
+from fastapi.responses import JSONResponse, RedirectResponse
 
+from ..auth.permissoes import requer
+from ..models.formula import ParametroGlobal, RubricaFormula
+from ..repositories import formula_repository as formula_repo
+from ..services import (
+    list_despesa_qualificadores_folha,
+    list_receita_qualificadores_folha,
+)
+from ..services.formula_engine import (
+    avaliar_formula,
+    extrair_variaveis,
+    listar_anos_disponiveis,
+    validar_formula,
+)
+from . import handle_exceptions, router, templates
 
 # ==================== Fórmulas ====================
 
@@ -76,7 +73,9 @@ async def formula_criar(request: Request):
     """Cria uma nova fórmula."""
     form = await request.form()
 
-    seq_qualificador = int(form.get('seq_qualificador'))
+    from .entrada import inteiro
+    seq_qualificador = inteiro(form.get('seq_qualificador'), 'qualificador',
+                               obrigatorio=True)
     nom_formula = form.get('nom_formula', '').strip()
     expressao = form.get('dsc_formula_expressao', '').strip()
     cod_metodo_base = form.get('cod_metodo_base', 'MEDIA_SIMPLES')
@@ -346,34 +345,8 @@ async def formulas_api():
 # ==================== Helpers ====================
 
 def _parse_config_base_from_form(form, cod_metodo_base: str) -> dict:
-    """Extrai configuração de base do formulário."""
-    config = {}
+    """Extrai configuração de base do formulário (dict) — implementação
+    compartilhada em `web/cenario_form.py` (R14)."""
+    from .cenario_form import parse_config_base
 
-    if cod_metodo_base == 'VALOR_FIXO':
-        try:
-            config['valor'] = float(form.get('valor_fixo', 0) or 0)
-        except (ValueError, TypeError):
-            config['valor'] = 0.0
-    else:
-        # MEDIA_SIMPLES ou MEDIA_PONDERADA
-        anos_str = form.get('anos_selecionados', '')
-        try:
-            if anos_str:
-                anos = json.loads(anos_str)
-                config['anos'] = [int(a) for a in anos]
-            else:
-                config['anos'] = []
-        except (json.JSONDecodeError, ValueError):
-            config['anos'] = []
-
-        if cod_metodo_base == 'MEDIA_PONDERADA':
-            pesos = {}
-            for ano in config.get('anos', []):
-                peso_key = f'peso_{ano}'
-                try:
-                    pesos[str(ano)] = float(form.get(peso_key, 1) or 1)
-                except (ValueError, TypeError):
-                    pesos[str(ano)] = 1.0
-            config['pesos'] = pesos
-
-    return config
+    return parse_config_base(form, cod_metodo_base, sufixo='')

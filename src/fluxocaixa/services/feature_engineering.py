@@ -1,8 +1,8 @@
 """Feature engineering module for ML-based time series forecasting models."""
 
+
 import numpy as np
 import pandas as pd
-from typing import Optional
 
 
 def criar_features_serie_temporal(df: pd.DataFrame) -> pd.DataFrame:
@@ -74,7 +74,7 @@ def get_feature_columns() -> list:
 def criar_features_futuras(
     df_historico_com_features: pd.DataFrame,
     num_periodos: int,
-    ano_base: Optional[int] = None,
+    ano_base: int | None = None,
 ) -> pd.DataFrame:
     """
     Creates feature rows for future months, using recursive prediction approach.

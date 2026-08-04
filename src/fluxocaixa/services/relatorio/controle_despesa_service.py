@@ -1,13 +1,13 @@
 """Controle de Despesa service - Seguindo Repository Pattern."""
 from datetime import date
-import calendar
+
 import pandas as pd
 
 from ...models import Qualificador
 from ...repositories.lancamento_repository import LancamentoRepository
-from .base import get_tipo_lancamento_ids
 from ...utils.constants import MONTH_NAME_PT
 from ..simulador_cenario_service import executar_simulacao
+from .base import get_tipo_lancamento_ids
 
 
 def get_controle_despesa_data(
@@ -90,12 +90,12 @@ def get_controle_despesa_data(
         # Calcular valores realizados para meses históricos
         realizado_mes = None
         if not is_futuro:
-            realizado_mes = lancamento_repo.get_sum_by_qualificadores_and_month(
+            realizado_mes = float(lancamento_repo.get_sum_by_qualificadores_and_month(
                 qualificadores_ids=qualificadores_ids,
                 cod_tipo=id_saida,
                 ano=ano,
                 mes=mes
-            )
+            ))
             # Despesas são valores negativos, converter para positivo
             realizado_mes = abs(realizado_mes)
             total_executado += realizado_mes
@@ -134,11 +134,11 @@ def get_controle_despesa_data(
             continue
         
         # Total executado (liquidado) no ano
-        executado_total = lancamento_repo.get_sum_by_qualificadores_and_year(
+        executado_total = float(lancamento_repo.get_sum_by_qualificadores_and_year(
             qualificadores_ids=[qual_id],
             cod_tipo=id_saida,
             ano=ano
-        )
+        ))
         executado_total = abs(executado_total)  # Converter para positivo
         
         # Total previsto no cenário (todos os 12 meses)
@@ -176,11 +176,11 @@ def get_controle_despesa_data(
         previsao_total_anual = float(df_detalhado.loc[mask, 'valor_projetado'].sum())
     
     # Total executado até agora
-    executado_total_anual = lancamento_repo.get_sum_by_qualificadores_and_year(
+    executado_total_anual = float(lancamento_repo.get_sum_by_qualificadores_and_year(
         qualificadores_ids=qualificadores_ids,
         cod_tipo=id_saida,
         ano=ano
-    )
+    ))
     executado_total_anual = abs(executado_total_anual)
     
     saldo_projetado = previsao_total_anual - executado_total_anual

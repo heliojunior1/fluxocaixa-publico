@@ -5,11 +5,10 @@ from decimal import Decimal
 from fastapi import File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse
 
-from . import handle_exceptions, router, templates
 from ..auth.permissoes import requer
 from ..services.orgao_service import listar_orgaos
 from ..services.programacao_service import registrar_cota, visao_anual
-
+from . import handle_exceptions, router, templates
 
 
 @router.get('/desembolso/programacao', name='programacao_desembolso',
@@ -49,12 +48,11 @@ async def importar_programacao(request: Request, arquivo: UploadFile = File(...)
                                ano_import: int = Form(...)):
     """Importa o decreto de programação (upload → preview → confirmar)."""
     from ..services.preprocessamento import criar_preview
-    from ..services.preprocessamento_adapters import _AdapterProgramacao
     from .importacao import render_preview
 
-    _AdapterProgramacao._ano = ano_import
     token, preview = criar_preview(
-        'programacao', await _ler(arquivo), arquivo.filename, request.session)
+        'programacao', await _ler(arquivo), arquivo.filename, request.session,
+        contexto={"ano": ano_import})
     return render_preview(request, 'programacao', token, preview)
 
 

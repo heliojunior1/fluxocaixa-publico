@@ -77,6 +77,10 @@ class Preview:
     arquivo: str
     colunas: list
     linhas: list  # list[LinhaPreview]
+    # Contexto informado pela rota (ano/exercício/data) — viaja NO TOKEN
+    # (R7): preview e gravação do MESMO upload leem sempre o mesmo contexto,
+    # imune à corrida entre usuários e à virada do ano no processo.
+    contexto: dict = field(default_factory=dict)
 
     @property
     def total_ok(self):
@@ -142,11 +146,13 @@ def _tokens_sessao(sessao):
 
 # ---------------------------------------------------------------- API
 
-def criar_preview(tipo, content, filename, sessao) -> tuple:
+def criar_preview(tipo, content, filename, sessao, contexto: dict | None = None) -> tuple:
     _garantir_dir()
     _limpeza_oportunista()
 
-    preview = _adapter(tipo).parse_validar(content, filename)
+    contexto = dict(contexto or {})
+    preview = _adapter(tipo).parse_validar(content, filename, contexto)
+    preview.contexto = contexto
     if len(preview.linhas) > MAX_LINHAS:
         raise RegraNegocioError(f"Arquivo excede o limite de {MAX_LINHAS} linhas")
 
@@ -155,6 +161,7 @@ def criar_preview(tipo, content, filename, sessao) -> tuple:
         "tipo": preview.tipo, "arquivo": preview.arquivo,
         "colunas": preview.colunas,
         "linhas": [asdict(l) for l in preview.linhas],
+        "contexto": contexto,
         "criado_em": time.time(),
     }
     with open(_caminho(token), "w", encoding="utf-8") as fh:
@@ -176,7 +183,8 @@ def _carregar(token, sessao) -> Preview:
         raise RegraNegocioError("Pré-visualização expirada — envie o arquivo novamente")
     linhas = [LinhaPreview(**l) for l in payload["linhas"]]
     return Preview(tipo=payload["tipo"], arquivo=payload["arquivo"],
-                   colunas=payload["colunas"], linhas=linhas)
+                   colunas=payload["colunas"], linhas=linhas,
+                   contexto=payload.get("contexto", {}))
 
 
 def obter_preview(token, sessao) -> Preview:
@@ -185,7 +193,7 @@ def obter_preview(token, sessao) -> Preview:
 
 def confirmar(token, sessao):
     preview = _carregar(token, sessao)
-    resultado = _adapter(preview.tipo).gravar(preview.graváveis)
+    resultado = _adapter(preview.tipo).gravar(preview.graváveis, preview.contexto)
     _remover(token, sessao)
     return resultado
 

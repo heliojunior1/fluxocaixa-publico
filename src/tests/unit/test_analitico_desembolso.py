@@ -9,7 +9,9 @@ from decimal import Decimal
 
 
 def _evolucao():
-    from fluxocaixa.services.relatorio.analitico_desembolso_service import evolucao_mensal
+    from fluxocaixa.services.relatorio.analitico_desembolso_service import (
+        evolucao_mensal,
+    )
 
     return evolucao_mensal
 

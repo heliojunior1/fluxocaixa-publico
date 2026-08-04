@@ -142,7 +142,7 @@ def linha_do_funil(contexto, num, autorizado, empenhado, liquidado, pago, penden
     linha = next((l for l in contexto["funil"]["linhas"]
                   if l["qualificador"].num_qualificador == num), None)
     assert linha is not None, f"qualificador {num} fora do funil"
-    q2 = lambda v: Decimal(v).quantize(Decimal("0.01"))  # noqa: E731
+    q2 = lambda v: Decimal(v).quantize(Decimal("0.01"))
     assert linha["autorizado"] == q2(autorizado), linha
     assert linha["empenhado"] == q2(empenhado), linha
     assert linha["liquidado"] == q2(liquidado), linha

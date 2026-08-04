@@ -55,7 +55,7 @@ class Campo:
 class Comparacao:
     campo: Campo
     operador: str
-    valor: Union[str, int, float, list]
+    valor: str | int | float | list
 
 
 @dataclass(frozen=True)

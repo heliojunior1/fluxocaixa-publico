@@ -70,6 +70,7 @@ def _semear_saldo(conta, dat, valor):
 
 def _tabela_existe(nome):
     from sqlalchemy import inspect
+
     from fluxocaixa.models.base import engine
 
     return nome in inspect(engine).get_table_names()

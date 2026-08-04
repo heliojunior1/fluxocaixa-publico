@@ -282,7 +282,9 @@ def lancamento_permanece(ident):
 
 @then(parsers.parse('a conta "{ident}" não aparece entre as contas ativas'))
 def fora_das_ativas(ident):
-    from fluxocaixa.repositories.conta_bancaria_repository import ContaBancariaRepository
+    from fluxocaixa.repositories.conta_bancaria_repository import (
+        ContaBancariaRepository,
+    )
 
     _db().session.expire_all()
     seq = _conta(ident).seq_conta
@@ -291,7 +293,9 @@ def fora_das_ativas(ident):
 
 @then(parsers.parse('a conta "{ident}" aparece entre as contas ativas'))
 def entre_as_ativas(ident):
-    from fluxocaixa.repositories.conta_bancaria_repository import ContaBancariaRepository
+    from fluxocaixa.repositories.conta_bancaria_repository import (
+        ContaBancariaRepository,
+    )
 
     _db().session.expire_all()
     seq = _conta(ident).seq_conta

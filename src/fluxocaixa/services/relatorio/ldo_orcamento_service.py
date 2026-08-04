@@ -3,16 +3,17 @@
 Refatorado para usar dados reais da LOA (flc_loa) e suportar
 receitas + despesas + comparativo LOA × Realizado.
 """
-from datetime import date
 
 from ...models import Qualificador
+from ...models.categoria_fiscal import BASE_RCL
 from ...repositories.lancamento_repository import LancamentoRepository
 from ...repositories.loa_repository import LoaRepository
 from ..categoria_fiscal_service import (
-    categoria_resolvida, criar_memo, siglas_ativas,
+    categoria_resolvida,
+    criar_memo,
+    siglas_ativas,
 )
 from ..meta_fiscal_service import obter_meta_superavit
-from ...models.categoria_fiscal import BASE_RCL
 from .base import get_tipo_lancamento_ids
 
 
@@ -70,11 +71,11 @@ def get_ldo_orcamento_data(ano: int, tipo_fluxo: str = 'ambos') -> dict:
 
         # Valor Realizado (soma dos lançamentos)
         cod_tipo = id_entrada if qual.tipo_fluxo == 'receita' else id_saida
-        valor_realizado = lancamento_repo.get_sum_by_qualificadores_and_year(
+        valor_realizado = float(lancamento_repo.get_sum_by_qualificadores_and_year(
             qualificadores_ids=[qual.seq_qualificador],
             cod_tipo=cod_tipo,
             ano=ano
-        )
+        ))
         valor_realizado = abs(valor_realizado)
 
         # Percentual de execução
@@ -157,18 +158,18 @@ def _calcular_metas_fiscais(
     quals_despesa = [q for q in qualificadores_ativos if q.tipo_fluxo == 'despesa']
 
     # Receita Corrente Líquida (RCL) = Total receitas realizadas
-    rcl = lancamento_repo.get_sum_by_qualificadores_and_year(
+    rcl = float(lancamento_repo.get_sum_by_qualificadores_and_year(
         qualificadores_ids=[q.seq_qualificador for q in quals_receita],
         cod_tipo=id_entrada,
         ano=ano
-    )
+    ))
 
     # Total Despesas Realizadas
-    total_despesas_ano = lancamento_repo.get_sum_by_qualificadores_and_year(
+    total_despesas_ano = float(lancamento_repo.get_sum_by_qualificadores_and_year(
         qualificadores_ids=[q.seq_qualificador for q in quals_despesa],
         cod_tipo=id_saida,
         ano=ano
-    )
+    ))
     total_despesas_ano = abs(total_despesas_ano)
 
     # Superávit Primário
@@ -188,11 +189,11 @@ def _calcular_metas_fiscais(
         categoria = categoria_resolvida(qual, memo)
         if categoria is None:
             continue  # sem marcação não entra em meta alguma
-        valor = lancamento_repo.get_sum_by_qualificadores_and_year(
+        valor = float(lancamento_repo.get_sum_by_qualificadores_and_year(
             qualificadores_ids=[qual.seq_qualificador],
             cod_tipo=id_saida,
             ano=ano
-        )
+        ))
         chave = categoria.seq_categoria_fiscal
         por_categoria[chave] = por_categoria.get(chave, 0.0) + abs(valor)
 

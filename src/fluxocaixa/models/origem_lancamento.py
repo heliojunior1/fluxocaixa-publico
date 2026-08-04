@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String
 
 from .base import Base
 
+
 class OrigemLancamento(Base):
     """
     Lookup table for origin types of financial entries (lancamentos).

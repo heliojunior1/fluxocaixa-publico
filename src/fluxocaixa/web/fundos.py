@@ -2,7 +2,6 @@
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 
-from . import handle_exceptions, router, templates
 from ..auth.permissoes import requer
 from ..models import SistemaOrigem, TipoOrigemSaldo
 from ..services.fundo_service import (
@@ -13,6 +12,7 @@ from ..services.fundo_service import (
     inativar_fundo,
     listar_fundos,
 )
+from . import handle_exceptions, router, templates
 
 
 def _rotulo_origem(fundo, tipos, sistemas) -> str:

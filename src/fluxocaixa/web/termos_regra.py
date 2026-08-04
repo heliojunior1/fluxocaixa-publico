@@ -6,7 +6,6 @@ a UI não hardcoda vocabulário, mesmo padrão do editor de mapeamento da extra�
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 
-from . import handle_exceptions, router, templates
 from ..auth.permissoes import requer
 from ..models.termo_regra import (
     COLUNAS_PERMITIDAS,
@@ -22,6 +21,7 @@ from ..services.termo_regra_service import (
     listar_termos,
 )
 from ..services.validacao import RegraNegocioError
+from . import handle_exceptions, router, templates
 
 _DESTINO = '/termos-regra'
 

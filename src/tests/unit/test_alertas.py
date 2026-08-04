@@ -16,7 +16,7 @@ def test_alertas_novo_contains_comparativo_option(client):
 
 
 def test_alertas_edit_page(client):
-    from fluxocaixa.models import db, Alerta
+    from fluxocaixa.models import Alerta, db
 
     alerta = Alerta(
         nom_alerta='Edit Test',

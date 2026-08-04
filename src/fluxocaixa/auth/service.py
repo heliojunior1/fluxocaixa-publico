@@ -5,7 +5,6 @@ Senhas nunca são persistidas nem logadas em texto claro (spec controle-acesso R
 import logging
 import os
 from datetime import datetime, timedelta
-from typing import Optional
 
 import bcrypt
 
@@ -100,7 +99,7 @@ def verificar_senha(senha: str, hash_armazenado: str) -> bool:
         return False
 
 
-def autenticar(login: str, senha: str, agora=None) -> Optional[Usuario]:
+def autenticar(login: str, senha: str, agora=None) -> Usuario | None:
     """Retorna o usuário se as credenciais forem válidas e ele estiver ativo.
 
     Falha sempre da mesma forma (None) — não revela se o login existe.
@@ -131,7 +130,7 @@ def autenticar(login: str, senha: str, agora=None) -> Optional[Usuario]:
 
 def validar_nova_senha(
     nova_senha: str, hash_atual: str, login: str | None = None
-) -> Optional[str]:
+) -> str | None:
     """Valida a nova senha; retorna mensagem de erro ou None se válida (R5)."""
     nova_senha = nova_senha or ""
     if len(nova_senha) < TAMANHO_MINIMO_SENHA:

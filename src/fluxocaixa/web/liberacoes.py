@@ -10,7 +10,6 @@ from decimal import Decimal
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 
-from . import handle_exceptions, router, templates
 from ..auth.permissoes import requer
 from ..services.fonte_recurso_service import listar_fontes
 from ..services.liberacao_service import (
@@ -21,6 +20,7 @@ from ..services.liberacao_service import (
     visao_semanal,
 )
 from ..services.orgao_service import listar_orgaos
+from . import handle_exceptions, router, templates
 
 
 @router.get('/liberacoes', name='liberacoes', dependencies=[requer('FC_CONS_LIBERACAO')])

@@ -7,7 +7,7 @@ from pytest_bdd import given, parsers, scenarios, then, when
 
 scenarios("../importacao-arquivos/preprocessamento.feature")
 
-D2 = lambda v: Decimal(str(v)).quantize(Decimal("0.01"))  # noqa: E731
+D2 = lambda v: Decimal(str(v)).quantize(Decimal("0.01"))
 
 
 @pytest.fixture()
@@ -239,10 +239,9 @@ def loa_existente(app, valor, ano, num):
 @when(parsers.parse("gero um preview de LOA para o ano {ano:d} com o conteúdo:"))
 def gera_preview_loa(app, contexto, ano, datatable):
     from fluxocaixa.services.preprocessamento import criar_preview
-    from fluxocaixa.services.preprocessamento_adapters import _AdapterLoa
 
-    _AdapterLoa._ano = ano  # a rota real informa o ano; no teste fixamos
-    token, preview = criar_preview("loa", _conteudo(datatable), "loa.csv", contexto["sessao"])
+    token, preview = criar_preview("loa", _conteudo(datatable), "loa.csv",
+                                   contexto["sessao"], contexto={"ano": ano})
     contexto["token"] = token
     contexto["preview"] = preview
 

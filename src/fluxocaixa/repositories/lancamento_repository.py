@@ -1,13 +1,43 @@
 from __future__ import annotations
-from ..auth.contexto import cod_pessoa_atual
 
+import calendar
 from datetime import date
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, or_, extract
+from decimal import Decimal
 
-from ..models import Lancamento, Qualificador
-from ..models.base import db
+from sqlalchemy import extract, func, or_
+from sqlalchemy.orm import Session, joinedload
+
 from ..domain import LancamentoCreate
+from ..models import Lancamento
+from ..models.base import db
+
+
+def _dec2(valor) -> Decimal:
+    """Agregação monetária sai como Decimal com 2 casas (R14) — float é
+    decisão do CONSUMIDOR, nunca perda silenciosa na leitura."""
+    return Decimal(str(valor if valor is not None else 0)).quantize(
+        Decimal("0.01"))
+
+
+def _no_ano(ano: int):
+    """Filtro SARGÁVEL de ano (infraestrutura-banco R12).
+
+    `extract('year', col) == ano` é função sobre a coluna: o planejador não
+    usa o índice. A faixa de datas usa; o resultado é o mesmo.
+    """
+    return Lancamento.dat_lancamento.between(date(ano, 1, 1), date(ano, 12, 31))
+
+
+def _no_mes(ano: int, mes: int):
+    """Filtro SARGÁVEL de mês — o último dia vem do calendário (29/02 ok)."""
+    ultimo = calendar.monthrange(ano, mes)[1]
+    return Lancamento.dat_lancamento.between(
+        date(ano, mes, 1), date(ano, mes, ultimo))
+
+
+def _nos_anos(anos: list[int]):
+    """`year.in_(anos)` sargável: OR de faixas anuais."""
+    return or_(*[_no_ano(ano) for ano in anos])
 
 
 class LancamentoRepository:
@@ -20,7 +50,7 @@ class LancamentoRepository:
         self,
         start_date: date | None = None,
         end_date: date | None = None,
-        tipo: int | None = None,
+        tipo: str | None = None,
         qualificador_folha: int | None = None,
         seq_conta: int | None = None,
         cod_origem: int | None = None,
@@ -87,7 +117,7 @@ class LancamentoRepository:
 
     def get_total_by_tipo_and_period(
         self,
-        cod_tipo: int,
+        cod_tipo: str,
         ano: int,
         meses: list[int] | None = None,
         start_date: date | None = None,
@@ -113,23 +143,17 @@ class LancamentoRepository:
         if start_date and end_date:
             query = query.filter(Lancamento.dat_lancamento.between(start_date, end_date))
         elif meses:
-            conditions = []
-            for mes in meses:
-                conditions.append(
-                    (extract("year", Lancamento.dat_lancamento) == ano) &
-                    (extract("month", Lancamento.dat_lancamento) == mes)
-                )
-            query = query.filter(or_(*conditions))
+            query = query.filter(or_(*[_no_mes(ano, mes) for mes in meses]))
         else:
-            query = query.filter(extract("year", Lancamento.dat_lancamento) == ano)
+            query = query.filter(_no_ano(ano))
 
-        return float(query.scalar() or 0)
+        return _dec2(query.scalar())
 
     def get_monthly_summary(
         self,
         ano: int,
         mes: int,
-        cod_tipo: int | None = None
+        cod_tipo: str | None = None
     ) -> float:
         """Get monthly sum for a specific month.
         
@@ -142,15 +166,14 @@ class LancamentoRepository:
             Monthly sum
         """
         query = self.session.query(func.sum(Lancamento.valor_com_sinal)).filter(
-            extract("year", Lancamento.dat_lancamento) == ano,
-            extract("month", Lancamento.dat_lancamento) == mes,
+            _no_mes(ano, mes),
             Lancamento.ind_status == 'A'
         )
         
         if cod_tipo:
             query = query.filter(Lancamento.cod_tipo_lancamento == cod_tipo)
-        
-        return float(query.scalar() or 0)
+
+        return _dec2(query.scalar())
 
     def get_lancamentos_by_qualificador_and_period(
         self,
@@ -182,14 +205,13 @@ class LancamentoRepository:
         query = self.session.query(Lancamento).filter(
             Lancamento.seq_qualificador.in_(ids),
             Lancamento.ind_status == 'A',
-            extract("year", Lancamento.dat_lancamento) == ano
+            _no_ano(ano)
         )
-        
-        if mes:
-            query = query.filter(extract("month", Lancamento.dat_lancamento) == mes)
-        
+
         if dia and mes:
-            query = query.filter(extract("day", Lancamento.dat_lancamento) == dia)
+            query = query.filter(Lancamento.dat_lancamento == date(ano, mes, dia))
+        elif mes:
+            query = query.filter(_no_mes(ano, mes))
         
         return query.order_by(Lancamento.dat_lancamento).all()
 
@@ -214,8 +236,7 @@ class LancamentoRepository:
             .filter(
                 Lancamento.seq_qualificador.in_(qualificador_ids),
                 Lancamento.ind_status == "A",
-                extract("year", Lancamento.dat_lancamento) == ano,
-                extract("month", Lancamento.dat_lancamento) == mes
+                _no_mes(ano, mes)
             )
             .order_by(Lancamento.dat_lancamento)
             .all()
@@ -247,75 +268,17 @@ class LancamentoRepository:
             groupby_column.label("col"),
             func.sum(Lancamento.valor_com_sinal).label("total"),
         ).filter(
-            extract("year", Lancamento.dat_lancamento) == ano,
+            _no_ano(ano),
             Lancamento.ind_status == "A",
         )
         
         if mes:
-            query = query.filter(extract("month", Lancamento.dat_lancamento) == mes)
+            query = query.filter(_no_mes(ano, mes))
         elif meses:
+            # residual sobre conjunto não contíguo — a faixa do ano delimita
             query = query.filter(extract("month", Lancamento.dat_lancamento).in_(meses))
         
         return query.group_by("seq_qualificador", "col").all()
-
-    def get_stats_by_tipo(self, cod_tipo: int) -> tuple[int, float]:
-        """Get count and total sum for a specific tipo lancamento.
-        
-        Args:
-            cod_tipo: Tipo Lancamento code
-            
-        Returns:
-            Tuple (count, total)
-        """
-        count = self.session.query(Lancamento).filter_by(
-            cod_tipo_lancamento=cod_tipo
-        ).count()
-        
-        total = self.session.query(func.sum(Lancamento.valor_com_sinal)).filter_by(
-            cod_tipo_lancamento=cod_tipo
-        ).scalar()
-        
-        return count, float(total or 0)
-
-    def count_by_qualificador(self, seq_qualificador: int) -> int:
-        """Count lancamentos for a specific qualificador.
-        
-        Args:
-            seq_qualificador: Qualificador ID
-            
-        Returns:
-            Count of lancamentos
-        """
-        return self.session.query(Lancamento).filter_by(
-            seq_qualificador=seq_qualificador
-        ).count()
-
-    def get_sum_by_origem_and_period(
-        self,
-        cod_origem: int,
-        cod_tipo: int,
-        start_date: date,
-        end_date: date
-    ) -> float:
-        """Get sum by origem and period.
-        
-        Args:
-            cod_origem: Origin code
-            cod_tipo: Tipo code
-            start_date: Start date
-            end_date: End date
-        
-        Returns:
-            Sum value
-        """
-        result = self.session.query(func.sum(Lancamento.valor_com_sinal)).filter(
-            Lancamento.dat_lancamento.between(start_date, end_date),
-            Lancamento.cod_tipo_lancamento == cod_tipo,
-            Lancamento.cod_origem_lancamento == cod_origem,
-            Lancamento.ind_status == 'A'
-        ).scalar()
-        
-        return float(result or 0)
 
     def get_available_years(self) -> list[int]:
         """Get list of years with lancamento data.
@@ -349,7 +312,7 @@ class LancamentoRepository:
             Lancamento.ind_status == "A",
         ).scalar()
         
-        return float(result or 0)
+        return _dec2(result)
 
     def get_sum_by_account_on_date_positive(
         self,
@@ -372,7 +335,7 @@ class LancamentoRepository:
             Lancamento.ind_status == "A",
         ).scalar()
         
-        return float(result or 0)
+        return _dec2(result)
 
     def get_sum_by_account_on_date_negative(
         self,
@@ -395,7 +358,7 @@ class LancamentoRepository:
             Lancamento.ind_status == "A",
         ).scalar()
         
-        return abs(float(result or 0))
+        return abs(_dec2(result))
 
     def get_daily_sums_in_period(
         self,
@@ -420,7 +383,7 @@ class LancamentoRepository:
             Lancamento.dat_lancamento <= end_date,
         ).group_by(Lancamento.dat_lancamento).all()
         
-        return {d: float(val or 0) for d, val in results}
+        return {d: _dec2(val) for d, val in results}
 
     def get_sum_before_date(self, before_date: date) -> float:
         """Get total sum of all lancamentos before a specific date.
@@ -436,38 +399,7 @@ class LancamentoRepository:
             Lancamento.dat_lancamento < before_date,
         ).scalar()
         
-        return float(result or 0)
-
-    def get_comparative_by_origem(
-        self,
-        cod_tipo: int,
-        anos: list[int],
-        meses: list[int]
-    ) -> list:
-        """Get comparative data by origem lancamento.
-        
-        Args:
-            cod_tipo: Tipo lancamento code
-            anos: List of years to compare
-            meses: List of months to include
-        
-        Returns:
-            List of tuples (origem, year, month, total)
-        """
-        from ..models import OrigemLancamento
-        
-        results = self.session.query(
-            OrigemLancamento.dsc_origem_lancamento,
-            extract("year", Lancamento.dat_lancamento).label("year"),
-            extract("month", Lancamento.dat_lancamento).label("month"),
-            func.sum(Lancamento.valor_com_sinal).label("total"),
-        ).join(OrigemLancamento).filter(
-            Lancamento.cod_tipo_lancamento == cod_tipo,
-            extract("year", Lancamento.dat_lancamento).in_(anos),
-            extract("month", Lancamento.dat_lancamento).in_(meses),
-        ).group_by("dsc_origem_lancamento", "year", "month").all()
-        
-        return results
+        return _dec2(result)
 
     def get_grouped_by_qualificador_year_month(
         self,
@@ -493,7 +425,7 @@ class LancamentoRepository:
             func.sum(Lancamento.valor_com_sinal).label("total"),
         ).filter(
             Lancamento.seq_qualificador.in_(qualificador_ids),
-            extract("year", Lancamento.dat_lancamento).in_(anos),
+            _nos_anos(anos),
             extract("month", Lancamento.dat_lancamento).in_(meses),
             Lancamento.ind_status == "A",
         ).group_by(
@@ -524,8 +456,7 @@ class LancamentoRepository:
             Lancamento.cod_tipo_lancamento,
             func.sum(Lancamento.valor_com_sinal).label("total"),
         ).filter(
-            extract("year", Lancamento.dat_lancamento) == ano - 1,
-            extract("month", Lancamento.dat_lancamento) == mes,
+            _no_mes(ano - 1, mes),
             Lancamento.ind_status == "A",
         ).group_by(Lancamento.seq_qualificador, Lancamento.cod_tipo_lancamento).all()
         
@@ -550,7 +481,7 @@ class LancamentoRepository:
             extract("month", Lancamento.dat_lancamento).label("col"),
             func.sum(Lancamento.valor_com_sinal).label("total"),
         ).filter(
-            extract("year", Lancamento.dat_lancamento) == ano - 1,
+            _no_ano(ano - 1),
             extract("month", Lancamento.dat_lancamento).in_(meses),
             Lancamento.ind_status == "A",
         ).group_by("seq_qualificador", "col").all()
@@ -560,7 +491,7 @@ class LancamentoRepository:
     def get_sum_by_qualificadores_and_month(
         self,
         qualificadores_ids: list[int],
-        cod_tipo: int,
+        cod_tipo: str,
         ano: int,
         mes: int
     ) -> float:
@@ -581,17 +512,16 @@ class LancamentoRepository:
         result = self.session.query(func.sum(Lancamento.valor_com_sinal)).filter(
             Lancamento.seq_qualificador.in_(qualificadores_ids),
             Lancamento.cod_tipo_lancamento == cod_tipo,
-            extract('year', Lancamento.dat_lancamento) == ano,
-            extract('month', Lancamento.dat_lancamento) == mes,
+            _no_mes(ano, mes),
             Lancamento.ind_status == 'A'
         ).scalar()
         
-        return float(result or 0)
+        return _dec2(result)
 
     def get_sum_by_qualificadores_and_year(
         self,
         qualificadores_ids: list[int],
-        cod_tipo: int,
+        cod_tipo: str,
         ano: int
     ) -> float:
         """Get sum of lancamentos for qualificadores in a full year.
@@ -610,11 +540,11 @@ class LancamentoRepository:
         result = self.session.query(func.sum(Lancamento.valor_com_sinal)).filter(
             Lancamento.seq_qualificador.in_(qualificadores_ids),
             Lancamento.cod_tipo_lancamento == cod_tipo,
-            extract('year', Lancamento.dat_lancamento) == ano,
+            _no_ano(ano),
             Lancamento.ind_status == 'A'
         ).scalar()
         
-        return float(result or 0)
+        return _dec2(result)
 
     def get_sample(self, limit: int = 10) -> list[Lancamento]:
         """Get a sample of lancamentos.
@@ -627,14 +557,14 @@ class LancamentoRepository:
         """
         return self.session.query(Lancamento).limit(limit).all()
 
-    def create(self, data: LancamentoCreate) -> Lancamento:
+    def create(self, data: LancamentoCreate, cod_pessoa: int) -> Lancamento:
         lanc = Lancamento(
             dat_lancamento=data.dat_lancamento,
             seq_qualificador=data.seq_qualificador,
             val_lancamento=data.val_lancamento,
             cod_tipo_lancamento=data.cod_tipo_lancamento,
             cod_origem_lancamento=data.cod_origem_lancamento,
-            cod_pessoa_inclusao=cod_pessoa_atual(),
+            cod_pessoa_inclusao=cod_pessoa,
             seq_conta=data.seq_conta,
             seq_fonte_recurso=data.seq_fonte_recurso,
         )
@@ -643,9 +573,15 @@ class LancamentoRepository:
         return lanc
 
     def get(self, ident: int) -> Lancamento:
-        return self.session.query(Lancamento).get_or_404(ident)
+        """Erro de domínio, nunca HTTPException (R14): a camada de dados não
+        fala HTTP — jobs/scripts/threads do agendador também a usam."""
+        lanc = self.session.get(Lancamento, ident)
+        if lanc is None:
+            raise LookupError(f"Lançamento {ident} inexistente")
+        return lanc
 
-    def update(self, ident: int, data: LancamentoCreate) -> Lancamento:
+    def update(self, ident: int, data: LancamentoCreate,
+               cod_pessoa: int) -> Lancamento:
         lanc = self.get(ident)
         lanc.dat_lancamento = data.dat_lancamento
         lanc.seq_qualificador = data.seq_qualificador
@@ -654,10 +590,15 @@ class LancamentoRepository:
         lanc.cod_origem_lancamento = data.cod_origem_lancamento
         lanc.seq_conta = data.seq_conta
         lanc.seq_fonte_recurso = data.seq_fonte_recurso
+        # auditoria de alteração (R14 — antes editar não deixava rastro)
+        lanc.dat_alteracao = date.today()
+        lanc.cod_pessoa_alteracao = cod_pessoa
         self.session.commit()
         return lanc
 
-    def soft_delete(self, ident: int) -> None:
+    def soft_delete(self, ident: int, cod_pessoa: int) -> None:
         lanc = self.get(ident)
         lanc.ind_status = 'I'
+        lanc.dat_alteracao = date.today()
+        lanc.cod_pessoa_alteracao = cod_pessoa
         self.session.commit()

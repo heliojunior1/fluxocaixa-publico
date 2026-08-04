@@ -1,10 +1,9 @@
 """Repository para o histórico de projeções (versões e valores normalizados)."""
-from typing import Iterable, List, Optional, Dict, Tuple
+from collections.abc import Iterable
 
 from sqlalchemy import func
 
-from ..models import db, ProjecaoVersao, ProjecaoValor
-
+from ..models import ProjecaoValor, ProjecaoVersao, db
 
 # ==================== Versão (header) ====================
 
@@ -22,11 +21,11 @@ def rollback():
     db.session.rollback()
 
 
-def get_versao_by_id(seq_projecao_versao: int) -> Optional[ProjecaoVersao]:
+def get_versao_by_id(seq_projecao_versao: int) -> ProjecaoVersao | None:
     return ProjecaoVersao.query.get(seq_projecao_versao)
 
 
-def get_ultima_publicada(seq_simulador_cenario: int) -> Optional[ProjecaoVersao]:
+def get_ultima_publicada(seq_simulador_cenario: int) -> ProjecaoVersao | None:
     """Última versão publicada de um cenário (spec relatorios R10)."""
     return (
         ProjecaoVersao.query
@@ -37,7 +36,7 @@ def get_ultima_publicada(seq_simulador_cenario: int) -> Optional[ProjecaoVersao]
     )
 
 
-def list_versoes_by_simulador(seq_simulador_cenario: int) -> List[ProjecaoVersao]:
+def list_versoes_by_simulador(seq_simulador_cenario: int) -> list[ProjecaoVersao]:
     return (
         ProjecaoVersao.query
         .filter_by(seq_simulador_cenario=seq_simulador_cenario)
@@ -58,7 +57,7 @@ def delete_versao(seq_projecao_versao: int) -> int:
     return 1
 
 
-def publicar_versao(seq_projecao_versao: int) -> Optional[ProjecaoVersao]:
+def publicar_versao(seq_projecao_versao: int) -> ProjecaoVersao | None:
     versao = ProjecaoVersao.query.get(seq_projecao_versao)
     if versao is None:
         return None
@@ -69,7 +68,7 @@ def publicar_versao(seq_projecao_versao: int) -> Optional[ProjecaoVersao]:
 
 # ==================== Valor (linhas) ====================
 
-def bulk_insert_valores(valores: Iterable[Dict]) -> int:
+def bulk_insert_valores(valores: Iterable[dict]) -> int:
     """Insere em lote linhas de ProjecaoValor.
 
     Cada dict deve conter:
@@ -86,8 +85,8 @@ def bulk_insert_valores(valores: Iterable[Dict]) -> int:
 
 def get_valores_by_versao(
     seq_projecao_versao: int,
-    cod_tipo: Optional[str] = None,
-) -> List[ProjecaoValor]:
+    cod_tipo: str | None = None,
+) -> list[ProjecaoValor]:
     query = ProjecaoValor.query.filter_by(seq_projecao_versao=seq_projecao_versao)
     if cod_tipo:
         query = query.filter_by(cod_tipo=cod_tipo)
@@ -101,7 +100,7 @@ def get_valores_by_versao(
     )
 
 
-def get_totais_por_tipo(seq_projecao_versao: int) -> Dict[str, float]:
+def get_totais_por_tipo(seq_projecao_versao: int) -> dict[str, float]:
     """Retorna {'R': total_receita, 'D': total_despesa} via SQL."""
     rows = (
         db.session.query(
@@ -118,7 +117,7 @@ def get_totais_por_tipo(seq_projecao_versao: int) -> Dict[str, float]:
 def get_comparativo(
     seq_versao_a: int,
     seq_versao_b: int,
-) -> List[Dict]:
+) -> list[dict]:
     """Compara duas versões linha a linha (full outer join via UNION).
 
     Retorna lista de dicts com:
@@ -156,7 +155,7 @@ def get_comparativo(
 
 def atualizar_realizado(
     seq_projecao_versao: int,
-    realizados: List[Tuple[int, str, int, int, float]],
+    realizados: list[tuple[int, str, int, int, float]],
 ) -> int:
     """Atualiza val_realizado em lote.
 

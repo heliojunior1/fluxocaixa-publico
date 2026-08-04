@@ -24,7 +24,7 @@ def _db():
 
 def _form_lancamento_valido():
     """Monta um POST válido de lançamento usando os dados de demonstração."""
-    from fluxocaixa.models import Qualificador, TipoLancamento, OrigemLancamento
+    from fluxocaixa.models import OrigemLancamento, Qualificador, TipoLancamento
 
     folha = next(q for q in Qualificador.query.filter_by(ind_status='A') if q.is_folha())
     tipo = TipoLancamento.query.filter_by(dsc_tipo_lancamento='Entrada').first()
@@ -62,7 +62,7 @@ def navegador_admin(app, contexto, _admin_pronto):
 
 @given(parsers.parse('que a instalação removeu a permissão "{cod}" do perfil "{perfil}"'))
 def remove_permissao_do_perfil(app, cod, perfil):
-    from fluxocaixa.models import Perfil, Permissao, PerfilPermissao
+    from fluxocaixa.models import Perfil, PerfilPermissao, Permissao
 
     db = _db()
     p = Perfil.query.filter_by(cod_perfil=perfil).first()
@@ -242,7 +242,7 @@ def cabecalhos_visiveis(contexto, lista):
 
 @then(parsers.parse('o perfil "{perfil}" continua sem a permissão "{cod}"'))
 def perfil_sem_permissao(app, perfil, cod):
-    from fluxocaixa.models import Perfil, Permissao, PerfilPermissao
+    from fluxocaixa.models import Perfil, PerfilPermissao, Permissao
 
     p = Perfil.query.filter_by(cod_perfil=perfil).first()
     perm = Permissao.query.filter_by(cod_permissao=cod).first()

@@ -198,9 +198,9 @@ def parsear(conteudo: bytes, layout: dict, nome_arquivo: str):
                 num_conta=destino.get("num_conta", ""),
                 cod_fundo=destino.get("cod_fundo", ""),
                 dsc_fundo=destino.get("dsc_fundo", ""),
-                val_saldo=destino.get("val_saldo", Decimal("0")),
-                val_aplicacoes=destino.get("val_aplicacoes", Decimal("0")),
-                val_resgates=destino.get("val_resgates", Decimal("0")),
+                val_saldo=destino.get("val_saldo", Decimal(0)),
+                val_aplicacoes=destino.get("val_aplicacoes", Decimal(0)),
+                val_resgates=destino.get("val_resgates", Decimal(0)),
                 dat_saldo=destino.get("dat_saldo"),
             )
         except ValueError as exc:

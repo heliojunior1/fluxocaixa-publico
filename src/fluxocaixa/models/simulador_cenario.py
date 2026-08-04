@@ -1,15 +1,16 @@
 from datetime import date
+
 from sqlalchemy import (
     Column,
-    Integer,
-    String,
     Date,
-    Numeric,
     ForeignKey,
-    UniqueConstraint,
+    Integer,
+    Numeric,
+    String,
     Text,
+    UniqueConstraint,
 )
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy.orm import backref, relationship
 
 from .base import Base
 from .lancamento import TIPO_CREDITO, TIPO_DEBITO

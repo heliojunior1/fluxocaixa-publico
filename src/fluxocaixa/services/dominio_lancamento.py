@@ -35,7 +35,11 @@ def resolver_origem(descricao: str) -> OrigemLancamento:
 
 
 __all__ = [
-    'resolver_tipo', 'resolver_origem',
-    'TIPO_ENTRADA', 'TIPO_SAIDA',
-    'ORIGEM_MANUAL', 'ORIGEM_AUTOMATICO', 'ORIGEM_IMPORTADO',
+    'ORIGEM_AUTOMATICO',
+    'ORIGEM_IMPORTADO',
+    'ORIGEM_MANUAL',
+    'TIPO_ENTRADA',
+    'TIPO_SAIDA',
+    'resolver_origem',
+    'resolver_tipo',
 ]

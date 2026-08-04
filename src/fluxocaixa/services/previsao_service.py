@@ -1,9 +1,11 @@
-from datetime import date
 
+from ..repositories import qualificador_repository
 from ..repositories.lancamento_repository import LancamentoRepository
 from ..repositories.tipo_lancamento_repository import TipoLancamentoRepository
-from ..repositories import qualificador_repository
-from ..services.simulador_cenario_service import get_versao_inicial_cenario, get_versao_final_cenario
+from ..services.simulador_cenario_service import (
+    get_versao_final_cenario,
+    get_versao_inicial_cenario,
+)
 from ..utils import format_currency
 from ..utils.constants import MONTH_ABBR_PT
 

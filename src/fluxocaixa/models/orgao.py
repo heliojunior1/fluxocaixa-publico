@@ -4,6 +4,7 @@ from sqlalchemy import Column, Date, Integer, String
 
 from .base import Base
 
+
 class Orgao(Base):
     """Órgão — dimensão SOMENTE do desembolso (decisão da seção 5.1 do módulo).
 

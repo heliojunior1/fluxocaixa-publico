@@ -1,5 +1,4 @@
 """Steps BDD — telas de fontes e execuções (spec extracao-configuravel R10–R13)."""
-import os
 from datetime import date, datetime
 
 import pytest
@@ -7,7 +6,6 @@ from fastapi.testclient import TestClient
 from pytest_bdd import given, parsers, scenarios, then, when
 
 from ..conftest_extracao import (
-    criar_fonte_fake,
     execucoes_da_fonte,
     fonte_por_nome,
     garantir_conector_fake,

@@ -11,12 +11,12 @@ from decimal import Decimal
 import pytest
 from pytest_bdd import given, parsers, scenarios, then, when
 
+from ..conftest_extracao import garantir_sistema_origem
 from .conftest_processamento import (
     limpar_estado_processamento,
     linha_por_natureza,
     semear_staging,
 )
-from ..conftest_extracao import garantir_sistema_origem
 from .conftest_regra import (
     criar_mapeamento,
     garantir_qualificador,

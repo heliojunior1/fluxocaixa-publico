@@ -1,26 +1,30 @@
 """Web endpoints for Simulador de Cenários."""
 
-from datetime import date
-from fastapi import Request
-from fastapi.responses import RedirectResponse, JSONResponse
 import json
+from datetime import date
 
-from . import router, templates, handle_exceptions
+from fastapi import Request
+from fastapi.responses import JSONResponse, RedirectResponse
+
+from ..auth.permissoes import requer
 from ..services import (
-    list_simuladores,
-    list_active_simuladores,
-    get_simulador,
-    criar_simulador_cenario,
     atualizar_simulador_cenario,
+    criar_simulador_cenario,
     delete_simulador,
-    obter_simulador_completo,
     executar_simulacao,
-    list_receita_qualificadores_folha,
-    list_despesa_qualificadores_folha,
     get_qualificador,
+    get_simulador,
+    list_active_simuladores,
+    list_despesa_qualificadores_folha,
+    list_receita_qualificadores_folha,
+    obter_simulador_completo,
 )
 from ..utils.constants import MONTH_NAME_PT
-from ..auth.permissoes import requer
+import logging
+
+from . import handle_exceptions, router, templates
+
+logger = logging.getLogger(__name__)
 
 
 @router.get('/simulador', dependencies=[requer('FC_CONS_PREVISAO')])
@@ -62,54 +66,43 @@ async def simulador_novo(request: Request):
     )
 
 
+def _parse_cenario_form(form) -> dict:
+    """Parse ÚNICO do formulário de cenário — criar e atualizar (R14/A5).
+
+    Antes eram dois blocos quase idênticos com assimetria de defaults (criar
+    tolerava `ano_base` ausente, atualizar quebrava): agora ausência usa
+    default nas DUAS pontas.
+    """
+    from .entrada import inteiro
+
+    return dict(
+        nom_cenario=form.get('nom_cenario'),
+        dsc_cenario=form.get('dsc_cenario'),
+        ano_base=inteiro(form.get('ano_base'), 'ano base',
+                         default=date.today().year),
+        num_periodos=inteiro(form.get('num_periodos'), 'períodos', default=12),
+        cod_periodicidade=form.get('cod_periodicidade', 'MENSAL'),
+        cod_metodo_base=form.get('cod_metodo_base', 'MEDIA_SIMPLES'),
+        json_config_base=_parse_config_base_from_form(form),
+        tipo_cenario_receita=form.get('tipo_cenario_receita', 'MANUAL'),
+        config_receita=_parse_model_config_from_form(form, 'receita'),
+        tipo_cenario_despesa=form.get('tipo_cenario_despesa', 'MANUAL'),
+        config_despesa=_parse_model_config_from_form(form, 'despesa'),
+        ajustes_receita=dict(form),
+        ajustes_despesa=dict(form),
+    )
+
+
 @router.post('/simulador/criar', dependencies=[requer('FC_INS_PREVISAO')])
 @handle_exceptions
 async def simulador_criar(request: Request):
     """Cria um novo cenário simulador."""
     form = await request.form()
-    
-    # Dados básicos
-    nom_cenario = form.get('nom_cenario')
-    dsc_cenario = form.get('dsc_cenario')
-    ano_base = int(form.get('ano_base', date.today().year))
-    num_periodos = int(form.get('num_periodos', 12))
-    cod_periodicidade = form.get('cod_periodicidade', 'MENSAL')
-    cod_metodo_base = form.get('cod_metodo_base', 'MEDIA_SIMPLES')
-    json_config_base = _parse_config_base_from_form(form)
-    
-    # Configuração de receita
-    tipo_cenario_receita = form.get('tipo_cenario_receita', 'MANUAL')
-    config_receita = _parse_model_config_from_form(form, 'receita')
-    
-    # Sempre processar ajustes (valores da tabela) - independente do modelo
-    ajustes_receita = dict(form)
-    
-    # Configuração de despesa
-    tipo_cenario_despesa = form.get('tipo_cenario_despesa', 'MANUAL')
-    config_despesa = _parse_model_config_from_form(form, 'despesa')
-    
-    # Sempre processar ajustes de despesa
-    ajustes_despesa = dict(form)
-    
-    # Criar cenário
-    simulador = criar_simulador_cenario(
-        nom_cenario=nom_cenario,
-        dsc_cenario=dsc_cenario,
-        ano_base=ano_base,
-        num_periodos=num_periodos,
-        tipo_cenario_receita=tipo_cenario_receita,
-        config_receita=config_receita,
-        tipo_cenario_despesa=tipo_cenario_despesa,
-        config_despesa=config_despesa,
-        ajustes_receita=ajustes_receita,
-        ajustes_despesa=ajustes_despesa,
-        cod_periodicidade=cod_periodicidade,
-        cod_metodo_base=cod_metodo_base,
-        json_config_base=json_config_base,
-    )
-    
+    dados = _parse_cenario_form(form)
+    simulador = criar_simulador_cenario(**dados)
+
     # Salvar parâmetros de fórmula se tipo FORMULA
-    if tipo_cenario_receita == 'FORMULA' or tipo_cenario_despesa == 'FORMULA':
+    if 'FORMULA' in (dados['tipo_cenario_receita'], dados['tipo_cenario_despesa']):
         _salvar_parametros_formula(form, simulador.seq_simulador_cenario)
     
     # Redirecionar para visualização
@@ -126,18 +119,25 @@ async def simulador_visualizar(request: Request, id: int):
     simulador = get_simulador(id)
     if not simulador:
         return RedirectResponse(url='/simulador', status_code=303)
-    
-    # Executar simulação para obter resultados
-    resultado = executar_simulacao(id)
-    
+
+    # A7 (previsao R14): a última versão PUBLICADA é servida quando existe —
+    # abrir a página NÃO treina modelos (trabalho pesado e falível a cada
+    # page view). Sem versão, executa ao vivo: não há o que servir, e o
+    # botão Executar continua sendo a ação explícita. Padrão da F5.2.
+    from ..services.projecao_versao_service import resultado_da_versao
+
+    resultado, origem_versao = resultado_da_versao(id)
+    if resultado is None:
+        resultado = executar_simulacao(id)
+
     if not resultado:
         return RedirectResponse(url='/simulador', status_code=303)
-    
+
     # Converter DataFrame para formato JSON-friendly
     projecao_receita_json = _dataframe_to_json(resultado['projecao_receita'])
     projecao_despesa_json = _dataframe_to_json(resultado['projecao_despesa'])
     cenario_total_json = _dataframe_to_json(resultado['cenario_total'])
-    
+
     return templates.TemplateResponse(
         'simulador_visualizar.html',
         {
@@ -147,6 +147,7 @@ async def simulador_visualizar(request: Request, id: int):
             'projecao_despesa': projecao_despesa_json,
             'cenario_total': cenario_total_json,
             'resumo': resultado['resumo'],
+            'origem_versao': origem_versao,
         }
     )
 
@@ -244,47 +245,11 @@ async def simulador_editar_get(request: Request, id: int):
 async def simulador_atualizar(request: Request, id: int):
     """Atualiza um cenário simulador existente."""
     form = await request.form()
-    
-    # Processar dados (similar ao criar)
-    nom_cenario = form.get('nom_cenario')
-    dsc_cenario = form.get('dsc_cenario')
-    ano_base = int(form.get('ano_base'))
-    num_periodos = int(form.get('num_periodos'))
-    cod_periodicidade = form.get('cod_periodicidade', 'MENSAL')
-    cod_metodo_base = form.get('cod_metodo_base', 'MEDIA_SIMPLES')
-    json_config_base = _parse_config_base_from_form(form)
-    
-    tipo_cenario_receita = form.get('tipo_cenario_receita')
-    tipo_cenario_despesa = form.get('tipo_cenario_despesa')
-    
-    # Sempre parsear a configuração do modelo para receita e despesa
-    config_receita = _parse_model_config_from_form(form, 'receita')
-    config_despesa = _parse_model_config_from_form(form, 'despesa')
-    
-    # Sempre incluir ajustes (valores da tabela) - independente do modelo
-    ajustes_receita = dict(form)
-    ajustes_despesa = dict(form)
-    
-    # Atualizar
-    atualizar_simulador_cenario(
-        seq_simulador_cenario=id,
-        nom_cenario=nom_cenario,
-        dsc_cenario=dsc_cenario,
-        ano_base=ano_base,
-        num_periodos=num_periodos,
-        tipo_cenario_receita=tipo_cenario_receita,
-        config_receita=config_receita,
-        tipo_cenario_despesa=tipo_cenario_despesa,
-        config_despesa=config_despesa,
-        ajustes_receita=ajustes_receita,
-        ajustes_despesa=ajustes_despesa,
-        cod_periodicidade=cod_periodicidade,
-        cod_metodo_base=cod_metodo_base,
-        json_config_base=json_config_base,
-    )
-    
+    dados = _parse_cenario_form(form)
+    atualizar_simulador_cenario(seq_simulador_cenario=id, **dados)
+
     # Salvar parâmetros de fórmula se tipo FORMULA
-    if tipo_cenario_receita == 'FORMULA' or tipo_cenario_despesa == 'FORMULA':
+    if 'FORMULA' in (dados['tipo_cenario_receita'], dados['tipo_cenario_despesa']):
         _salvar_parametros_formula(form, id)
     
     return RedirectResponse(url=f'/simulador/{id}', status_code=303)
@@ -327,158 +292,50 @@ async def simulador_calcular_projecao(request: Request):
     Usado para preencher a tabela no frontend.
     """
     from ..services import modelos_economicos_service as modelos
-    from dateutil.relativedelta import relativedelta
-    
+    from ..services.validacao import RegraNegocioError
+    from .entrada import inteiro
+
     data = await request.json()
-    
+
     tipo_modelo = data.get('tipo_modelo')
     seq_qualificador = data.get('seq_qualificador')
-    seq_qualificadores = data.get('seq_qualificadores', [])  # Para modelos com múltiplos qualificadores
-    num_periodos = int(data.get('num_periodos', 12))
-    ano_base = int(data.get('ano_base', date.today().year))
+    seq_qualificadores = data.get('seq_qualificadores', [])
+    num_periodos = inteiro(data.get('num_periodos'), 'períodos', default=12)
+    ano_base = inteiro(data.get('ano_base'), 'ano base',
+                       default=date.today().year)
     config = data.get('config', {})
-    
-    # Definir período histórico necessário
-    data_fim = date(ano_base - 1, 12, 31)  # Usar dados até o ano anterior
-    
-    # Converter seq_qualificador para lista se necessário
+
     if seq_qualificador and not seq_qualificadores:
-        seq_qualificadores = [int(seq_qualificador)]
-    elif seq_qualificadores:
+        seq_qualificadores = [seq_qualificador]
+    try:
         seq_qualificadores = [int(sq) for sq in seq_qualificadores]
-    
+    except (TypeError, ValueError):
+        return JSONResponse({'error': 'Qualificadores inválidos'}, status_code=400)
     if not seq_qualificadores:
         return JSONResponse({'error': 'Nenhum qualificador selecionado'}, status_code=400)
-    
+
+    # O despacho (modelo → janela/mínimo/motor) vive no SERVIÇO (previsao
+    # R14) — aqui só parse, chamada e serialização.
     try:
-        if tipo_modelo == 'HOLT_WINTERS':
-            # Holt-Winters precisa de pelo menos 24 meses (2 anos)
-            data_inicio = data_fim - relativedelta(years=3)  # Pegar 3 anos para garantir
-            
-            if len(seq_qualificadores) > 1:
-                # Agregar dados de múltiplos qualificadores
-                dados_hist = modelos.obter_dados_historicos_agregados(seq_qualificadores, data_inicio, data_fim)
-            else:
-                dados_hist = modelos.obter_dados_historicos(seq_qualificadores[0], data_inicio, data_fim)
-            
-            if len(dados_hist) < 12:
-                return JSONResponse({'error': f'Dados históricos insuficientes. Encontrados: {len(dados_hist)} meses, mínimo: 12'}, status_code=400)
-            
-            resultado = modelos.projetar_holt_winters(dados_hist, num_periodos, config, ano_base)
-                
-        elif tipo_modelo == 'ARIMA':
-            data_inicio = data_fim - relativedelta(years=3)
-            
-            if len(seq_qualificadores) > 1:
-                dados_hist = modelos.obter_dados_historicos_agregados(seq_qualificadores, data_inicio, data_fim)
-            else:
-                dados_hist = modelos.obter_dados_historicos(seq_qualificadores[0], data_inicio, data_fim)
-            
-            if len(dados_hist) < 12:
-                return JSONResponse({'error': f'Dados históricos insuficientes. Encontrados: {len(dados_hist)} meses, mínimo: 12'}, status_code=400)
-            
-            resultado = modelos.projetar_arima(dados_hist, num_periodos, config, ano_base)
-                
-        elif tipo_modelo == 'SARIMA':
-            data_inicio = data_fim - relativedelta(years=4)
-            
-            if len(seq_qualificadores) > 1:
-                dados_hist = modelos.obter_dados_historicos_agregados(seq_qualificadores, data_inicio, data_fim)
-            else:
-                dados_hist = modelos.obter_dados_historicos(seq_qualificadores[0], data_inicio, data_fim)
-            
-            if len(dados_hist) < 12:
-                return JSONResponse({'error': f'Dados históricos insuficientes. Encontrados: {len(dados_hist)} meses, mínimo: 12'}, status_code=400)
-            
-            resultado = modelos.projetar_sarima(dados_hist, num_periodos, config, ano_base)
-        
-        elif tipo_modelo == 'REGRESSAO':
-            resultado = modelos.projetar_regressao_multipla(num_periodos, config, ano_base)
-        
-        elif tipo_modelo == 'MEDIA_HISTORICA':
-            data_inicio = data_fim - relativedelta(years=3)
-            
-            if len(seq_qualificadores) > 1:
-                dados_hist = modelos.obter_dados_historicos_agregados(seq_qualificadores, data_inicio, data_fim)
-            else:
-                dados_hist = modelos.obter_dados_historicos(seq_qualificadores[0], data_inicio, data_fim)
-            
-            if len(dados_hist) == 0:
-                return JSONResponse({'error': 'Não há dados históricos disponíveis'}, status_code=400)
-            
-            resultado = modelos.projetar_media_historica(dados_hist, num_periodos, config, ano_base)
-                
-        elif tipo_modelo == 'XGBOOST':
-            data_inicio = data_fim - relativedelta(years=3)
-            
-            if len(seq_qualificadores) > 1:
-                dados_hist = modelos.obter_dados_historicos_agregados(seq_qualificadores, data_inicio, data_fim)
-            else:
-                dados_hist = modelos.obter_dados_historicos(seq_qualificadores[0], data_inicio, data_fim)
-            
-            if len(dados_hist) < 13:
-                return JSONResponse({'error': f'Dados históricos insuficientes. Encontrados: {len(dados_hist)} meses, mínimo: 13'}, status_code=400)
-            
-            resultado = modelos.projetar_xgboost(dados_hist, num_periodos, config, ano_base)
-
-        elif tipo_modelo == 'LIGHTGBM':
-            data_inicio = data_fim - relativedelta(years=3)
-            
-            if len(seq_qualificadores) > 1:
-                dados_hist = modelos.obter_dados_historicos_agregados(seq_qualificadores, data_inicio, data_fim)
-            else:
-                dados_hist = modelos.obter_dados_historicos(seq_qualificadores[0], data_inicio, data_fim)
-            
-            if len(dados_hist) < 13:
-                return JSONResponse({'error': f'Dados históricos insuficientes. Encontrados: {len(dados_hist)} meses, mínimo: 13'}, status_code=400)
-            
-            resultado = modelos.projetar_lightgbm(dados_hist, num_periodos, config, ano_base)
-
-        elif tipo_modelo == 'CRESCIMENTO_ANO':
-            from ..services.formula_engine import projetar_crescimento_ultimo_ano
-            anos_selecionados = data.get('anos_selecionados', [])
-            mes_referencia = int(config.get('mes_referencia', 6))
-            ano_ref = max(anos_selecionados) if anos_selecionados else ano_base - 1
-            
-            resultado = projetar_crescimento_ultimo_ano(
-                seq_qualificadores=seq_qualificadores,
-                ano_projecao=ano_base,
-                ano_referencia=ano_ref,
-                mes_referencia=mes_referencia,
-                num_periodos=num_periodos,
-            )
-
-        elif tipo_modelo == 'MEDIA_CRESCIMENTO':
-            from ..services.formula_engine import projetar_media_crescimento_anos
-            anos_selecionados = data.get('anos_selecionados', [])
-            mes_referencia = int(config.get('mes_referencia', 6))
-            
-            if not anos_selecionados:
-                return JSONResponse({'error': 'Selecione pelo menos um ano na Base Histórica'}, status_code=400)
-            
-            resultado = projetar_media_crescimento_anos(
-                seq_qualificadores=seq_qualificadores,
-                ano_projecao=ano_base,
-                anos_referencia=anos_selecionados,
-                mes_referencia=mes_referencia,
-                num_periodos=num_periodos,
-            )
-
-        else:
-            return JSONResponse({'error': 'Modelo não suportado para cálculo automático'}, status_code=400)
-        
+        resultado = modelos.calcular_projecao(
+            tipo_modelo, seq_qualificadores,
+            num_periodos=num_periodos, ano_base=ano_base, config=config,
+            anos_selecionados=data.get('anos_selecionados') or [])
         return JSONResponse({
             'projecao': _dataframe_to_json(resultado),
             'modelo': tipo_modelo,
             'qualificadores': seq_qualificadores,
         })
-        
+    except RegraNegocioError as e:
+        return JSONResponse({'error': str(e)}, status_code=400)
     except ValueError as e:
         return JSONResponse({'error': str(e)}, status_code=400)
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return JSONResponse({'error': f'Erro ao calcular projeção: {str(e)}'}, status_code=500)
+    except Exception:
+        # NUNCA str(e) de exceção arbitrária: vaza caminho/SQL/schema (R15)
+        logger.exception("Erro interno ao calcular a projeção")
+        return JSONResponse(
+            {'error': 'Erro interno ao calcular a projeção — consulte o log '
+                      'do servidor'}, status_code=500)
 
 
 @router.get('/simulador/qualificador/{id}/filhos', dependencies=[requer('FC_CONS_PREVISAO')])
@@ -536,7 +393,7 @@ def _parse_model_config_from_form(form, tipo: str) -> dict:
                 except (ValueError, TypeError):
                     pass
             elif param_name in ['damped_trend', 'auto_order', 'use_boxcox', 'considerar_sazonalidade']:
-                config[param_name] = value == 'true' or value == True
+                config[param_name] = value == 'true' or value is True
             elif param_name == 'seq_qualificador':
                 try:
                     config[param_name] = int(value)
@@ -631,35 +488,15 @@ def _salvar_parametros_formula(form, seq_simulador_cenario: int):
 
 
 def _parse_config_base_from_form(form) -> str:
-    """Extrai configuração da base histórica do formulário."""
+    """Extrai configuração da base histórica do formulário (JSON).
+
+    A implementação vive em `web/cenario_form.py` (R14 — era uma de DUAS
+    cópias divergentes; a outra, nas fórmulas, usa sufixo vazio e dict).
+    """
+    from .cenario_form import parse_config_base
+
     cod_metodo_base = form.get('cod_metodo_base', 'MEDIA_SIMPLES')
-    config = {}
-    
-    if cod_metodo_base == 'VALOR_FIXO':
-        valor = form.get('valor_fixo_cenario', '0')
-        try:
-            config['valor'] = float(valor)
-        except (ValueError, TypeError):
-            config['valor'] = 0
-    else:
-        anos_str = form.get('anos_selecionados_cenario', '[]')
-        try:
-            anos = json.loads(anos_str)
-            config['anos'] = [int(a) for a in anos]
-        except (json.JSONDecodeError, TypeError):
-            config['anos'] = []
-
-        if cod_metodo_base == 'MEDIA_PONDERADA' and config.get('anos'):
-            pesos = {}
-            for ano in config['anos']:
-                peso_val = form.get(f'peso_cenario_{ano}', '1')
-                try:
-                    pesos[str(ano)] = float(peso_val)
-                except (ValueError, TypeError):
-                    pesos[str(ano)] = 1.0
-            config['pesos'] = pesos
-
-    return json.dumps(config)
+    return json.dumps(parse_config_base(form, cod_metodo_base, sufixo='_cenario'))
 
 
 # ==================== Histórico de Projeções ====================

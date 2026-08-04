@@ -103,9 +103,9 @@ def fonte_do_seed(app, codigo):
 def planilha_invalida(app, contexto, vigencia):
     contexto["vigencia_import"] = vigencia
     contexto["csv"] = (
-        "identificador;fonte;detalhamento;descricao;vinculada;grupo\n"
-        "1;;;Fonte sem codigo;L;\n"
-    ).encode("utf-8")
+        b"identificador;fonte;detalhamento;descricao;vinculada;grupo\n"
+        b"1;;;Fonte sem codigo;L;\n"
+    )
 
 
 @given(parsers.parse('uma planilha válida da tabela STN da vigência {vigencia:d} com a fonte "{fonte}"'))
@@ -114,7 +114,7 @@ def planilha_valida(app, contexto, vigencia, fonte):
     contexto["csv"] = (
         "identificador;fonte;detalhamento;descricao;vinculada;grupo\n"
         f"1;{fonte};;Fonte importada {fonte};V;Teste\n"
-    ).encode("utf-8")
+    ).encode()
 
 
 @given(parsers.parse('uma conta de disponibilidade "{ident}"'), target_fixture="conta")
@@ -217,16 +217,20 @@ def seed_roda(app):
 def envia_preview(app, contexto):
     from fluxocaixa.services.preprocessamento_adapters import _AdapterFontesRecurso
 
+    # contexto viaja como parâmetro (importacao-arquivos R7) — nada de
+    # atributo de classe compartilhado
     adapter = _AdapterFontesRecurso()
-    adapter._exercicio = contexto["vigencia_import"]
     contexto["adapter"] = adapter
-    contexto["preview"] = adapter.parse_validar(contexto["csv"], "tabela_stn.csv")
+    contexto["ctx_import"] = {"exercicio": contexto["vigencia_import"]}
+    contexto["preview"] = adapter.parse_validar(
+        contexto["csv"], "tabela_stn.csv", contexto["ctx_import"])
 
 
 @when("confirmo a importação da planilha")
 def confirma_importacao(app, contexto):
     preview = contexto["preview"]
-    contexto["resultado_import"] = contexto["adapter"].gravar(preview.graváveis)
+    contexto["resultado_import"] = contexto["adapter"].gravar(
+        preview.graváveis, contexto["ctx_import"])
 
 
 @when(parsers.parse('uma carga referencia a fonte desconhecida "{codigo}" na vigência {vigencia:d}'))

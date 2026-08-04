@@ -8,7 +8,6 @@ from .conftest_processamento import (
     lancamentos_do_qualificador,
     limpar_estado_processamento,
     semear_staging,
-    ultima_execucao_mapeamento,
 )
 from .conftest_regra import (
     criar_mapeamento,

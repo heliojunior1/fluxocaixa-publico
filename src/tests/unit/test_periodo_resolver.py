@@ -9,6 +9,7 @@ from datetime import date, timedelta
 
 import pytest
 
+
 # ⚠️ NADA de `from fluxocaixa... import` no topo: a fixture `client` fixa o
 # `DATABASE_URL` de teste ANTES de importar o pacote, e um import em tempo de
 # COLETA amarra o engine ao banco errado — para a suíte inteira, não só para

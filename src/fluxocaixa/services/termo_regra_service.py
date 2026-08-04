@@ -100,4 +100,4 @@ def listar_termos(apenas_ativos: bool = True) -> list[TermoRegra]:
     return consulta.order_by(TermoRegra.nom_termo).all()
 
 
-__all__ = ['criar_termo', 'alterar_termo', 'inativar_termo', 'listar_termos']
+__all__ = ['alterar_termo', 'criar_termo', 'inativar_termo', 'listar_termos']

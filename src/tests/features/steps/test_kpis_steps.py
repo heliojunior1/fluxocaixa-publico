@@ -72,8 +72,8 @@ def _gravar_saldo(conta, dat: str, valor: str):
         seq_fundo=_fundo_kpi().seq_fundo,
         dat_saldo=date.fromisoformat(dat),
         val_saldo=Decimal(valor),
-        val_aplicacoes=Decimal("0"),
-        val_resgates=Decimal("0"),
+        val_aplicacoes=Decimal(0),
+        val_resgates=Decimal(0),
         sigla_tipo_origem="MANUAL",
         sigla_sistema_origem=None,
     )
@@ -407,7 +407,7 @@ def percentual_nulo(contexto):
 def evolucao_pontos(contexto, qtd, inicio, fim):
     evolucao = _dados(contexto)["evolucao"]
     assert len(evolucao) == qtd, f"esperava {qtd} pontos, vieram {len(evolucao)}"
-    chave = lambda p: f"{p['ano']}-{p['mes']:02d}"  # noqa: E731
+    chave = lambda p: f"{p['ano']}-{p['mes']:02d}"
     assert chave(evolucao[0]) == inicio
     assert chave(evolucao[-1]) == fim
 

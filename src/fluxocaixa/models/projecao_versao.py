@@ -7,18 +7,17 @@ Modelo normalizado em duas tabelas:
 Permite que relatórios comparativos (RF-21, RF-25 do documento de requisitos)
 sejam montados em SQL puro sem desserializar o JSON do snapshot.
 """
-from datetime import datetime, date
+from datetime import datetime
 
 from sqlalchemy import (
     Column,
-    Integer,
-    String,
     DateTime,
-    Date,
-    Numeric,
     ForeignKey,
-    Text,
     Index,
+    Integer,
+    Numeric,
+    String,
+    Text,
 )
 from sqlalchemy.orm import relationship
 
@@ -81,7 +80,7 @@ class ProjecaoValor(Base):
         ForeignKey('flc_qualificador.seq_qualificador'),
         nullable=True,
     )
-    cod_tipo = Column(String(1), nullable=False)  # 'R' receita, 'D' despesa
+    cod_tipo = Column(String(1), nullable=False)  # 'C' crédito/receita, 'D' débito/despesa (convergiu de 'R' na F6.1b)
     ano = Column(Integer, nullable=False)
     # Granularidade REAL do cenário (F6.3): mês, quinzena ou semana ISO,
     # conforme a periodicidade. ⚠️ `mes` saiu: é função pura de

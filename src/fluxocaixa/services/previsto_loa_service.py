@@ -14,7 +14,7 @@ from ..models import Lancamento, Liberacao, Loa, Qualificador
 from ..models.liberacao import SITUACAO_CONFIRMADA
 
 ZERO = Decimal("0.00")
-DOZE = Decimal("12")
+DOZE = Decimal(12)
 
 
 def _loa_despesa_total(ano: int) -> Decimal:
@@ -128,7 +128,6 @@ def relatorio_execucao(ano: int) -> dict:
     """Liberado (confirmadas) × pago (apropriações A−E) por natureza, com o
     previsto TOTAL da LOA — o pago ganha a dimensão pela LIBERAÇÃO consumida
     (vínculo da F7.1b)."""
-    from ..models import PagamentoLiberacao
     from .liberacao_service import consumo_da_liberacao
 
     naturezas: dict = {}

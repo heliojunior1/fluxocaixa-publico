@@ -9,17 +9,16 @@ from datetime import date
 from fastapi import File, Form, Request, UploadFile
 from fastapi.responses import RedirectResponse
 
-from . import handle_exceptions, router, templates
 from ..auth.permissoes import requer
 from ..repositories.saldo_fundo_repository import saldo_bruto_por_grupo
 from ..services.fonte_recurso_service import (
-
     alterar_fonte,
     aprovar_fonte,
     criar_fonte,
     inativar_fonte,
     listar_fontes,
 )
+from . import handle_exceptions, router, templates
 
 
 @router.get('/fontes-recurso', name='fontes_recurso',
@@ -115,12 +114,11 @@ async def importar_fontes_recurso(request: Request, arquivo: UploadFile = File(.
                                   exercicio_import: int = Form(...)):
     """Importa a tabela oficial STN da vigência (upload → preview → confirmar)."""
     from ..services.preprocessamento import criar_preview
-    from ..services.preprocessamento_adapters import _AdapterFontesRecurso
     from .importacao import render_preview
 
-    _AdapterFontesRecurso._exercicio = exercicio_import
     token, preview = criar_preview(
-        'fontes_recurso', await _ler(arquivo), arquivo.filename, request.session)
+        'fontes_recurso', await _ler(arquivo), arquivo.filename, request.session,
+        contexto={"exercicio": exercicio_import})
     return render_preview(request, 'fontes_recurso', token, preview)
 
 
@@ -151,13 +149,13 @@ async def importar_disponibilidade_contabil(request: Request,
                                             data_import: str = Form(...)):
     """Importa o balancete/MSC por fonte (upload → preview → confirmar)."""
     from ..services.preprocessamento import criar_preview
-    from ..services.preprocessamento_adapters import _AdapterDisponibilidadeContabil
     from .importacao import render_preview
 
-    _AdapterDisponibilidadeContabil._data = date.fromisoformat(data_import)
+    # valida o formato aqui; no token viaja o ISO (JSON-serializável)
+    data_referencia = date.fromisoformat(data_import)
     token, preview = criar_preview(
         'disponibilidade_contabil', await _ler(arquivo), arquivo.filename,
-        request.session)
+        request.session, contexto={"data": data_referencia.isoformat()})
     return render_preview(request, 'disponibilidade_contabil', token, preview)
 
 

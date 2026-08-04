@@ -54,7 +54,9 @@ def _qualificador(num: str):
 def _lancamento_receita(qual_num: str, valor: str, dat: date):
     from fluxocaixa.models import Lancamento
     from fluxocaixa.services.dominio_lancamento import (
-        TIPO_ENTRADA, resolver_origem, resolver_tipo,
+        TIPO_ENTRADA,
+        resolver_origem,
+        resolver_tipo,
     )
 
     db = _db()

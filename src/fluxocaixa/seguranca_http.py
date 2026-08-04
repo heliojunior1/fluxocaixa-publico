@@ -61,4 +61,4 @@ class CabecalhosSegurancaMiddleware(BaseHTTPMiddleware):
         return resposta
 
 
-__all__ = ["CabecalhosSegurancaMiddleware", "HSTS"]
+__all__ = ["HSTS", "CabecalhosSegurancaMiddleware"]

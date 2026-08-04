@@ -1,19 +1,19 @@
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 
-from . import router, templates, handle_exceptions
+from ..auth.permissoes import requer
 from ..domain import AlertaCreate, AlertaUpdate
 from ..services import (
-    list_alertas,
     create_alerta,
-    update_alerta,
     delete_alerta,
     get_alerta_by_id,
+    list_alertas,
     marcar_alerta_lido,
     marcar_alerta_resolvido,
+    update_alerta,
 )
-from ..repositories import AlertaRepository
-from ..auth.permissoes import requer
+from . import handle_exceptions, router, templates
+
 
 @router.get('/alertas', dependencies=[requer('FC_CONS_ALERTA')])
 @handle_exceptions

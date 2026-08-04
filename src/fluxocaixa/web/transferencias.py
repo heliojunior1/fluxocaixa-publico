@@ -5,13 +5,13 @@ from decimal import Decimal
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 
-from . import handle_exceptions, router, templates
 from ..auth.permissoes import requer
 from ..services.transferencia_service import (
     criar_transferencia,
     inativar_transferencia,
     listar_transferencias,
 )
+from . import handle_exceptions, router, templates
 
 
 @router.get('/transferencias', name='transferencias',

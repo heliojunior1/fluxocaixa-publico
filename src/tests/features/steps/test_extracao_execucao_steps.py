@@ -20,7 +20,7 @@ from ..conftest_permissoes import criar_usuario_com_perfil
 
 scenarios("../extracao-configuravel/execucao.feature")
 
-D2 = lambda v: Decimal(str(v)).quantize(Decimal("0.01"))  # noqa: E731
+D2 = lambda v: Decimal(str(v)).quantize(Decimal("0.01"))
 
 
 @pytest.fixture()

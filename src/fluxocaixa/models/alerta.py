@@ -1,8 +1,10 @@
 from datetime import date
-from sqlalchemy import Column, Integer, String, Date, Numeric, ForeignKey
+
+from sqlalchemy import Column, Date, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import relationship
 
 from .base import Base
+
 
 class Alerta(Base):
     __tablename__ = 'flc_alerta'

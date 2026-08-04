@@ -1,23 +1,22 @@
-from ..domain import LancamentoCreate, LancamentoOut
-from ..auth.contexto import cod_pessoa_atual
-from ..repositories import LancamentoRepository
 import csv
-import openpyxl
-from io import BytesIO, StringIO
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from sqlalchemy import func
+from io import BytesIO, StringIO
+
+import openpyxl
 from sqlalchemy.orm import Session
 
+from ..auth.contexto import cod_pessoa_atual
+from ..domain import LancamentoCreate, LancamentoOut
 from ..models import (
-    db,
+    ContaBancaria,
     Lancamento,
+    OrigemLancamento,
     Qualificador,
     TipoLancamento,
-    OrigemLancamento,
-    ContaBancaria,
-    Conferencia,
+    db,
 )
+from ..repositories import LancamentoRepository
 
 
 def list_lancamentos(
@@ -117,7 +116,7 @@ def _exigir_origem_manual(lanc) -> None:
 def create_lancamento(data: LancamentoCreate, repo: LancamentoRepository | None = None) -> LancamentoOut:
     repo = repo or LancamentoRepository()
     _validar_dados_lancamento(data)
-    lanc = repo.create(data)
+    lanc = repo.create(data, cod_pessoa=cod_pessoa_atual())
     return LancamentoOut(
         seq_lancamento=lanc.seq_lancamento,
         dat_lancamento=lanc.dat_lancamento,
@@ -141,7 +140,7 @@ def update_lancamento(ident: int, data: LancamentoCreate, repo: LancamentoReposi
     if data.dat_lancamento != atual.dat_lancamento:
         raise RegraNegocioError("A data do lançamento não pode ser alterada")
     _validar_dados_lancamento(data)
-    lanc = repo.update(ident, data)
+    lanc = repo.update(ident, data, cod_pessoa=cod_pessoa_atual())
     return LancamentoOut(
         seq_lancamento=lanc.seq_lancamento,
         dat_lancamento=lanc.dat_lancamento,
@@ -162,7 +161,7 @@ def delete_lancamento(ident: int, repo: LancamentoRepository | None = None):
     if atual is None:
         raise RegraNegocioError("Lançamento inexistente")
     _exigir_origem_manual(atual)
-    repo.soft_delete(ident)
+    repo.soft_delete(ident, cod_pessoa=cod_pessoa_atual())
 
 
 def import_lancamentos_service(
@@ -173,7 +172,12 @@ def import_lancamentos_service(
     
     if filename.lower().endswith('.csv'):
         text = content.decode('utf-8-sig')
-        reader = csv.DictReader(StringIO(text))
+        # sniff do delimitador: o adapter do preview (F2.5) re-serializa com
+        # ';' — o DictReader fixo em vírgula lia tudo como UMA coluna e cada
+        # linha morria em "Dados incompletos" (confirmar gravava zero)
+        primeira = text.splitlines()[0] if text.strip() else ""
+        sep = ";" if ";" in primeira else ","
+        reader = csv.DictReader(StringIO(text), delimiter=sep)
         for row in reader:
             rows.append({k.strip(): v for k, v in row.items()})
     elif filename.lower().endswith(('.xlsx', '.xls')):
@@ -186,9 +190,19 @@ def import_lancamentos_service(
     else:
         return {"sucesso": 0, "erros": ["Formato de arquivo não suportado"]}
 
-    # Pre-fetch data to avoid N+1 queries
-    all_qualificadores = session.query(Qualificador).all()
-    qualificadores_map = {q.dsc_qualificador.lower(): q for q in all_qualificadores}
+    # Pre-fetch data to avoid N+1 queries. SÓ ATIVOS (R18): a planilha
+    # aplicava menos regra que a porta manual e gravava em inativo/nó-pai.
+    all_qualificadores = session.query(Qualificador).filter_by(
+        ind_status='A').all()
+    qualificadores_map = {}
+    descricoes_ambiguas: dict[str, list] = {}
+    for q in all_qualificadores:
+        chave = (q.dsc_qualificador or "").lower()
+        if chave in qualificadores_map:
+            descricoes_ambiguas.setdefault(
+                chave, [qualificadores_map[chave]]).append(q)
+        else:
+            qualificadores_map[chave] = q
 
     all_tipos = session.query(TipoLancamento).all()
     # F6.1b: aceita a descrição ("Entrada"/"Saída") e o código ('C'/'D').
@@ -196,9 +210,6 @@ def import_lancamentos_service(
     tipos_map = {t.dsc_tipo_lancamento.lower(): t.cod_tipo_lancamento for t in all_tipos}
     tipos_map.update({t.cod_tipo_lancamento.lower(): t.cod_tipo_lancamento for t in all_tipos})
 
-    all_origens = session.query(OrigemLancamento).all()
-    origens_map = {o.dsc_origem_lancamento.lower(): o.cod_origem_lancamento for o in all_origens}
-    
     # Use "Importado" origin for imported entries
     origem_importado = session.query(OrigemLancamento).filter_by(dsc_origem_lancamento='Importado').first()
     origem_importado_cod = origem_importado.cod_origem_lancamento if origem_importado else None
@@ -253,9 +264,23 @@ def import_lancamentos_service(
                     errors.append(f"Linha {i}: Data inválida '{dat}'")
                     continue
 
-            qual = qualificadores_map.get(str(desc).lower())
+            chave_desc = str(desc).lower()
+            if chave_desc in descricoes_ambiguas:
+                codigos = ', '.join(sorted(
+                    q.num_qualificador for q in descricoes_ambiguas[chave_desc]))
+                errors.append(
+                    f"Linha {i}: Descrição '{desc}' é ambígua — "
+                    f"{len(descricoes_ambiguas[chave_desc])} qualificadores a "
+                    f"usam ({codigos}); classifique pelo código")
+                continue
+            qual = qualificadores_map.get(chave_desc)
             if not qual:
                 errors.append(f"Linha {i}: Qualificador não encontrado para '{desc}'")
+                continue
+            if not qual.is_folha():
+                errors.append(
+                    f"Linha {i}: Qualificador '{desc}' não é folha — "
+                    f"lançamento só em folha ativa")
                 continue
 
             tipo = tipos_map.get(str(tipo_raw).strip().lower())
@@ -305,5 +330,5 @@ def import_lancamentos_service(
         return {"sucesso": count, "erros": errors}
     except Exception as e:
         session.rollback()
-        errors.append(f"Erro fatal durante importação: {str(e)}")
+        errors.append(f"Erro fatal durante importação: {e!s}")
         return {"sucesso": 0, "erros": errors}

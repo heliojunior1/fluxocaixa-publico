@@ -8,16 +8,16 @@ Projetado, o relatório ganha uma coluna TOTAIS (a visão mensal de mês aberto
 projeta o TOTAL do mês — dias zerados — e precisa de onde exibi-lo, como na
 referência); no Realizado o layout permanece o de sempre.
 """
-from datetime import date, timedelta
 import calendar
+from datetime import date, timedelta
 from decimal import Decimal
 
 from sqlalchemy import extract
 
 from ...models import Lancamento, Qualificador
+from ...repositories import qualificador_repository
 from ...repositories.lancamento_repository import LancamentoRepository
 from ...repositories.saldo_conta_repository import SaldoContaRepository
-from ...repositories import qualificador_repository
 from ...utils.constants import DAY_ABBR_PT, MONTH_ABBR_PT, MONTH_NAME_PT
 from ..validacao import RegraNegocioError
 
@@ -77,8 +77,9 @@ def get_dfc_data(
         data_inicial = date(ano_selecionado, primeiro_mes, 1)
 
     data_saldo_anterior = data_inicial - timedelta(days=1)
+    # `is None` = ausência de registro → carry; zero REGISTRADO é respeitado
     saldo_banco_inicial = saldo_repo.get_saldo_total_by_date(data_saldo_anterior)
-    if saldo_banco_inicial == 0:
+    if saldo_banco_inicial is None:
         saldo_banco_inicial = saldo_repo.get_latest_saldo_total_before_date(data_saldo_anterior)
 
     # Get actual lancamentos using repository
@@ -178,6 +179,20 @@ def get_dfc_data(
 
     dfc_data = [build_node(r) for r in qualificadores_root]
 
+    # Raízes por TIPO DE FLUXO (origem única), nunca por número mágico (R22):
+    # renumerar a raiz (a F6.7 permite, com cascata) fazia os totais zerarem
+    # em silêncio. Sem raiz resolvível → erro explícito, nunca relatório
+    # zerado com cara de válido.
+    raizes_por_tipo: dict = {}
+    for _q_raiz, _node_raiz in zip(qualificadores_root, dfc_data):
+        raizes_por_tipo.setdefault(_q_raiz.tipo_fluxo, _node_raiz)
+    if 'receita' not in raizes_por_tipo or 'despesa' not in raizes_por_tipo:
+        faltantes = [t for t in ('receita', 'despesa') if t not in raizes_por_tipo]
+        raise RegraNegocioError(
+            "A árvore de qualificadores não tem raiz ativa de "
+            + " e ".join(faltantes)
+            + " — verifique a numeração das raízes (1.x receita, 2.x despesa)")
+
     # Build headers
     if periodo == "mes":
         headers = ["Nome"] + [
@@ -212,7 +227,7 @@ def get_dfc_data(
             for raiz in dfc_data:
                 _projetar_folhas(raiz, mapa, periodo, meses_abertos, len(col_range))
             _inserir_linhas_sinteticas(
-                dfc_data, mapa, periodo, meses_abertos, n_colunas
+                raizes_por_tipo, mapa, periodo, meses_abertos, n_colunas
             )
             for raiz in dfc_data:
                 _recompor_pais(raiz)
@@ -221,13 +236,12 @@ def get_dfc_data(
     n_cols_total = len(col_range) + (1 if projetado else 0)
     totals = [0] * n_cols_total
 
-    receita_node = next((n for n in dfc_data if str(n["number"]) == "1"), None)
-    despesa_node = next((n for n in dfc_data if str(n["number"]) == "2"), None)
+    receita_node = raizes_por_tipo['receita']
+    despesa_node = raizes_por_tipo['despesa']
 
-    if receita_node and despesa_node:
-        for i in range(n_cols_total):
-            # Sum values: Receita (positive) + Despesa (negative)
-            totals[i] = receita_node["values"][i] + despesa_node["values"][i]
+    for i in range(n_cols_total):
+        # Sum values: Receita (positive) + Despesa (negative)
+        totals[i] = receita_node["values"][i] + despesa_node["values"][i]
 
     meses_nomes = MONTH_NAME_PT
 
@@ -315,10 +329,12 @@ def _projetar_folhas(node: dict, mapa: dict, periodo: str,
         node["values"][-1] = sum(node["values"][:-1])
 
 
-def _inserir_linhas_sinteticas(dfc_data: list, mapa: dict, periodo: str,
+def _inserir_linhas_sinteticas(raizes_por_tipo: dict, mapa: dict, periodo: str,
                                meses_abertos: list[int], n_colunas: int) -> None:
-    """Projeção agregada (sem qualificador) vira linha sob a raiz do tipo (R13)."""
-    for cod_tipo, numero_raiz in (('C', '1'), ('D', '2')):
+    """Projeção agregada (sem qualificador) vira linha sob a raiz do tipo (R13).
+
+    A raiz vem RESOLVIDA por tipo_fluxo (R22) — mesma resolução dos totais."""
+    for cod_tipo, tipo_fluxo in (('C', 'receita'), ('D', 'despesa')):
         valores_mes = {
             m: sum(
                 (v for (s, t, mm), v in mapa.items()
@@ -329,7 +345,7 @@ def _inserir_linhas_sinteticas(dfc_data: list, mapa: dict, periodo: str,
         }
         if not any(valores_mes.values()):
             continue
-        raiz = next((n for n in dfc_data if str(n["number"]) == numero_raiz), None)
+        raiz = raizes_por_tipo.get(tipo_fluxo)
         if raiz is None:
             continue
 

@@ -566,9 +566,10 @@
                 </button>
                 <span class="font-semibold text-slate-800">Fluxo de Caixa</span>
             </div>
+            {% set nome_usuario_mobile = request.session.get('nom_usuario', 'usuário') if request.session is defined else 'usuário' %}
             <div
                 class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-medium text-slate-600">
-                FH
+                {{ nome_usuario_mobile[:2] | upper }}
             </div>
         </header>
 

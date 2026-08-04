@@ -1,35 +1,30 @@
-from datetime import date, datetime
-import calendar
-import csv
-
-from fastapi import Request, UploadFile, File
-from fastapi.responses import RedirectResponse, StreamingResponse, HTMLResponse
-from io import BytesIO, StringIO
-import openpyxl
-from sqlalchemy import func
-
 import logging
+from datetime import date, datetime
+from io import BytesIO
 
-from . import router, templates, handle_exceptions
-from ..services.validacao import RegraNegocioError
+import openpyxl
+from fastapi import File, Request, UploadFile
+from fastapi.responses import RedirectResponse, StreamingResponse
 
-logger = logging.getLogger(__name__)
+from ..auth.permissoes import requer
 from ..domain import LancamentoCreate
+from .entrada import data_iso, inteiro, texto_obrigatorio
+from ..services.validacao import RegraNegocioError
+from . import handle_exceptions, router, templates
 from ..services import (
-    list_lancamentos,
     create_lancamento,
-    update_lancamento,
     delete_lancamento,
-    import_lancamentos_service,
-    list_tipos_lancamento,
-    list_origens_lancamento,
-    list_contas_bancarias,
     list_active_qualificadores,
     list_alertas_ativos,
+    list_contas_bancarias,
+    list_lancamentos,
+    list_origens_lancamento,
+    list_tipos_lancamento,
+    update_lancamento,
 )
-from ..models import db
 from ..services.seed import seed_data
-from ..auth.permissoes import requer
+
+logger = logging.getLogger(__name__)
 
 
 @router.get('/', dependencies=[requer('FC_EXI_DASHBOARD')])
@@ -143,34 +138,23 @@ async def saldos(request: Request):
         sort_by = form.get('sort_by', 'dat_lancamento')
         sort_order = form.get('sort_order', 'desc')
 
+        # conversão VALIDADA (R15): valor inválido é erro de negócio, não 500
         if sd_str and ed_str:
-            start_date = date.fromisoformat(sd_str)
-            end_date = date.fromisoformat(ed_str)
-        
-        if tipo_str:
-            tipo = int(tipo_str)
-        
-        if qual_str:
-            qualificador_folha = int(qual_str)
-        
-        if conta_str:
-            seq_conta = int(conta_str)
-        
-        if origem_str:
-            cod_origem = int(origem_str)
+            start_date = data_iso(sd_str, 'data inicial')
+            end_date = data_iso(ed_str, 'data final')
 
-        if fonte_str:
-            seq_fonte_recurso = int(fonte_str)
-
-        if page_str:
-            page = int(page_str)
+        tipo = tipo_str or None
+        qualificador_folha = inteiro(qual_str, 'qualificador')
+        seq_conta = inteiro(conta_str, 'conta')
+        cod_origem = inteiro(origem_str, 'origem')
+        seq_fonte_recurso = inteiro(fonte_str, 'fonte de recursos')
+        page = inteiro(page_str, 'página', default=1)
     else:
         # GET request - check query params
         page_str = request.query_params.get('page')
         sort_by = request.query_params.get('sort_by', 'dat_lancamento')
         sort_order = request.query_params.get('sort_order', 'desc')
-        if page_str:
-            page = int(page_str)
+        page = inteiro(page_str, 'página', default=1)
 
     lancamentos, total_count = list_lancamentos(
         start_date=start_date,
@@ -301,14 +285,13 @@ async def download_lancamento_template():
 async def edit_lancamento_route(request: Request, seq_lancamento: int):
     form = await request.form()
     data = LancamentoCreate(
-        dat_lancamento=date.fromisoformat(form['dat_lancamento']),
-        seq_qualificador=int(form['seq_qualificador']),
-        val_lancamento=form['val_lancamento'],
-        cod_tipo_lancamento=form['cod_tipo_lancamento'],
-        cod_origem_lancamento=int(form['cod_origem_lancamento']),
-    seq_conta=int(form.get('seq_conta')) if form.get('seq_conta') else None,
-        seq_fonte_recurso=(int(form.get('seq_fonte_recurso'))
-                           if form.get('seq_fonte_recurso') else None),
+        dat_lancamento=data_iso(form.get('dat_lancamento'), 'data', obrigatorio=True),
+        seq_qualificador=inteiro(form.get('seq_qualificador'), 'qualificador', obrigatorio=True),
+        val_lancamento=texto_obrigatorio(form, 'val_lancamento'),
+        cod_tipo_lancamento=texto_obrigatorio(form, 'cod_tipo_lancamento'),
+        cod_origem_lancamento=inteiro(form.get('cod_origem_lancamento'), 'origem', obrigatorio=True),
+        seq_conta=inteiro(form.get('seq_conta'), 'conta'),
+        seq_fonte_recurso=inteiro(form.get('seq_fonte_recurso'), 'fonte de recursos'),
     )
     update_lancamento(seq_lancamento, data)
     return RedirectResponse(request.url_for('saldos'), status_code=303)
@@ -328,12 +311,14 @@ async def conferencia(request: Request):
     from datetime import timedelta
 
     from ..services.conferencia_desembolso_service import (
-        visao_conciliacao, visao_controle, visao_financeira)
+        visao_conciliacao,
+        visao_controle,
+        visao_financeira,
+    )
 
-    fim_raw = request.query_params.get('fim') or ''
-    inicio_raw = request.query_params.get('inicio') or ''
-    fim = date.fromisoformat(fim_raw) if fim_raw else date.today()
-    inicio = date.fromisoformat(inicio_raw) if inicio_raw else fim - timedelta(days=13)
+    fim = data_iso(request.query_params.get('fim'), 'fim', default=date.today())
+    inicio = data_iso(request.query_params.get('inicio'), 'início',
+                      default=fim - timedelta(days=13))
 
     return templates.TemplateResponse('conferencia.html', {
         'request': request,

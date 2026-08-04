@@ -1,6 +1,14 @@
 {% extends 'base.html' %}
 
 {% block content %}
+{% if origem_versao %}
+<div class="mb-4 flex items-start gap-3 rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2.5 text-sm text-indigo-800"
+    data-testid="origem-versao" role="status">
+    <span>Exibindo a <strong>versão publicada</strong>
+        {{ origem_versao.dat_versao.strftime('%d/%m/%Y') if origem_versao.dat_versao else '' }}
+        — abrir esta página não reexecuta os modelos. Use “Executar” para uma nova simulação.</span>
+</div>
+{% endif %}
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between bg-white p-6 rounded-lg shadow-md border">

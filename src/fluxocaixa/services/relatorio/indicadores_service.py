@@ -1,10 +1,8 @@
 """Indicadores (Indicators) service - financial metrics and charts."""
-from datetime import date
-import calendar
 
 from ...repositories.lancamento_repository import LancamentoRepository
-from .base import get_tipo_lancamento_ids
 from ...utils.constants import MONTH_NAME_PT
+from .base import get_tipo_lancamento_ids
 
 
 def get_indicadores_data(
@@ -34,17 +32,17 @@ def get_indicadores_data(
     area_chart_data = {"labels": [], "receitas": [], "despesas": []}
 
     for mes in sorted(meses_selecionados):
-        receitas_mes = lancamento_repo.get_monthly_summary(
+        receitas_mes = float(lancamento_repo.get_monthly_summary(
             ano=ano_selecionado,
             mes=mes,
             cod_tipo=id_entrada
-        )
+        ))
         
-        despesas_lanc_mes = lancamento_repo.get_monthly_summary(
+        despesas_lanc_mes = float(lancamento_repo.get_monthly_summary(
             ano=ano_selecionado,
             mes=mes,
             cod_tipo=id_saida
-        )
+        ))
         despesas_mes = abs(despesas_lanc_mes or 0)
         
         area_chart_data["labels"].append(meses_nomes[mes][:3])
@@ -67,12 +65,12 @@ def get_indicadores_data(
             total_qualificador = 0
             for mes in meses_selecionados:
                 # Use more efficient repository method
-                month_total = lancamento_repo.get_sum_by_qualificadores_and_month(
+                month_total = float(lancamento_repo.get_sum_by_qualificadores_and_month(
                     qualificadores_ids=[qualificador.seq_qualificador],
                     cod_tipo=id_entrada,
                     ano=ano_selecionado,
                     mes=mes
-                )
+                ))
                 total_qualificador += float(month_total)
             
             if total_qualificador > 0:
@@ -87,12 +85,12 @@ def get_indicadores_data(
             total_qualificador = 0
             for mes in meses_selecionados:
                 # Use more efficient repository method
-                month_total = lancamento_repo.get_sum_by_qualificadores_and_month(
+                month_total = float(lancamento_repo.get_sum_by_qualificadores_and_month(
                     qualificadores_ids=[qualificador.seq_qualificador],
                     cod_tipo=id_saida,
                     ano=ano_selecionado,
                     mes=mes
-                )
+                ))
                 total_qualificador += abs(float(month_total))
             
             if total_qualificador > 0:
@@ -104,17 +102,17 @@ def get_indicadores_data(
     saldo_acumulado = 0
     
     for mes in sorted(meses_selecionados):
-        receitas_mes = lancamento_repo.get_monthly_summary(
+        receitas_mes = float(lancamento_repo.get_monthly_summary(
             ano=ano_selecionado,
             mes=mes,
             cod_tipo=id_entrada
-        )
+        ))
         
-        despesas_lanc_mes = lancamento_repo.get_monthly_summary(
+        despesas_lanc_mes = float(lancamento_repo.get_monthly_summary(
             ano=ano_selecionado,
             mes=mes,
             cod_tipo=id_saida
-        )
+        ))
         despesas_mes = abs(despesas_lanc_mes or 0)
         saldo_mes = float(receitas_mes) - float(despesas_mes)
         saldo_acumulado += saldo_mes

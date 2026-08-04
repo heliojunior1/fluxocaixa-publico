@@ -27,7 +27,7 @@ ESTADO_AMARELO = 'AMARELO'
 ESTADO_VERMELHO = 'VERMELHO'
 ESTADO_SEM_FONTE = 'SEM_FONTE'
 
-_CEM = Decimal("100")
+_CEM = Decimal(100)
 
 
 def _fmt(valor: Decimal | None) -> str | None:

@@ -10,22 +10,18 @@ Este módulo é o coração do sistema de fórmulas. Ele é responsável por:
 Usa a biblioteca py_expression_eval para avaliação segura (sem eval()).
 """
 
-import json
 from datetime import date
-from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 from py_expression_eval import Parser
-from sqlalchemy import Integer as db_Integer
 
-from ..repositories import formula_repository as formula_repo
-
+from .validacao import RegraNegocioError
 
 # Parser compartilhado (thread-safe para leitura)
 _parser = Parser()
 
 
-def extrair_variaveis(expressao: str) -> List[str]:
+def extrair_variaveis(expressao: str) -> list[str]:
     """Extrai os nomes das variáveis de uma expressão matemática.
 
     Args:
@@ -41,7 +37,7 @@ def extrair_variaveis(expressao: str) -> List[str]:
         return []
 
 
-def validar_formula(expressao: str) -> Tuple[bool, Optional[str]]:
+def validar_formula(expressao: str) -> tuple[bool, str | None]:
     """Valida se uma expressão é sintaticamente correta.
 
     Args:
@@ -54,16 +50,17 @@ def validar_formula(expressao: str) -> Tuple[bool, Optional[str]]:
         return False, 'Expressão vazia'
 
     try:
-        expr = _parser.parse(expressao)
-        # Tentar avaliar com variáveis zeradas para verificar se funciona
-        variaveis = {v: 1.0 for v in expr.variables()}
-        expr.evaluate(variaveis)
+        _parser.parse(expressao)
         return True, None
     except Exception as e:
-        return False, f'Erro na expressão: {str(e)}'
+        # SÓ o parse (previsao R12): avaliar com valores de teste recusava
+        # fórmula válida com singularidade neles (ex. `base / (x - 1)` com 1.0)
+        # e deixava passar a divisão por zero que só aparece em runtime —
+        # tratada em `avaliar_formula`, com mensagem própria.
+        return False, f'Erro na expressão: {e!s}'
 
 
-def avaliar_formula(expressao: str, variaveis: Dict[str, float]) -> float:
+def avaliar_formula(expressao: str, variaveis: dict[str, float]) -> float:
     """Avalia uma expressão matemática com os valores das variáveis informados.
 
     Args:
@@ -92,10 +89,10 @@ def avaliar_formula(expressao: str, variaveis: Dict[str, float]) -> float:
     except ValueError:
         raise
     except Exception as e:
-        raise ValueError(f'Erro ao avaliar expressão: {str(e)}')
+        raise ValueError(f'Erro ao avaliar expressão: {e!s}')
 
 
-def listar_anos_disponiveis(seq_qualificador: int) -> List[int]:
+def listar_anos_disponiveis(seq_qualificador: int) -> list[int]:
     """Retorna lista de anos que possuem dados históricos para um qualificador.
 
     Consulta a tabela de lançamentos para encontrar todos os anos distintos
@@ -107,25 +104,24 @@ def listar_anos_disponiveis(seq_qualificador: int) -> List[int]:
     Returns:
         Lista de anos ordenados em ordem decrescente, ex: [2024, 2023, 2022]
     """
+    from sqlalchemy import extract
+
     from ..models import Lancamento, db
-    from sqlalchemy import func, extract
 
-    try:
-        anos = (
-            db.session.query(
-                extract('year', Lancamento.dat_lancamento).label('ano')
-            )
-            .filter(Lancamento.seq_qualificador == seq_qualificador)
-            .distinct()
-            .order_by(extract('year', Lancamento.dat_lancamento).desc())
-            .all()
+    anos = (
+        db.session.query(
+            extract('year', Lancamento.dat_lancamento).label('ano')
         )
-        return [int(a.ano) for a in anos]
-    except Exception:
-        return []
+        .filter(Lancamento.seq_qualificador == seq_qualificador)
+        .filter(Lancamento.ind_status == 'A')
+        .distinct()
+        .order_by(extract('year', Lancamento.dat_lancamento).desc())
+        .all()
+    )
+    return [int(a.ano) for a in anos]
 
 
-def listar_todos_anos_disponiveis() -> List[int]:
+def listar_todos_anos_disponiveis() -> list[int]:
     """Retorna lista de todos os anos distintos com dados históricos (qualquer qualificador).
 
     Usado para popular a seção de configuração de base no cenário, onde o usuário
@@ -134,26 +130,22 @@ def listar_todos_anos_disponiveis() -> List[int]:
     Returns:
         Lista de anos ordenados em ordem decrescente, ex: [2025, 2024, 2023, 2022]
     """
+    from sqlalchemy import extract
+
     from ..models import Lancamento
     from ..models.base import SessionLocal
-    from sqlalchemy import func
 
-    try:
-        session = SessionLocal()
-        year_col = func.strftime('%Y', Lancamento.dat_lancamento)
-        anos = (
-            session.query(year_col.label('ano'))
-            .distinct()
-            .order_by(year_col.desc())
-            .all()
-        )
-        result = [int(a.ano) for a in anos if a.ano]
-        return result
-    except Exception as e:
-        print(f"[formula_engine] Erro ao listar anos: {e}")
-        import traceback
-        traceback.print_exc()
-        return []
+    session = SessionLocal()
+    # `extract`, nunca `strftime`: portável SQLite/PostgreSQL (R11)
+    year_col = extract('year', Lancamento.dat_lancamento)
+    anos = (
+        session.query(year_col.label('ano'))
+        .filter(Lancamento.ind_status == 'A')
+        .distinct()
+        .order_by(year_col.desc())
+        .all()
+    )
+    return [int(a.ano) for a in anos if a.ano is not None]
 
 
 def calcular_base(
@@ -212,8 +204,8 @@ def calcular_base(
 def _buscar_valores_historicos_mes(
     seq_qualificador: int,
     mes: int,
-    anos: List[int],
-) -> Dict[int, float]:
+    anos: list[int],
+) -> dict[int, float]:
     """Busca valores históricos de um qualificador para um mês em vários anos.
 
     Args:
@@ -224,29 +216,29 @@ def _buscar_valores_historicos_mes(
     Returns:
         Dicionário {ano: valor_total_do_mes}
     """
+    from sqlalchemy import and_, extract, func
+
     from ..models import Lancamento, db
-    from sqlalchemy import func, extract, and_
 
-    try:
-        resultados = (
-            db.session.query(
-                extract('year', Lancamento.dat_lancamento).label('ano'),
-                func.sum(Lancamento.valor_com_sinal).label('total'),
-            )
-            .filter(
-                and_(
-                    Lancamento.seq_qualificador == seq_qualificador,
-                    extract('month', Lancamento.dat_lancamento) == mes,
-                    extract('year', Lancamento.dat_lancamento).in_(anos),
-                )
-            )
-            .group_by(extract('year', Lancamento.dat_lancamento))
-            .all()
+    resultados = (
+        db.session.query(
+            extract('year', Lancamento.dat_lancamento).label('ano'),
+            func.sum(Lancamento.valor_com_sinal).label('total'),
         )
-
-        return {int(r.ano): float(r.total) for r in resultados}
-    except Exception:
-        return {}
+        .filter(
+            and_(
+                Lancamento.seq_qualificador == seq_qualificador,
+                extract('month', Lancamento.dat_lancamento) == mes,
+                extract('year', Lancamento.dat_lancamento).in_(anos),
+                Lancamento.ind_status == 'A',
+            )
+        )
+        .group_by(extract('year', Lancamento.dat_lancamento))
+        .all()
+    )
+    # Erro de banco SOBE (R11): `except → {}` fazia o cenário inteiro
+    # projetar zero com aparência de dado apurado.
+    return {int(r.ano): float(r.total) for r in resultados}
 
 
 def projetar_com_formula(
@@ -256,7 +248,7 @@ def projetar_com_formula(
     expressao: str,
     metodo_base: str,
     config_base: dict,
-    parametros: Dict[str, float],
+    parametros: dict[str, float],
 ) -> pd.DataFrame:
     """Projeta valores usando uma fórmula parametrizada (modo mensal)."""
     from dateutil.relativedelta import relativedelta
@@ -272,8 +264,12 @@ def projetar_com_formula(
         variaveis['base'] = base
         try:
             valor_projetado = avaliar_formula(expressao, variaveis)
-        except ValueError:
-            valor_projetado = base
+        except ValueError as exc:
+            # NUNCA projetar a base em silêncio (previsao R12): parâmetro
+            # faltante virava projeção indistinguível de fórmula = `base`.
+            raise RegraNegocioError(
+                f"Fórmula da rubrica {seq_qualificador} não pôde ser "
+                f"avaliada: {exc}")
 
         records.append({
             'data': data_mes,
@@ -332,30 +328,29 @@ def calcular_base_anual(
 
 def _buscar_valores_historicos_anual(
     seq_qualificador: int,
-    anos: List[int],
-) -> Dict[int, float]:
+    anos: list[int],
+) -> dict[int, float]:
     """Busca totais anuais (soma de todos os meses) para um qualificador."""
-    from ..models import Lancamento, db
-    from sqlalchemy import func, extract, and_
+    from sqlalchemy import and_, extract, func
 
-    try:
-        resultados = (
-            db.session.query(
-                extract('year', Lancamento.dat_lancamento).label('ano'),
-                func.sum(Lancamento.valor_com_sinal).label('total'),
-            )
-            .filter(
-                and_(
-                    Lancamento.seq_qualificador == seq_qualificador,
-                    extract('year', Lancamento.dat_lancamento).in_(anos),
-                )
-            )
-            .group_by(extract('year', Lancamento.dat_lancamento))
-            .all()
+    from ..models import Lancamento, db
+
+    resultados = (
+        db.session.query(
+            extract('year', Lancamento.dat_lancamento).label('ano'),
+            func.sum(Lancamento.valor_com_sinal).label('total'),
         )
-        return {int(r.ano): float(r.total) for r in resultados}
-    except Exception:
-        return {}
+        .filter(
+            and_(
+                Lancamento.seq_qualificador == seq_qualificador,
+                extract('year', Lancamento.dat_lancamento).in_(anos),
+                Lancamento.ind_status == 'A',
+            )
+        )
+        .group_by(extract('year', Lancamento.dat_lancamento))
+        .all()
+    )
+    return {int(r.ano): float(r.total) for r in resultados}
 
 
 def projetar_com_formula_anual(
@@ -365,7 +360,7 @@ def projetar_com_formula_anual(
     expressao: str,
     metodo_base: str,
     config_base: dict,
-    parametros: Dict[str, float],
+    parametros: dict[str, float],
 ) -> pd.DataFrame:
     """Projeta valores usando uma fórmula parametrizada (modo anual)."""
     records = []
@@ -378,8 +373,10 @@ def projetar_com_formula_anual(
         variaveis['base'] = base
         try:
             valor_projetado = avaliar_formula(expressao, variaveis)
-        except ValueError:
-            valor_projetado = base
+        except ValueError as exc:
+            raise RegraNegocioError(
+                f"Fórmula da rubrica {seq_qualificador} não pôde ser "
+                f"avaliada: {exc}")
         records.append({
             'data': data_ref,
             'seq_qualificador': seq_qualificador,
@@ -398,7 +395,7 @@ def projetar_cenario_formula(
     tipo_fluxo: str,
     periodicidade: str = 'ANUAL',
     metodo_base: str = 'MEDIA_SIMPLES',
-    config_base: Optional[dict] = None,
+    config_base: dict | None = None,
 ) -> pd.DataFrame:
     """Projeta receitas ou despesas usando fórmulas para todas as rubricas configuradas.
 
@@ -472,7 +469,7 @@ def projetar_cenario_formula(
 # ==================== Projeções por Crescimento ====================
 
 
-def _soma_acumulada(seq_qualificadores: List[int], ano: int, mes_ini: int, mes_fim: int) -> float:
+def _soma_acumulada(seq_qualificadores: list[int], ano: int, mes_ini: int, mes_fim: int) -> float:
     """Soma dos lançamentos no período [mes_ini, mes_fim] do ano.
 
     Args:
@@ -484,29 +481,27 @@ def _soma_acumulada(seq_qualificadores: List[int], ano: int, mes_ini: int, mes_f
     Returns:
         Soma absoluta dos lançamentos no período
     """
+    from sqlalchemy import extract, func
+
     from ..models import Lancamento
     from ..models.base import SessionLocal
-    from sqlalchemy import func
 
     session = SessionLocal()
-    try:
-        total = (
-            session.query(func.sum(func.abs(Lancamento.valor_com_sinal)))
-            .filter(
-                Lancamento.seq_qualificador.in_(seq_qualificadores),
-                func.strftime('%Y', Lancamento.dat_lancamento) == str(ano),
-                func.cast(func.strftime('%m', Lancamento.dat_lancamento), db_Integer).between(mes_ini, mes_fim),
-                Lancamento.ind_status == 'A',
-            )
-            .scalar()
+    # `extract`, nunca `strftime` (só SQLite); erro de banco SOBE (R11)
+    total = (
+        session.query(func.sum(func.abs(Lancamento.valor_com_sinal)))
+        .filter(
+            Lancamento.seq_qualificador.in_(seq_qualificadores),
+            extract('year', Lancamento.dat_lancamento) == ano,
+            extract('month', Lancamento.dat_lancamento).between(mes_ini, mes_fim),
+            Lancamento.ind_status == 'A',
         )
-        return float(total) if total else 0.0
-    except Exception as e:
-        print(f"[formula_engine] Erro ao calcular soma acumulada: {e}")
-        return 0.0
+        .scalar()
+    )
+    return float(total) if total else 0.0
 
 
-def _perfil_sazonal(seq_qualificadores: List[int], ano: int) -> Dict[int, float]:
+def _perfil_sazonal(seq_qualificadores: list[int], ano: int) -> dict[int, float]:
     """Retorna o perfil sazonal de um ano: {mes: proporção}.
 
     Ex: {1: 0.08, 2: 0.07, ..., 12: 0.11} onde a soma = 1.0.
@@ -519,40 +514,38 @@ def _perfil_sazonal(seq_qualificadores: List[int], ano: int) -> Dict[int, float]
     Returns:
         Dicionário {mês: proporção}
     """
+    from sqlalchemy import extract, func
+
     from ..models import Lancamento
     from ..models.base import SessionLocal
-    from sqlalchemy import func
 
     session = SessionLocal()
-    try:
-        mes_col = func.cast(func.strftime('%m', Lancamento.dat_lancamento), db_Integer)
-        resultados = (
-            session.query(
-                mes_col.label('mes'),
-                func.sum(func.abs(Lancamento.valor_com_sinal)).label('total')
-            )
-            .filter(
-                Lancamento.seq_qualificador.in_(seq_qualificadores),
-                func.strftime('%Y', Lancamento.dat_lancamento) == str(ano),
-                Lancamento.ind_status == 'A',
-            )
-            .group_by(mes_col)
-            .all()
+    mes_col = extract('month', Lancamento.dat_lancamento)
+    resultados = (
+        session.query(
+            mes_col.label('mes'),
+            func.sum(func.abs(Lancamento.valor_com_sinal)).label('total')
         )
+        .filter(
+            Lancamento.seq_qualificador.in_(seq_qualificadores),
+            extract('year', Lancamento.dat_lancamento) == ano,
+            Lancamento.ind_status == 'A',
+        )
+        .group_by(mes_col)
+        .all()
+    )
 
-        valores = {int(r.mes): float(r.total) for r in resultados}
-        total_ano = sum(valores.values())
+    valores = {int(r.mes): float(r.total) for r in resultados}
+    total_ano = sum(valores.values())
 
-        if total_ano > 0:
-            return {m: valores.get(m, 0) / total_ano for m in range(1, 13)}
-        else:
-            return {m: 1.0 / 12 for m in range(1, 13)}
-    except Exception as e:
-        print(f"[formula_engine] Erro ao calcular perfil sazonal: {e}")
-        return {m: 1.0 / 12 for m in range(1, 13)}
+    if total_ano > 0:
+        return {m: valores.get(m, 0) / total_ano for m in range(1, 13)}
+    # Uniforme SÓ aqui: caso de negócio explícito (ano sem movimento) —
+    # nunca como máscara de erro de banco (R11).
+    return {m: 1.0 / 12 for m in range(1, 13)}
 
 
-def _perfil_sazonal_medio(seq_qualificadores: List[int], anos: List[int]) -> Dict[int, float]:
+def _perfil_sazonal_medio(seq_qualificadores: list[int], anos: list[int]) -> dict[int, float]:
     """Média dos perfis sazonais de vários anos.
 
     Args:
@@ -576,7 +569,7 @@ def _perfil_sazonal_medio(seq_qualificadores: List[int], anos: List[int]) -> Dic
 
 
 def projetar_crescimento_ultimo_ano(
-    seq_qualificadores: List[int],
+    seq_qualificadores: list[int],
     ano_projecao: int,
     ano_referencia: int,
     mes_referencia: int,
@@ -639,9 +632,9 @@ def projetar_crescimento_ultimo_ano(
 
 
 def projetar_media_crescimento_anos(
-    seq_qualificadores: List[int],
+    seq_qualificadores: list[int],
     ano_projecao: int,
-    anos_referencia: List[int],
+    anos_referencia: list[int],
     mes_referencia: int,
     num_periodos: int = 12,
 ) -> pd.DataFrame:

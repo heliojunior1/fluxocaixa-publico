@@ -2,11 +2,9 @@
 from __future__ import annotations
 
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
 
-from ..models.loa import Loa
-from ..models.qualificador import Qualificador
 from ..models.base import db
+from ..models.loa import Loa
 
 
 class LoaRepository:

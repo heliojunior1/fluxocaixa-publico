@@ -11,13 +11,14 @@ Comportamento (spec infraestrutura-banco, change adotar-alembic-migrations):
 """
 import os
 
-from alembic import command
 from alembic.config import Config as AlembicConfig
 from sqlalchemy import inspect
 
+from alembic import command
+
 # `env_flag` é reexportado: vive em `config` (módulo leve), mas metade do
 # projeto já o importa daqui.
-from .config import BASE_DIR, Config, env_flag  # noqa: F401
+from .config import BASE_DIR, Config, env_flag
 from .models.base import engine
 
 

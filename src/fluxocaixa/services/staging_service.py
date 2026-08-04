@@ -64,21 +64,25 @@ def marcar_erro(seq_etl_staging: int, dsc_erro: str) -> None:
     db.session.commit()
 
 
-def marcar_ok_lote(seqs) -> int:
+def marcar_ok_lote(seqs, commit: bool = True) -> int:
     """Marca N linhas como processadas com UM commit.
 
     As variantes unitárias (R4) commitam por chamada — num laço de
     processamento isso seria um commit por lançamento.
+
+    `commit=False` só faz `flush()`: o processamento (R12) marca o status na
+    MESMA transação dos inserts de lançamento, e comitar aqui abriria a janela
+    em que o lançamento existe com a linha ainda pendente.
     """
-    return _marcar_lote({seq: None for seq in seqs}, STATUS_OK)
+    return _marcar_lote({seq: None for seq in seqs}, STATUS_OK, commit=commit)
 
 
-def marcar_erro_lote(pares) -> int:
+def marcar_erro_lote(pares, commit: bool = True) -> int:
     """`pares`: iterável de `(seq_etl_staging, mensagem)`. Um commit."""
-    return _marcar_lote(dict(pares), STATUS_ERRO)
+    return _marcar_lote(dict(pares), STATUS_ERRO, commit=commit)
 
 
-def _marcar_lote(por_seq: dict, status: str) -> int:
+def _marcar_lote(por_seq: dict, status: str, commit: bool = True) -> int:
     if not por_seq:
         return 0
     pessoa = cod_pessoa_atual()
@@ -92,7 +96,10 @@ def _marcar_lote(por_seq: dict, status: str) -> int:
         linha.dsc_erro = (mensagem or "")[:DSC_ERRO_MAX] if mensagem else None
         linha.dat_alteracao = hoje
         linha.cod_pessoa_alteracao = pessoa
-    db.session.commit()
+    if commit:
+        db.session.commit()
+    else:
+        db.session.flush()
     return len(linhas)
 
 
@@ -109,5 +116,11 @@ def reprocessar_execucao(seq_execucao: int) -> int:
     return len(linhas)
 
 
-__all__ = ['gravar_lote', 'marcar_ok', 'marcar_erro', 'marcar_ok_lote',
-           'marcar_erro_lote', 'reprocessar_execucao']
+__all__ = [
+    'gravar_lote',
+    'marcar_erro',
+    'marcar_erro_lote',
+    'marcar_ok',
+    'marcar_ok_lote',
+    'reprocessar_execucao',
+]

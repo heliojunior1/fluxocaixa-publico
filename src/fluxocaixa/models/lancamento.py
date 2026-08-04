@@ -1,18 +1,19 @@
 from datetime import date
+
 from sqlalchemy import (
     Column,
-    case,
-    Integer,
-    String,
     Date,
-    Numeric,
     ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    String,
+    case,
 )
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import relationship
 
 from .base import Base
-from .conta_bancaria import ContaBancaria
 
 # Códigos do tipo de lançamento (F6.1b). Ficam aqui, e não em
 # `dominio_lancamento`, para o model não depender da camada de serviço.
@@ -21,6 +22,18 @@ TIPO_DEBITO = 'D'    # despesa — valor negado na leitura
 
 class Lancamento(Base):
     __tablename__ = 'flc_lancamento'
+    # Índices da tabela de fatos (infraestrutura-banco R12, migração 0032):
+    # casam com os padrões de acesso do lancamento_repository. Os filtros de
+    # período são FAIXAS de data (sargáveis) — extract() no WHERE impediria o
+    # planejador de usá-los. O de seq_etl_staging sustenta o resync/idempotência
+    # da F4.3. Declarados aqui E na migração — anti-deriva.
+    __table_args__ = (
+        Index('ix_flc_lancamento_status_data', 'ind_status', 'dat_lancamento'),
+        Index('ix_flc_lancamento_qualificador_data',
+              'seq_qualificador', 'dat_lancamento'),
+        Index('ix_flc_lancamento_conta_data', 'seq_conta', 'dat_lancamento'),
+        Index('ix_flc_lancamento_etl_staging', 'seq_etl_staging'),
+    )
     seq_lancamento = Column(Integer, primary_key=True)
     dat_lancamento = Column(Date, nullable=False)
     seq_qualificador = Column(Integer, ForeignKey('flc_qualificador.seq_qualificador'), nullable=False)
@@ -86,7 +99,7 @@ class Lancamento(Base):
         )
 
     @valor_com_sinal.expression
-    def valor_com_sinal(cls):  # noqa: N805 - forma SQL do hybrid_property
+    def valor_com_sinal(cls):
         return case(
             (cls.cod_tipo_lancamento == TIPO_DEBITO, -cls.val_lancamento),
             else_=cls.val_lancamento,

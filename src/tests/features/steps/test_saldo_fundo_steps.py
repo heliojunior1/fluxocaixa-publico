@@ -11,7 +11,7 @@ from pytest_bdd import given, parsers, scenarios, then, when
 
 scenarios("../saldo-por-fundo/modelo.feature")
 
-D2 = lambda v: Decimal(str(v)).quantize(Decimal("0.01"))  # noqa: E731
+D2 = lambda v: Decimal(str(v)).quantize(Decimal("0.01"))
 
 
 @pytest.fixture()
@@ -135,6 +135,7 @@ def executa_seed(app, contexto):
 @when("insiro diretamente outra linha ativa para a mesma chave")
 def insere_duplicata_direta(conta, fundo, contexto):
     import sqlalchemy.exc
+
     from fluxocaixa.models import SaldoContaFundo, TipoOrigemSaldo
 
     db = _db()
@@ -206,6 +207,7 @@ def consulta_agregado(conta, contexto, dat):
 @then("as tabelas do saldo por fundo existem")
 def tabelas_existem(app):
     from sqlalchemy import inspect
+
     from fluxocaixa.models.base import engine
 
     tabelas = set(inspect(engine).get_table_names())
