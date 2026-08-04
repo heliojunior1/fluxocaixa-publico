@@ -1,12 +1,14 @@
 """Cadastro de mapeamento e itens (spec automacao-lancamentos R6).
 
-Cabeçalho (ano + tipo + sistema de origem) agrupando itens que ligam um
+Cabeçalho (ano + sistema de origem) agrupando itens que ligam um
 qualificador **folha** a uma regra de classificação sobre a staging.
+Um mapeamento reúne itens de receita E de despesa: a classificação vem do
+QUALIFICADOR do item (change mapeamento-sem-dimensao-receita-despesa).
 
 Regras portadas da implementação de referência, mais a do projeto:
-- unicidade (ano, tipo, sistema_origem) entre ATIVOS — a referência usa
+- unicidade (ano, sistema_origem) entre ATIVOS — a referência usa
   (ano, tipo) e deixa a origem fora da chave, o que bloquearia uma segunda
-  origem no mesmo ano/tipo; nós somos multi-origem por construção;
+  origem no mesmo ano; nós somos multi-origem por construção;
 - ao menos um item ativo;
 - qualificador não repetido entre itens ativos;
 - qualificador deve ser folha (lançamento só nasce em folha).
@@ -19,27 +21,21 @@ from ..auth.contexto import cod_pessoa_atual
 from ..models import ItemMapeamento, Mapeamento, Qualificador, SistemaOrigem
 from ..models.base import db
 from ..models.item_mapeamento import INVERSAO_NAO, INVERSAO_SIM
-from ..models.mapeamento import TIPOS_VALIDOS
 from .regra import validar_regra
 from .validacao import RegraNegocioError
 
 _INVERSOES = (INVERSAO_NAO, INVERSAO_SIM)
 
 
-def _validar_cabecalho(num_ano_exercicio, ind_tipo, seq_sistema_origem, seq_atual=None):
+def _validar_cabecalho(num_ano_exercicio, seq_sistema_origem, seq_atual=None):
     if not num_ano_exercicio:
         raise RegraNegocioError("O ano de exercício é obrigatório")
-    if ind_tipo not in TIPOS_VALIDOS:
-        raise RegraNegocioError(
-            f"Tipo de mapeamento inválido: '{ind_tipo}' (1=Receita, 2=Despesa)"
-        )
     sistema = SistemaOrigem.query.get(seq_sistema_origem)
     if sistema is None or sistema.ind_status != 'A':
         raise RegraNegocioError("Sistema de origem inexistente ou inativo")
 
     consulta = Mapeamento.query.filter_by(
         num_ano_exercicio=num_ano_exercicio,
-        ind_tipo=ind_tipo,
         seq_sistema_origem=seq_sistema_origem,
         ind_status='A',
     )
@@ -47,8 +43,9 @@ def _validar_cabecalho(num_ano_exercicio, ind_tipo, seq_sistema_origem, seq_atua
         consulta = consulta.filter(Mapeamento.seq_mapeamento != seq_atual)
     if consulta.first() is not None:
         raise RegraNegocioError(
-            f"Já existe um mapeamento ativo para {num_ano_exercicio}, "
-            f"tipo '{ind_tipo}' e origem '{sistema.txt_sigla}'"
+            f"Já existe um mapeamento ativo para {num_ano_exercicio} e "
+            f"origem '{sistema.txt_sigla}' — reúna os itens nele (receita e "
+            f"despesa convivem no mesmo mapeamento)"
         )
 
 
@@ -114,15 +111,14 @@ def _validar_itens(itens):
             raise RegraNegocioError(erro)
 
 
-def criar_mapeamento(num_ano_exercicio, ind_tipo, seq_sistema_origem,
+def criar_mapeamento(num_ano_exercicio, seq_sistema_origem,
                      dsc_mapeamento, itens) -> Mapeamento:
-    _validar_cabecalho(num_ano_exercicio, ind_tipo, seq_sistema_origem)
+    _validar_cabecalho(num_ano_exercicio, seq_sistema_origem)
     _validar_itens(itens)
 
     pessoa = cod_pessoa_atual()
     mapeamento = Mapeamento(
         num_ano_exercicio=num_ano_exercicio,
-        ind_tipo=ind_tipo,
         seq_sistema_origem=seq_sistema_origem,
         dsc_mapeamento=dsc_mapeamento,
         ind_status='A',
@@ -141,12 +137,12 @@ def criar_mapeamento(num_ano_exercicio, ind_tipo, seq_sistema_origem,
     return mapeamento
 
 
-def alterar_mapeamento(seq_mapeamento, num_ano_exercicio, ind_tipo,
+def alterar_mapeamento(seq_mapeamento, num_ano_exercicio,
                        seq_sistema_origem, dsc_mapeamento, itens) -> Mapeamento:
     mapeamento = Mapeamento.query.get(seq_mapeamento)
     if mapeamento is None or mapeamento.ind_status != 'A':
         raise RegraNegocioError("Mapeamento inexistente ou inativo")
-    _validar_cabecalho(num_ano_exercicio, ind_tipo, seq_sistema_origem,
+    _validar_cabecalho(num_ano_exercicio, seq_sistema_origem,
                        seq_atual=seq_mapeamento)
     _validar_posse(mapeamento, itens)
     _validar_itens(itens)
@@ -154,7 +150,6 @@ def alterar_mapeamento(seq_mapeamento, num_ano_exercicio, ind_tipo,
     pessoa = cod_pessoa_atual()
     hoje = date.today()
     mapeamento.num_ano_exercicio = num_ano_exercicio
-    mapeamento.ind_tipo = ind_tipo
     mapeamento.seq_sistema_origem = seq_sistema_origem
     mapeamento.dsc_mapeamento = dsc_mapeamento
     mapeamento.dat_alteracao = hoje
@@ -223,7 +218,7 @@ def listar_mapeamentos(apenas_ativos: bool = True) -> list[Mapeamento]:
     if apenas_ativos:
         consulta = consulta.filter_by(ind_status='A')
     return consulta.order_by(
-        Mapeamento.num_ano_exercicio.desc(), Mapeamento.ind_tipo).all()
+        Mapeamento.num_ano_exercicio.desc(), Mapeamento.seq_mapeamento).all()
 
 
 __all__ = [

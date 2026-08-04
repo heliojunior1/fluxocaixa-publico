@@ -67,21 +67,23 @@ def sistema_por_sigla(sigla):
     return SistemaOrigem.query.filter_by(txt_sigla=sigla).first()
 
 
-def criar_mapeamento(ano, ind_tipo, sigla_origem, itens):
-    """`itens`: lista de dicts {seq_qualificador, txt_regra, ind_inversao_sinal?}."""
+def criar_mapeamento(ano, sigla_origem, itens):
+    """`itens`: lista de dicts {seq_qualificador, txt_regra, ind_inversao_sinal?}.
+
+    Sem dimensão receita/despesa: um mapeamento por (ano, sistema) reúne
+    itens dos dois lados (change mapeamento-sem-dimensao-receita-despesa)."""
     from fluxocaixa.services.mapeamento_service import criar_mapeamento as _criar
 
     sistema = sistema_por_sigla(sigla_origem)
     return _criar(
         num_ano_exercicio=ano,
-        ind_tipo=ind_tipo,
         seq_sistema_origem=sistema.seq_sistema_origem,
-        dsc_mapeamento=f"Mapeamento {ano}/{ind_tipo}/{sigla_origem}",
+        dsc_mapeamento=f"Mapeamento {ano}/{sigla_origem}",
         itens=itens,
     )
 
 
-def mapeamento_por_chave(ano, ind_tipo, sigla_origem):
+def mapeamento_por_chave(ano, sigla_origem):
     from fluxocaixa.models import Mapeamento, SistemaOrigem
     from fluxocaixa.models.base import db
 
@@ -91,7 +93,6 @@ def mapeamento_por_chave(ano, ind_tipo, sigla_origem):
         return None
     return Mapeamento.query.filter_by(
         num_ano_exercicio=ano,
-        ind_tipo=ind_tipo,
         seq_sistema_origem=sistema.seq_sistema_origem,
         ind_status='A',
     ).first()

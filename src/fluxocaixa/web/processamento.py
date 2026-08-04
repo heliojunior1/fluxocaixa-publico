@@ -9,7 +9,6 @@ from fastapi.responses import RedirectResponse
 from ..auth.permissoes import requer
 from ..models import ExecucaoMapeamento
 from ..models.execucao_mapeamento import DISPARO_MANUAL
-from ..models.mapeamento import TIPO_DESPESA, TIPO_RECEITA
 from ..services.mapeamento_service import listar_mapeamentos
 from ..services.processamento_service import processar_mapeamento
 from . import handle_exceptions, router, templates
@@ -17,7 +16,6 @@ from . import handle_exceptions, router, templates
 _DESTINO = '/mapeamentos/execucoes'
 _LIMITE = 200
 
-_ROTULO_TIPO = {TIPO_RECEITA: 'Receita', TIPO_DESPESA: 'Despesa'}
 
 
 @router.get('/mapeamentos/execucoes', name='execucoes_mapeamento',
@@ -33,7 +31,6 @@ async def execucoes_mapeamento(request: Request):
         linhas.append({
             'seq_execucao_mapeamento': e.seq_execucao_mapeamento,
             'mapeamento': mapeamento.dsc_mapeamento if mapeamento else '—',
-            'tipo': _ROTULO_TIPO.get(mapeamento.ind_tipo, '—') if mapeamento else '—',
             'cod_status': e.cod_status,
             'cod_disparo': e.cod_disparo,
             'dat_inicio_execucao': e.dat_inicio_execucao,

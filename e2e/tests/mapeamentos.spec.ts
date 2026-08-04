@@ -11,12 +11,14 @@ const SISTEMA_E2E = 'SIS_E2E';
 // rótulo do option: "num — dsc" (ver QUALIF_ROTULO no mapeamento_form.html)
 const QUALIF_E2E = '1.9.9 — Receita E2E Mapeável';
 
-// A unicidade do mapeamento é (ano, tipo, sistema de origem): cada teste usa
-// o SEU ano, senão o segundo a rodar bate em duplicidade. Só o teste de preview
-// precisa de 2026 — é o ano das linhas semeadas na staging.
+const QUALIF_DESPESA_E2E = '2.9.9 — Despesa E2E Mapeável';
+
+// A unicidade do mapeamento é (ano, sistema de origem): cada teste usa o SEU
+// ano, senão o segundo a rodar bate em duplicidade. Só o teste de preview
+// precisa de 2026 — é o ano das linhas semeadas na staging. Não há mais
+// combo de tipo: receita e despesa convivem no mesmo mapeamento.
 async function preencherCabecalho(page: Page, descricao: string, ano = '2026') {
   await page.getByTestId('campo-ano').fill(ano);
-  await page.getByTestId('campo-tipo').selectOption('1');
   await page.getByTestId('campo-origem').selectOption({ label: SISTEMA_E2E });
   await page.getByTestId('campo-descricao').fill(descricao);
 }
@@ -87,6 +89,44 @@ test.describe('mapeamentos (admin)', () => {
     await salva.getByTestId('regra-valor').fill('999002');
     await page.getByTestId('salvar-mapeamento').click();
     await expect(page.getByTestId('tabela-mapeamentos')).toContainText(descricao);
+  });
+});
+
+test.describe('mapeamento único — receita e despesa juntas (admin)', () => {
+  test.use({ storageState: STORAGE_STATE_ADMIN });
+
+  test('salva um mapeamento com item de receita E item de despesa', async ({ page }) => {
+    const descricao = nomeUnico('Mapeamento Misto');
+    await page.goto('/mapeamentos/form');
+    await preencherCabecalho(page, descricao, '2075');
+
+    // item 1: rubrica de RECEITA
+    const itemReceita = page.locator('.item-mapeamento').first();
+    await itemReceita.getByTestId('item-qualificador')
+      .selectOption({ label: QUALIF_E2E });
+    const linhaReceita = itemReceita.getByTestId('regra-linha').first();
+    await linhaReceita.getByTestId('regra-termo').selectOption('Natureza');
+    await linhaReceita.getByTestId('regra-operador').selectOption('COMECA_COM');
+    await linhaReceita.getByTestId('regra-valor').fill('1112');
+
+    // item 2: rubrica de DESPESA — o MESMO combo oferece as duas árvores
+    await page.getByTestId('add-item').click();
+    const itemDespesa = page.locator('.item-mapeamento').nth(1);
+    await itemDespesa.getByTestId('item-qualificador')
+      .selectOption({ label: QUALIF_DESPESA_E2E });
+    const linhaDespesa = itemDespesa.getByTestId('regra-linha').first();
+    await linhaDespesa.getByTestId('regra-termo').selectOption('Natureza');
+    await linhaDespesa.getByTestId('regra-operador').selectOption('COMECA_COM');
+    await linhaDespesa.getByTestId('regra-valor').fill('2222');
+
+    await page.getByTestId('salvar-mapeamento').click();
+    await expect(page.getByTestId('tabela-mapeamentos')).toContainText(descricao);
+  });
+
+  test('o formulário não tem mais o combo de tipo', async ({ page }) => {
+    await page.goto('/mapeamentos/form');
+    await expect(page.getByTestId('campo-ano')).toBeVisible();
+    await expect(page.getByTestId('campo-tipo')).toHaveCount(0);
   });
 });
 

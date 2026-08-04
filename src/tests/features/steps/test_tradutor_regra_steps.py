@@ -76,14 +76,14 @@ def traduz(app, contexto, regra):
         contexto["erro"] = exc.mensagem
 
 
-@when(parsers.parse('crio o mapeamento {ano:d} tipo "{tipo}" origem "{origem}" '
+@when(parsers.parse('crio o mapeamento {ano:d} origem "{origem}" '
                     'com um item no qualificador "{num}" e regra "{regra}"'))
-def cria_com_regra(app, contexto, ano, tipo, origem, num, regra):
+def cria_com_regra(app, contexto, ano, origem, num, regra):
     from fluxocaixa.services.validacao import RegraNegocioError
 
     q = garantir_qualificador(num)
     try:
-        criar_mapeamento(ano, tipo, origem, [
+        criar_mapeamento(ano, origem, [
             {"seq_qualificador": q.seq_qualificador, "txt_regra": regra},
         ])
         contexto["erro"] = None

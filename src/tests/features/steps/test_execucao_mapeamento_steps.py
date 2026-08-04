@@ -61,7 +61,7 @@ def staging(app, sigla, ano):
 @given(parsers.parse('o mapeamento 2026 de "{sigla}" com o item "{num}" e regra "{regra}"'))
 def mapeamento_um_item(app, contexto, sigla, num, regra):
     q = garantir_qualificador(num)
-    mapeamento = criar_mapeamento(2026, "1", sigla, [
+    mapeamento = criar_mapeamento(2026, sigla, [
         {"seq_qualificador": q.seq_qualificador, "txt_regra": regra},
     ])
     contexto["seq_mapeamento"] = mapeamento.seq_mapeamento
@@ -74,7 +74,7 @@ def mapeamento_conflito(app, contexto, sigla):
     # 11120000 → casa com os DOIS itens  → erro
     # 11120001 → casa só com o item A    → 1 lançamento
     # 22220000 → não casa com ninguém    → segue pendente
-    mapeamento = criar_mapeamento(2026, "1", sigla, [
+    mapeamento = criar_mapeamento(2026, sigla, [
         {"seq_qualificador": q1.seq_qualificador,
          "txt_regra": "Natureza começa com '1112'"},
         {"seq_qualificador": q2.seq_qualificador,
@@ -183,7 +183,7 @@ def altera_e_processa(app, contexto, num, regra):
         "ind_inversao_sinal": i.ind_inversao_sinal,
     } for i in mapeamento.itens]
     alterar_mapeamento(
-        contexto["seq_mapeamento"], 2026, "1",
+        contexto["seq_mapeamento"], 2026,
         sistema_por_sigla(contexto["sigla"]).seq_sistema_origem,
         mapeamento.dsc_mapeamento, itens,
     )

@@ -87,9 +87,9 @@ def lancamento_manual(app, contexto, num):
     contexto["seq_manual"] = manual.seq_lancamento
 
 
-def _criar_mapeamento(contexto, tipo, sigla, num, regra, inversao="0"):
+def _criar_mapeamento(contexto, sigla, num, regra, inversao="0"):
     q = garantir_qualificador(num)
-    mapeamento = criar_mapeamento(2026, tipo, sigla, [
+    mapeamento = criar_mapeamento(2026, sigla, [
         {"seq_qualificador": q.seq_qualificador, "txt_regra": regra,
          "ind_inversao_sinal": inversao},
     ])
@@ -97,25 +97,25 @@ def _criar_mapeamento(contexto, tipo, sigla, num, regra, inversao="0"):
     return mapeamento
 
 
-@given(parsers.parse('o mapeamento 2026 tipo "{tipo}" de "{sigla}" com o item "{num}" '
+@given(parsers.parse('o mapeamento 2026 de "{sigla}" com o item "{num}" '
                      'e regra "{regra}"'))
-def mapeamento_um_item(app, contexto, tipo, sigla, num, regra):
-    _criar_mapeamento(contexto, tipo, sigla, num, regra)
+def mapeamento_um_item(app, contexto, sigla, num, regra):
+    _criar_mapeamento(contexto, sigla, num, regra)
 
 
-@given(parsers.parse('o mapeamento 2026 tipo "{tipo}" de "{sigla}" com o item "{num}" '
+@given(parsers.parse('o mapeamento 2026 de "{sigla}" com o item "{num}" '
                      'e regra "{regra}" com inversão'))
-def mapeamento_com_inversao(app, contexto, tipo, sigla, num, regra):
-    _criar_mapeamento(contexto, tipo, sigla, num, regra, inversao="1")
+def mapeamento_com_inversao(app, contexto, sigla, num, regra):
+    _criar_mapeamento(contexto, sigla, num, regra, inversao="1")
 
 
-@given(parsers.parse('o mapeamento 2026 tipo "{tipo}" de "{sigla}" com dois itens '
+@given(parsers.parse('o mapeamento 2026 de "{sigla}" com dois itens '
                      'que casam com a mesma linha'))
-def mapeamento_conflito(app, contexto, tipo, sigla):
+def mapeamento_conflito(app, contexto, sigla):
     # a linha natureza=11120000/ug=999001 casa com AMBOS os itens
     q1 = garantir_qualificador("1.1.1")
     q2 = garantir_qualificador("1.1.2")
-    mapeamento = criar_mapeamento(2026, tipo, sigla, [
+    mapeamento = criar_mapeamento(2026, sigla, [
         {"seq_qualificador": q1.seq_qualificador,
          "txt_regra": "Natureza começa com '11120000'"},
         {"seq_qualificador": q2.seq_qualificador,

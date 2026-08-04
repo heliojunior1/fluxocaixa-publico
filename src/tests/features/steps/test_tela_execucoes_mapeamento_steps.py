@@ -78,7 +78,7 @@ def staging(app, sigla, ano):
 @given(parsers.parse('o mapeamento 2026 de "{sigla}" com o item "{num}" e regra "{regra}"'))
 def mapeamento(app, contexto, sigla, num, regra):
     q = garantir_qualificador(num)
-    m = criar_mapeamento(2026, "1", sigla, [
+    m = criar_mapeamento(2026, sigla, [
         {"seq_qualificador": q.seq_qualificador, "txt_regra": regra},
     ])
     contexto["seq_mapeamento"] = m.seq_mapeamento

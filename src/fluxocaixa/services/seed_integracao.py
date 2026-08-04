@@ -358,17 +358,16 @@ def _staging(session, fontes):
 def _mapeamentos(session, sistemas):
     """Um mapeamento por perna, com regras escritas no vocabulário dos termos.
 
-    A unicidade é (ano, tipo, sistema de origem) entre ativos — daí um
-    cabeçalho de receita e um de despesa no mesmo sistema.
+    A unicidade é (ano, sistema de origem) entre ativos — UM mapeamento
+    reúne itens de receita e de despesa (a classificação vem do qualificador
+    do item; change mapeamento-sem-dimensao-receita-despesa).
     """
     ano = date.today().year
     definicoes = (
-        ('1', "Classificação de receitas — demonstração", (
+        ("Classificação SIS_CONTABIL — demonstração", (
             ('1.0.0', "Natureza começa com '1112'"),
             ('1.0.1', "Natureza começa com '1121'"),
             ('1.5.2', "Natureza começa com '1131'"),
-        )),
-        ('2', "Classificação de despesas — demonstração", (
             ('2.0.1', "Elemento de Despesa começa com '3190'"),
             ('2.2.1', "Elemento de Despesa começa com '3390' "
                       "e Unidade Gestora <> '999009'"),
@@ -376,16 +375,16 @@ def _mapeamentos(session, sistemas):
     )
 
     sistema = sistemas["SIS_CONTABIL"]
-    for tipo, descricao, itens in definicoes:
+    for descricao, itens in definicoes:
         existe = Mapeamento.query.filter_by(
-            num_ano_exercicio=ano, ind_tipo=tipo,
+            num_ano_exercicio=ano,
             seq_sistema_origem=sistema.seq_sistema_origem,
         ).first()
         if existe is not None:
             continue
 
         mapeamento = Mapeamento(
-            num_ano_exercicio=ano, ind_tipo=tipo,
+            num_ano_exercicio=ano,
             seq_sistema_origem=sistema.seq_sistema_origem,
             dsc_mapeamento=descricao, ind_status='A',
             cod_pessoa_inclusao=1,

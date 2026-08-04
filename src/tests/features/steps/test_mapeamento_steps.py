@@ -61,63 +61,63 @@ def qualificador_com_filhos(app, num):
     garantir_qualificador(f"{num}.9", pai=pai)
 
 
-@given(parsers.parse('o mapeamento {ano:d} tipo "{tipo}" origem "{origem}" cadastrado'))
-def mapeamento_existente(app, ano, tipo, origem):
+@given(parsers.parse('o mapeamento {ano:d} origem "{origem}" cadastrado'))
+def mapeamento_existente(app, ano, origem):
     q = garantir_qualificador("1.1.1")
-    criar_mapeamento(ano, tipo, origem, [
+    criar_mapeamento(ano, origem, [
         {"seq_qualificador": q.seq_qualificador, "txt_regra": REGRA_OK},
     ])
 
 
-def _criar(contexto, ano, tipo, origem, itens):
+def _criar(contexto, ano, origem, itens):
     from fluxocaixa.services.validacao import RegraNegocioError
 
     try:
-        contexto["mapeamento"] = criar_mapeamento(ano, tipo, origem, itens)
+        contexto["mapeamento"] = criar_mapeamento(ano, origem, itens)
         contexto["erro"] = None
     except RegraNegocioError as exc:
         contexto["erro"] = exc.mensagem
 
 
-@when(parsers.parse('crio o mapeamento {ano:d} tipo "{tipo}" origem "{origem}" '
+@when(parsers.parse('crio o mapeamento {ano:d} origem "{origem}" '
                     'com um item no qualificador "{num}" e regra "{regra}"'))
-def cria_com_item(app, contexto, ano, tipo, origem, num, regra):
+def cria_com_item(app, contexto, ano, origem, num, regra):
     q = garantir_qualificador(num)
-    _criar(contexto, ano, tipo, origem, [
+    _criar(contexto, ano, origem, [
         {"seq_qualificador": q.seq_qualificador, "txt_regra": regra},
     ])
 
 
-@when(parsers.parse('crio o mapeamento {ano:d} tipo "{tipo}" origem "{origem}" sem itens'))
-def cria_sem_itens(app, contexto, ano, tipo, origem):
-    _criar(contexto, ano, tipo, origem, [])
+@when(parsers.parse('crio o mapeamento {ano:d} origem "{origem}" sem itens'))
+def cria_sem_itens(app, contexto, ano, origem):
+    _criar(contexto, ano, origem, [])
 
 
-@when(parsers.parse('crio o mapeamento {ano:d} tipo "{tipo}" origem "{origem}" '
+@when(parsers.parse('crio o mapeamento {ano:d} origem "{origem}" '
                     'com dois itens no mesmo qualificador "{num}"'))
-def cria_qualificador_repetido(app, contexto, ano, tipo, origem, num):
+def cria_qualificador_repetido(app, contexto, ano, origem, num):
     q = garantir_qualificador(num)
-    _criar(contexto, ano, tipo, origem, [
+    _criar(contexto, ano, origem, [
         {"seq_qualificador": q.seq_qualificador, "txt_regra": REGRA_OK},
         {"seq_qualificador": q.seq_qualificador, "txt_regra": "Natureza = '1112'"},
     ])
 
 
-@when(parsers.parse('crio o mapeamento {ano:d} tipo "{tipo}" origem "{origem}" '
+@when(parsers.parse('crio o mapeamento {ano:d} origem "{origem}" '
                     'com um item no qualificador "{num}" com inversão de sinal'))
-def cria_com_inversao(app, contexto, ano, tipo, origem, num):
+def cria_com_inversao(app, contexto, ano, origem, num):
     q = garantir_qualificador(num)
-    _criar(contexto, ano, tipo, origem, [
+    _criar(contexto, ano, origem, [
         {"seq_qualificador": q.seq_qualificador, "txt_regra": REGRA_OK,
          "ind_inversao_sinal": "1"},
     ])
 
 
-@then(parsers.parse('o mapeamento {ano:d} tipo "{tipo}" origem "{origem}" '
+@then(parsers.parse('o mapeamento {ano:d} origem "{origem}" '
                     'existe ativo com {n:d} item'))
-def mapeamento_ok(contexto, ano, tipo, origem, n):
+def mapeamento_ok(contexto, ano, origem, n):
     assert contexto.get("erro") is None, f"rejeitado: {contexto.get('erro')!r}"
-    m = mapeamento_por_chave(ano, tipo, origem)
+    m = mapeamento_por_chave(ano, origem)
     assert m is not None, "mapeamento não encontrado"
     ativos = [i for i in m.itens if i.ind_status == 'A']
     assert len(ativos) == n

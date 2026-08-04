@@ -10,7 +10,6 @@ from fastapi.responses import JSONResponse, RedirectResponse
 
 from ..auth.permissoes import requer
 from ..models import Mapeamento, SistemaOrigem
-from ..models.mapeamento import TIPO_DESPESA, TIPO_RECEITA
 from ..services.mapeamento_service import (
     alterar_mapeamento,
     criar_mapeamento,
@@ -37,7 +36,6 @@ def _exercicio_combo():
 
 _DESTINO = '/mapeamentos'
 
-_ROTULO_TIPO = {TIPO_RECEITA: 'Receita', TIPO_DESPESA: 'Despesa'}
 
 
 def _itens_do_form(itens_raw: str) -> list[dict]:
@@ -75,11 +73,14 @@ def _contexto_form(request, mapeamento=None):
         'itens': itens,
         'sistemas': SistemaOrigem.query.filter_by(ind_status='A')
                                        .order_by(SistemaOrigem.txt_sigla).all(),
-        'tipos': [(TIPO_RECEITA, 'Receita'), (TIPO_DESPESA, 'Despesa')],
         'termos': [{'nom_termo': t.nom_termo, 'cod_tipo': t.cod_tipo} for t in termos],
         'operadores': ROTULOS_OPERADOR,
-        'qualificadores_receita': list_receita_qualificadores_folha(_exercicio_combo()),
-        'qualificadores_despesa': list_despesa_qualificadores_folha(_exercicio_combo()),
+        # TODAS as folhas juntas: um mapeamento reúne itens de receita E de
+        # despesa (change mapeamento-sem-dimensao-receita-despesa)
+        'qualificadores_folha': (
+            list_receita_qualificadores_folha(_exercicio_combo())
+            + list_despesa_qualificadores_folha(_exercicio_combo())
+        ),
     }
 
 
@@ -92,7 +93,6 @@ async def mapeamentos(request: Request):
         linhas.append({
             'seq_mapeamento': m.seq_mapeamento,
             'num_ano_exercicio': m.num_ano_exercicio,
-            'tipo': _ROTULO_TIPO.get(m.ind_tipo, m.ind_tipo),
             'origem': m.sistema_origem.txt_sigla if m.sistema_origem else '—',
             'dsc_mapeamento': m.dsc_mapeamento,
             'qtd_itens': len([i for i in m.itens if i.ind_status == 'A']),
@@ -128,7 +128,6 @@ async def mapeamento_salvar(request: Request):
     itens = _itens_do_form(form.get('itens_raw', '[]'))
     dados = dict(
         num_ano_exercicio=int(form.get('num_ano_exercicio') or 0),
-        ind_tipo=form.get('ind_tipo', ''),
         seq_sistema_origem=int(form.get('seq_sistema_origem') or 0),
         dsc_mapeamento=form.get('dsc_mapeamento', ''),
         itens=itens,

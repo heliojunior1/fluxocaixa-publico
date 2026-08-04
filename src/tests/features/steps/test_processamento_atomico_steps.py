@@ -102,11 +102,11 @@ def staging(app, sigla, ano):
     semear_staging(sigla, f"Fonte {sigla} {ano}", LINHAS_PADRAO, ano=ano)
 
 
-@given(parsers.parse('o mapeamento {ano:d} tipo "{tipo}" de "{sigla}" com o item '
+@given(parsers.parse('o mapeamento {ano:d} de "{sigla}" com o item '
                      '"{num}" e regra "{regra}"'))
-def mapeamento_do_ano(app, contexto, ano, tipo, sigla, num, regra):
+def mapeamento_do_ano(app, contexto, ano, sigla, num, regra):
     q = garantir_qualificador(num)
-    mapeamento = criar_mapeamento(ano, tipo, sigla, [
+    mapeamento = criar_mapeamento(ano, sigla, [
         {"seq_qualificador": q.seq_qualificador, "txt_regra": regra},
     ])
     contexto.setdefault("mapeamentos", {})[(ano, sigla)] = mapeamento.seq_mapeamento

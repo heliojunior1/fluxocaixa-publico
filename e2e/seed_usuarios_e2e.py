@@ -257,6 +257,21 @@ if not Qualificador.query.filter_by(num_qualificador='1.9.9').first():
                                 ind_status='A'))
     db.session.commit()
 
+# Qualificador folha de DESPESA para o item misto do mapeamento (change
+# mapeamento-sem-dimensao-receita-despesa: receita e despesa convivem)
+if not Qualificador.query.filter_by(num_qualificador='2.9.9').first():
+    _raiz2 = Qualificador.query.filter_by(num_qualificador='2').first()
+    if _raiz2 is None:
+        _raiz2 = Qualificador(num_qualificador='2', dsc_qualificador='Despesas E2E',
+                              ind_status='A')
+        db.session.add(_raiz2)
+        db.session.commit()
+    db.session.add(Qualificador(num_qualificador='2.9.9',
+                                dsc_qualificador='Despesa E2E Mapeável',
+                                cod_qualificador_pai=_raiz2.seq_qualificador,
+                                ind_status='A'))
+    db.session.commit()
+
 # Fonte de destino LANCAMENTO + linhas de staging para o preview casar
 _fonte = FonteExtracao.query.filter_by(nom_fonte="Fonte E2E Lancamento").first()
 if _fonte is None:
@@ -341,7 +356,7 @@ if not Mapeamento.query.filter_by(
         seq_sistema_origem=_sis_proc.seq_sistema_origem).first():
     _q = Qualificador.query.filter_by(num_qualificador='1.9.9').first()
     _map = Mapeamento(
-        num_ano_exercicio=2026, ind_tipo='1',
+        num_ano_exercicio=2026,
         seq_sistema_origem=_sis_proc.seq_sistema_origem,
         dsc_mapeamento='Mapeamento E2E Receita', ind_status='A',
     )

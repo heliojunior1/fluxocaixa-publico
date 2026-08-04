@@ -91,7 +91,7 @@ def mapeamento_processado(app, contexto, num):
     from fluxocaixa.models.base import db
 
     q = garantir_qualificador(num)
-    mapeamento = criar_mapeamento(2026, "1", "SIS_X", [
+    mapeamento = criar_mapeamento(2026, "SIS_X", [
         {"seq_qualificador": q.seq_qualificador, "txt_regra": REGRA_OK},
     ])
     # simula o que a F4.3 fará ao processar o item
@@ -113,7 +113,7 @@ def item_extra(app, contexto, num):
     itens = [_payload(i) for i in mapeamento.itens]
     itens.append({"seq_qualificador": q.seq_qualificador, "txt_regra": "Natureza = '1112'"})
     contexto["mapeamento"] = alterar_mapeamento(
-        contexto["seq_mapeamento"], 2026, "1",
+        contexto["seq_mapeamento"], 2026,
         sistema_por_sigla("SIS_X").seq_sistema_origem,
         "Mapeamento 2026/1/SIS_X", itens,
     )
@@ -122,7 +122,7 @@ def item_extra(app, contexto, num):
 @given(parsers.parse('outro mapeamento {ano:d} com um item no qualificador "{num}"'))
 def outro_mapeamento(app, contexto, ano, num):
     q = garantir_qualificador(num)
-    outro = criar_mapeamento(ano, "1", "SIS_X", [
+    outro = criar_mapeamento(ano, "SIS_X", [
         {"seq_qualificador": q.seq_qualificador, "txt_regra": REGRA_OK},
     ])
     contexto["item_alheio"] = outro.itens[0].seq_item_mapeamento
@@ -139,7 +139,7 @@ def _alterar(contexto, itens, dsc="Mapeamento 2026/1/SIS_X"):
 
     try:
         contexto["mapeamento"] = alterar_mapeamento(
-            contexto["seq_mapeamento"], 2026, "1",
+            contexto["seq_mapeamento"], 2026,
             sistema_por_sigla("SIS_X").seq_sistema_origem, dsc, itens,
         )
         contexto["erro"] = None

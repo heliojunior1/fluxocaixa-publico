@@ -12,14 +12,14 @@ Funcionalidade: Tela de mapeamentos com builder, validação e preview
     E um qualificador folha "1.1.1"
 
   Cenário: Criar mapeamento com item pela tela
-    Quando crio pela tela o mapeamento 2026 tipo "1" origem "SIS_X" com um item no qualificador "1.1.1" e regra "Unidade Gestora = '999001'"
-    Então a lista de mapeamentos mostra o mapeamento 2026 tipo "1" origem "SIS_X"
+    Quando crio pela tela o mapeamento 2026 origem "SIS_X" com um item no qualificador "1.1.1" e regra "Unidade Gestora = '999001'"
+    Então a lista de mapeamentos mostra o mapeamento 2026 origem "SIS_X"
     E o item salvo tem a regra "Unidade Gestora = '999001'"
 
   Cenário: Regra inválida impede salvar
-    Quando crio pela tela o mapeamento 2026 tipo "1" origem "SIS_X" com um item no qualificador "1.1.1" e regra "Coisa Inexistente = '1'"
+    Quando crio pela tela o mapeamento 2026 origem "SIS_X" com um item no qualificador "1.1.1" e regra "Coisa Inexistente = '1'"
     Então a tela de mapeamentos mostra erro contendo "Coisa Inexistente"
-    E o mapeamento 2026 tipo "1" origem "SIS_X" não existe
+    E o mapeamento 2026 origem "SIS_X" não existe
 
   # --- validar e prever, sem gravar (R10) ---
 

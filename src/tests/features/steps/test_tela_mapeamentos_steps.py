@@ -125,7 +125,7 @@ def staging_populada(app, sigla):
 @given(parsers.parse('um mapeamento salvo com a regra "{regra}"'))
 def mapeamento_salvo(app, contexto, regra):
     q = garantir_qualificador("1.1.1")
-    mapeamento = criar_mapeamento(2026, "1", "SIS_X", [
+    mapeamento = criar_mapeamento(2026, "SIS_X", [
         {"seq_qualificador": q.seq_qualificador, "txt_regra": regra},
     ])
     contexto["seq_mapeamento"] = mapeamento.seq_mapeamento
@@ -136,15 +136,14 @@ def mapeamento_salvo(app, contexto, regra):
 # Quando
 # --------------------------------------------------------------------------
 
-@when(parsers.parse('crio pela tela o mapeamento {ano:d} tipo "{tipo}" origem "{origem}" '
+@when(parsers.parse('crio pela tela o mapeamento {ano:d} origem "{origem}" '
                     'com um item no qualificador "{num}" e regra "{regra}"'))
-def cria_pela_tela(app, contexto, ano, tipo, origem, num, regra):
+def cria_pela_tela(app, contexto, ano, origem, num, regra):
     q = garantir_qualificador(num)
     itens = [{"seq_qualificador": q.seq_qualificador, "txt_regra": regra,
               "ind_inversao_sinal": "0"}]
     contexto["resp"] = contexto["cliente"].post('/mapeamentos/salvar', data={
-        'num_ano_exercicio': str(ano), 'ind_tipo': tipo,
-        'seq_sistema_origem': str(sistema_por_sigla(origem).seq_sistema_origem),
+        'num_ano_exercicio': str(ano),         'seq_sistema_origem': str(sistema_por_sigla(origem).seq_sistema_origem),
         'dsc_mapeamento': f'Mapeamento {ano}',
         'itens_raw': json.dumps(itens),
     })
@@ -197,16 +196,16 @@ def _html(contexto):
     return resp.text
 
 
-@then(parsers.parse('a lista de mapeamentos mostra o mapeamento {ano:d} tipo "{tipo}" '
+@then(parsers.parse('a lista de mapeamentos mostra o mapeamento {ano:d} '
                     'origem "{origem}"'))
-def lista_mostra(app, contexto, ano, tipo, origem):
-    assert mapeamento_por_chave(ano, tipo, origem) is not None, "não foi criado"
+def lista_mostra(app, contexto, ano, origem):
+    assert mapeamento_por_chave(ano, origem) is not None, "não foi criado"
     assert f'Mapeamento {ano}' in contexto["cliente"].get('/mapeamentos').text
 
 
 @then(parsers.parse('o item salvo tem a regra "{regra}"'))
 def item_com_regra(app, contexto, regra):
-    mapeamento = mapeamento_por_chave(2026, "1", "SIS_X")
+    mapeamento = mapeamento_por_chave(2026, "SIS_X")
     assert mapeamento.itens[0].txt_regra == regra
 
 
@@ -217,9 +216,9 @@ def tela_erro(app, contexto, trecho):
     assert trecho.lower() in html.lower(), html[:400]
 
 
-@then(parsers.parse('o mapeamento {ano:d} tipo "{tipo}" origem "{origem}" não existe'))
-def mapeamento_ausente(app, ano, tipo, origem):
-    assert mapeamento_por_chave(ano, tipo, origem) is None
+@then(parsers.parse('o mapeamento {ano:d} origem "{origem}" não existe'))
+def mapeamento_ausente(app, ano, origem):
+    assert mapeamento_por_chave(ano, origem) is None
 
 
 @then(parsers.parse('a validação responde inválida com mensagem contendo "{trecho}"'))

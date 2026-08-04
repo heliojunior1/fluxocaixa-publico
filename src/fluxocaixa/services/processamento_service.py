@@ -36,15 +36,8 @@ from ..models.execucao_mapeamento import (
 )
 from ..models.item_mapeamento import INVERSAO_SIM
 from ..models.lancamento import TIPO_CREDITO, TIPO_DEBITO
-from ..models.mapeamento import TIPO_RECEITA
 from . import staging_service
-from .dominio_lancamento import (
-    ORIGEM_AUTOMATICO,
-    TIPO_ENTRADA,
-    TIPO_SAIDA,
-    resolver_origem,
-    resolver_tipo,
-)
+from .dominio_lancamento import ORIGEM_AUTOMATICO, resolver_origem
 from .regra import traduzir_regra
 from .validacao import RegraNegocioError
 
@@ -94,7 +87,7 @@ def _casamentos(mapeamento, itens) -> dict:
     return por_linha
 
 
-def _gravar_lancamento(linha, item, mapeamento, cod_tipo, cod_origem, pessoa):
+def _gravar_lancamento(linha, item, mapeamento, cod_origem, pessoa):
     """Grava o lançamento derivando o tipo do SINAL do valor efetivo (R10).
 
     A inversão do item é aplicada ANTES da derivação — assim a flag segue com
@@ -103,10 +96,10 @@ def _gravar_lancamento(linha, item, mapeamento, cod_tipo, cod_origem, pessoa):
     avisar: a staging traz o valor já assinado pelo `CASE` contábil da fonte.
 
     Consequência deliberada: um estorno (valor efetivo negativo) sob um
-    mapeamento de RECEITA vira 'D' — reversão de crédito é débito — e continua
-    no qualificador de receita do item, netando corretamente na árvore.
-    `cod_tipo` (do `ind_tipo` do mapeamento) deixou de ditar o tipo; segue
-    aqui só como o tipo esperado da configuração.
+    item de rubrica de RECEITA vira 'D' — reversão de crédito é débito — e
+    continua no qualificador de receita do item, netando corretamente na
+    árvore. O "tipo esperado" do antigo `ind_tipo` morreu com o change
+    mapeamento-sem-dimensao-receita-despesa: só o sinal decide.
     """
     valor = Decimal(linha.val_referencia)
     if item.ind_inversao_sinal == INVERSAO_SIM:
@@ -150,9 +143,6 @@ def _classificar_linhas(mapeamento, itens) -> tuple[int, list, list, list]:
               _linhas_candidatas(mapeamento)
               .filter(EtlStaging.seq_etl_staging.in_(list(por_linha))).all()}
 
-    cod_tipo = resolver_tipo(
-        TIPO_ENTRADA if mapeamento.ind_tipo == TIPO_RECEITA else TIPO_SAIDA
-    ).cod_tipo_lancamento
     cod_origem = resolver_origem(ORIGEM_AUTOMATICO).cod_origem_lancamento
     pessoa = cod_pessoa_atual()
 
@@ -170,7 +160,7 @@ def _classificar_linhas(mapeamento, itens) -> tuple[int, list, list, list]:
             erros.append((seq, mensagem))
             detalhe.append({"linha": seq, "mensagem": mensagem})
             continue
-        _gravar_lancamento(linha, casados[0], mapeamento, cod_tipo, cod_origem, pessoa)
+        _gravar_lancamento(linha, casados[0], mapeamento, cod_origem, pessoa)
         seqs_ok.append(seq)
         gerados += 1
 

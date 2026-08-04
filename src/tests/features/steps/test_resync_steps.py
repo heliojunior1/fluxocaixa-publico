@@ -60,7 +60,7 @@ def staging(app, contexto, sigla, ano):
 @given(parsers.parse('um mapeamento com os itens "{n1}" em "{r1}" e "{n2}" em "{r2}"'))
 def mapeamento_dois_itens(app, contexto, n1, r1, n2, r2):
     q1, q2 = garantir_qualificador(n1), garantir_qualificador(n2)
-    mapeamento = criar_mapeamento(2026, "1", contexto["sigla"], [
+    mapeamento = criar_mapeamento(2026, contexto["sigla"], [
         {"seq_qualificador": q1.seq_qualificador, "txt_regra": r1},
         {"seq_qualificador": q2.seq_qualificador, "txt_regra": r2},
     ])
@@ -70,7 +70,7 @@ def mapeamento_dois_itens(app, contexto, n1, r1, n2, r2):
 @given(parsers.parse('um mapeamento com o item "{num}" em "{regra}"'))
 def mapeamento_um_item(app, contexto, num, regra):
     q = garantir_qualificador(num)
-    mapeamento = criar_mapeamento(2026, "1", contexto["sigla"], [
+    mapeamento = criar_mapeamento(2026, contexto["sigla"], [
         {"seq_qualificador": q.seq_qualificador, "txt_regra": regra},
     ])
     contexto["seq_mapeamento"] = mapeamento.seq_mapeamento
@@ -79,7 +79,7 @@ def mapeamento_um_item(app, contexto, num, regra):
 @given("um mapeamento com dois itens que casam com a mesma linha")
 def mapeamento_conflito(app, contexto):
     q1, q2 = garantir_qualificador("1.1.1"), garantir_qualificador("1.1.2")
-    mapeamento = criar_mapeamento(2026, "1", contexto["sigla"], [
+    mapeamento = criar_mapeamento(2026, contexto["sigla"], [
         {"seq_qualificador": q1.seq_qualificador,
          "txt_regra": "Natureza começa com '11120000'"},
         {"seq_qualificador": q2.seq_qualificador,
@@ -141,7 +141,7 @@ def _alterar_e_processar(contexto, num, regra=None):
         else:
             itens.append(_payload(item))
     alterar_mapeamento(
-        contexto["seq_mapeamento"], mapeamento.num_ano_exercicio, mapeamento.ind_tipo,
+        contexto["seq_mapeamento"], mapeamento.num_ano_exercicio,
         sistema_por_sigla(contexto["sigla"]).seq_sistema_origem,
         mapeamento.dsc_mapeamento, itens,
     )
@@ -224,7 +224,7 @@ def altera_regra_sem_processar(app, contexto, num, regra):
     itens = [_payload(i, txt_regra=regra) if i.qualificador.num_qualificador == num
              else _payload(i) for i in mapeamento.itens]
     alterar_mapeamento(
-        contexto["seq_mapeamento"], mapeamento.num_ano_exercicio, mapeamento.ind_tipo,
+        contexto["seq_mapeamento"], mapeamento.num_ano_exercicio,
         sistema_por_sigla(contexto["sigla"]).seq_sistema_origem,
         mapeamento.dsc_mapeamento, itens,
     )

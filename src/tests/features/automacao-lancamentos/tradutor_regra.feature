@@ -40,5 +40,5 @@ Funcionalidade: Tradutor de regra em pt-BR para predicado validado
   Cenário: Regra inválida é rejeitada no cadastro do item
     Dado um sistema de origem "SIS_X" cadastrado
     E um qualificador folha "1.1.1"
-    Quando crio o mapeamento 2026 tipo "1" origem "SIS_X" com um item no qualificador "1.1.1" e regra "Coisa Inexistente = '1'"
+    Quando crio o mapeamento 2026 origem "SIS_X" com um item no qualificador "1.1.1" e regra "Coisa Inexistente = '1'"
     Então o cadastro do mapeamento é rejeitado com mensagem contendo "Coisa Inexistente"

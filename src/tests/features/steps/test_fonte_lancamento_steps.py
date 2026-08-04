@@ -105,7 +105,7 @@ def staging_sem_fonte(app, sigla):
 @given(parsers.parse('o mapeamento 2026 de "{sigla}" com o item "{num}" e regra "{regra}"'))
 def mapeamento_um_item(app, contexto, sigla, num, regra):
     q = garantir_qualificador(num)
-    mapeamento = criar_mapeamento(2026, "1", sigla, [
+    mapeamento = criar_mapeamento(2026, sigla, [
         {"seq_qualificador": q.seq_qualificador, "txt_regra": regra},
     ])
     contexto["seq_mapeamento"] = mapeamento.seq_mapeamento

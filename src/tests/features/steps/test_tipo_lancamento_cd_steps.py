@@ -158,7 +158,6 @@ def _montar_mapeamento(contexto, tipo_map: str, valor: str, inverter: bool):
     db.session.add(execucao)
     db.session.flush()
 
-    ind_tipo = '1' if tipo_map == "receita" else '2'
     qual = QUAL_RECEITA if tipo_map == "receita" else QUAL_DESPESA
     db.session.add(EtlStaging(
         seq_fonte_extracao=fonte.seq_fonte_extracao,
@@ -169,7 +168,7 @@ def _montar_mapeamento(contexto, tipo_map: str, valor: str, inverter: bool):
         ind_status_processamento='0',
     ))
     mapeamento = Mapeamento(
-        num_ano_exercicio=ANO, ind_tipo=ind_tipo,
+        num_ano_exercicio=ANO,
         seq_sistema_origem=sistema.seq_sistema_origem,
         dsc_mapeamento="Mapeamento convergência", ind_status='A',
     )

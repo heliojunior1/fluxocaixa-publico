@@ -1,12 +1,15 @@
 """Cabeçalho de mapeamento da automação de lançamentos (spec R6).
 
-Um mapeamento é o cabeçalho (ano, tipo, sistema de origem) que agrupa N itens
+Um mapeamento é o cabeçalho (ano, sistema de origem) que agrupa N itens
 (`flc_item_mapeamento`), cada um ligando um qualificador **folha** a uma regra
-de classificação sobre a staging.
+de classificação sobre a staging. NÃO há dimensão receita/despesa (change
+mapeamento-sem-dimensao-receita-despesa, migração 0035): a classificação vem
+do QUALIFICADOR do item e a direção do movimento vem do SINAL do valor —
+o `ind_tipo` era resquício do layout antigo da origem e não decidia nada.
 
 `seq_sistema_origem` é FK: implementações típicas usam um rótulo de texto livre
 apenas porque não tem essa tabela — nós temos. Por isso a unicidade é
-(ano, tipo, sistema_origem) entre ativos: somos multi-origem por construção.
+(ano, sistema_origem) entre ativos: somos multi-origem por construção.
 """
 from datetime import date
 
@@ -15,22 +18,16 @@ from sqlalchemy.orm import relationship
 
 from .base import Base
 
-TIPO_RECEITA = '1'
-TIPO_DESPESA = '2'
-TIPOS_VALIDOS = (TIPO_RECEITA, TIPO_DESPESA)
-
-
 class Mapeamento(Base):
     __tablename__ = 'flc_mapeamento'
     __table_args__ = (
         # a chave de unicidade (validada no serviço, entre ativos)
         Index('ix_flc_mapeamento_chave',
-              'num_ano_exercicio', 'ind_tipo', 'seq_sistema_origem'),
+              'num_ano_exercicio', 'seq_sistema_origem'),
     )
 
     seq_mapeamento = Column(Integer, primary_key=True)
     num_ano_exercicio = Column(Integer, nullable=False)
-    ind_tipo = Column(String(1), nullable=False)  # 1=Receita, 2=Despesa
     seq_sistema_origem = Column(
         Integer, ForeignKey('flc_sistema_origem.seq_sistema_origem'), nullable=False
     )

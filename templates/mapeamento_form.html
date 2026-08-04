@@ -27,17 +27,6 @@
                     value="{{ mapeamento.num_ano_exercicio if mapeamento else '' }}">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
-                <select name="ind_tipo" id="campo-tipo" data-testid="campo-tipo"
-                    onchange="trocarTipo()" class="w-full border rounded px-3 py-2">
-                    {% for valor, rotulo in tipos %}
-                    <option value="{{ valor }}"
-                        {% if mapeamento and mapeamento.ind_tipo == valor %}selected{% endif %}>
-                        {{ rotulo }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div>
                 <label class="block text-sm font-medium text-gray-700 mb-1">Sistema de Origem</label>
                 <select name="seq_sistema_origem" id="campo-origem" data-testid="campo-origem"
                     class="w-full border rounded px-3 py-2">
@@ -82,17 +71,15 @@
     const ITENS_SALVOS = JSON.parse(document.getElementById('regras-estado').textContent);
     const TERMOS = {{ termos | tojson }};
     const OPERADORES = {{ operadores | tojson }};
-    const QUALIF = {
-        '1': {{ qualificadores_receita | map(attribute='seq_qualificador') | list | tojson }},
-        '2': {{ qualificadores_despesa | map(attribute='seq_qualificador') | list | tojson }},
-    };
+    // TODAS as folhas (receita E despesa): a classificação vem do
+    // qualificador do item, não de um tipo do cabeçalho
+    const QUALIF = {{ qualificadores_folha | map(attribute='seq_qualificador') | list | tojson }};
     const QUALIF_ROTULO = {
-        {% for q in qualificadores_receita %}{{ q.seq_qualificador }}: {{ (q.num_qualificador ~ ' — ' ~ q.dsc_qualificador) | tojson }},{% endfor %}
-        {% for q in qualificadores_despesa %}{{ q.seq_qualificador }}: {{ (q.num_qualificador ~ ' — ' ~ q.dsc_qualificador) | tojson }},{% endfor %}
+        {% for q in qualificadores_folha %}{{ q.seq_qualificador }}: {{ (q.num_qualificador ~ ' — ' ~ q.dsc_qualificador) | tojson }},{% endfor %}
     };
 
-    function opcoesQualificador(tipo, selecionado) {
-        return (QUALIF[tipo] || []).map(seq =>
+    function opcoesQualificador(selecionado) {
+        return QUALIF.map(seq =>
             `<option value="${seq}" ${String(seq) === String(selecionado) ? 'selected' : ''}>${QUALIF_ROTULO[seq]}</option>`
         ).join('');
     }
@@ -132,7 +119,7 @@
                 <div class="md:col-span-2">
                     <label class="block text-xs font-medium text-gray-600 mb-1">Qualificador (folha)</label>
                     <select class="i-qualificador border rounded px-2 py-1 text-sm w-full"
-                        data-testid="item-qualificador">${opcoesQualificador(document.getElementById('campo-tipo').value, dados && dados.seq_qualificador)}</select>
+                        data-testid="item-qualificador">${opcoesQualificador(dados && dados.seq_qualificador)}</select>
                 </div>
                 <div class="flex items-end gap-3">
                     <label class="flex items-center gap-2 text-sm text-gray-700">
@@ -258,14 +245,6 @@
         mostrar(item, `${d.total} linha(s) da staging casam com esta regra`, false);
     }
 
-    function trocarTipo() {
-        // qualificador folha depende do tipo (receita × despesa)
-        const tipo = document.getElementById('campo-tipo').value;
-        for (const item of document.querySelectorAll('.item-mapeamento')) {
-            const sel = item.querySelector('.i-qualificador');
-            sel.innerHTML = opcoesQualificador(tipo, sel.value);
-        }
-    }
 
     document.querySelector('[data-testid="mapeamento-form"]').addEventListener('submit', (ev) => {
         const itens = [];
