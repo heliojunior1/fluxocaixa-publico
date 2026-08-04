@@ -9,6 +9,25 @@
         — abrir esta página não reexecuta os modelos. Use “Executar” para uma nova simulação.</span>
 </div>
 {% endif %}
+{% if series_info %}
+<div class="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-700"
+    data-testid="info-serie-treinada" role="status">
+    <span class="font-medium">Série histórica usada no treino:</span>
+    {% for perna, info in series_info.items() %}
+    <span class="ml-2">{{ 'Receita' if perna == 'receita' else 'Despesa' }}:
+        {{ info.pontos }} mês(es)
+        {%- if info.anos %} ({{ info.anos | join(', ') }}){% endif %}</span>
+    {% endfor %}
+    {% if series_info.values() | selectattr('pontos', 'lt', 12) | list %}
+    {# F10.5 (R30): série curta — rubrica nova ou recém-desdobrada tende a
+       superestimar/zerar; a série do PAI permanece íntegra entre exercícios. #}
+    <span class="ml-2 text-amber-700" data-testid="sugestao-prever-no-pai">
+        Série curta (&lt; 12 meses) — considere prever no nível do qualificador
+        pai e ratear, até a rubrica acumular histórico próprio.
+    </span>
+    {% endif %}
+</div>
+{% endif %}
 <div class="space-y-6">
     <!-- Header -->
     <div class="flex items-center justify-between bg-white p-6 rounded-lg shadow-md border">

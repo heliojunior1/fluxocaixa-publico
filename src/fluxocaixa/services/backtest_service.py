@@ -39,10 +39,12 @@ def _obter_dados_treino(
     Returns:
         DataFrame com colunas: data, valor (mensal)
     """
+    from .serie_historica import seqs_da_rubrica
+
     lancamentos = (
         Lancamento.query
         .filter(
-            Lancamento.seq_qualificador == seq_qualificador,
+            Lancamento.seq_qualificador.in_(seqs_da_rubrica(seq_qualificador)),
             Lancamento.ind_status == 'A',
             extract('year', Lancamento.dat_lancamento).in_(anos_treino),
         )
@@ -76,10 +78,12 @@ def _obter_real(
     Returns:
         Dict {mes: valor_total}, ex: {1: 50000, 2: 55000, ...}
     """
+    from .serie_historica import seqs_da_rubrica
+
     lancamentos = (
         Lancamento.query
         .filter(
-            Lancamento.seq_qualificador == seq_qualificador,
+            Lancamento.seq_qualificador.in_(seqs_da_rubrica(seq_qualificador)),
             Lancamento.ind_status == 'A',
             extract('year', Lancamento.dat_lancamento) == ano,
         )

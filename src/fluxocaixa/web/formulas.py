@@ -20,6 +20,14 @@ from ..services.formula_engine import (
 )
 from . import handle_exceptions, router, templates
 
+
+def _exercicio_combo():
+    """F10.4 (R28): combos de tela oferecem o plano do exercício corrente
+    RESOLVIDO — nunca a união de todos os planos."""
+    from ..services.qualificador_service import exercicio_corrente
+
+    return exercicio_corrente()
+
 # ==================== Fórmulas ====================
 
 @router.get('/formulas', dependencies=[requer('FC_CONS_FORMULA')])
@@ -53,8 +61,8 @@ async def formulas_list(request: Request):
             },
         })
 
-    qualificadores_receita = list_receita_qualificadores_folha()
-    qualificadores_despesa = list_despesa_qualificadores_folha()
+    qualificadores_receita = list_receita_qualificadores_folha(_exercicio_combo())
+    qualificadores_despesa = list_despesa_qualificadores_folha(_exercicio_combo())
 
     return templates.TemplateResponse(
         'formulas.html',

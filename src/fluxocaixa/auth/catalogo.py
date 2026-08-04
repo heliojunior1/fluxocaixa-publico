@@ -33,6 +33,9 @@ PERMISSOES = [
     ("FC_INS_QUALIFICADOR", "Incluir qualificador"),
     ("FC_ALT_QUALIFICADOR", "Alterar qualificador"),
     ("FC_DEL_QUALIFICADOR", "Excluir qualificador"),
+    # F10.3 (R29): abrir exercício é ato distinto de manter qualificadores —
+    # como confirmar liberação é distinto de mantê-la.
+    ("FC_ABRIR_EXERCICIO", "Abrir exercício (copiar o plano de qualificadores)"),
     # Mapeamentos
     ("FC_CONS_MAPEAMENTO", "Consultar mapeamentos"),
     ("FC_INS_MAPEAMENTO", "Incluir mapeamento"),

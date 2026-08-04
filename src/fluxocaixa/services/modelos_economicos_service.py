@@ -99,11 +99,14 @@ def obter_dados_historicos(
     Returns:
         DataFrame com colunas: data, valor
     """
-    # Buscar lançamentos no período
+    # Buscar lançamentos no período. F10.2 (previsao R17): a série é da
+    # RUBRICA (raiz), não do seq — costura entre exercícios.
+    from .serie_historica import seqs_da_rubrica
+
     lancamentos = (
         Lancamento.query
         .filter(
-            Lancamento.seq_qualificador == seq_qualificador,
+            Lancamento.seq_qualificador.in_(seqs_da_rubrica(seq_qualificador)),
             Lancamento.dat_lancamento >= data_inicio,
             Lancamento.dat_lancamento <= data_fim,
             Lancamento.ind_status == 'A',
@@ -896,11 +899,14 @@ def obter_dados_historicos_agregados(
     if not seq_qualificadores:
         return pd.DataFrame(columns=['data', 'valor'])
     
-    # Buscar lançamentos de todos os qualificadores
+    # Buscar lançamentos de todos os qualificadores. F10.2 (R17): cada seq é
+    # expandido para a sua rubrica (raiz) — costura entre exercícios.
+    from .serie_historica import seqs_das_rubricas
+
     lancamentos = (
         Lancamento.query
         .filter(
-            Lancamento.seq_qualificador.in_(seq_qualificadores),
+            Lancamento.seq_qualificador.in_(seqs_das_rubricas(seq_qualificadores)),
             Lancamento.dat_lancamento >= data_inicio,
             Lancamento.dat_lancamento <= data_fim,
             Lancamento.ind_status == 'A',
@@ -997,7 +1003,18 @@ def calcular_projecao(tipo_modelo: str, seq_qualificadores: list[int],
             raise RegraNegocioError(
                 f"Dados históricos insuficientes para {tipo_modelo}: "
                 f"encontrados {len(dados_hist)} meses, mínimo {minimo}")
-        return motor(dados_hist, num_periodos, config, ano_base)
+        resultado = motor(dados_hist, num_periodos, config, ano_base)
+        # F10.2 (previsao R17): a projeção DECLARA com quanto treinou — série
+        # curta indevida (raiz mal propagada) fica visível em vez de sumir no
+        # resultado. Viaja em attrs, como 'degradacao' (R12).
+        try:
+            resultado.attrs['serie_info'] = {
+                'pontos': int(len(dados_hist)),
+                'anos': sorted({d.year for d in dados_hist['data']}),
+            }
+        except Exception:  # attrs é cosmético — nunca derruba a projeção
+            pass
+        return resultado
 
     if tipo_modelo == 'REGRESSAO':
         return projetar_regressao_multipla(num_periodos, config, ano_base)

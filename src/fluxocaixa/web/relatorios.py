@@ -23,6 +23,14 @@ from ..services import (
 from ..utils.constants import MONTH_NAME_PT
 from . import handle_exceptions, router, templates
 
+
+def _exercicio_combo():
+    """F10.4 (R28): combos de tela oferecem o plano do exercício corrente
+    RESOLVIDO — nunca a união de todos os planos."""
+    from ..services.qualificador_service import exercicio_corrente
+
+    return exercicio_corrente()
+
 logger = logging.getLogger(__name__)
 
 
@@ -41,7 +49,7 @@ async def relatorio_previsao_receita(request: Request):
     cenarios = list_active_simuladores()
     
     # Buscar apenas qualificadores de receita (folha + tipo receita)
-    todos_qualificadores = list_active_qualificadores()
+    todos_qualificadores = list_active_qualificadores(_exercicio_combo())
     qualificadores_receita = [
         q for q in todos_qualificadores 
         if q.is_folha() and q.tipo_fluxo == 'receita'
@@ -82,7 +90,7 @@ async def relatorio_controle_despesa(request: Request):
     cenarios = list_active_simuladores()
     
     # Buscar apenas qualificadores de despesa (folha + tipo despesa)
-    todos_qualificadores = list_active_qualificadores()
+    todos_qualificadores = list_active_qualificadores(_exercicio_combo())
     qualificadores_despesa = [
         q for q in todos_qualificadores 
         if q.is_folha() and q.tipo_fluxo == 'despesa'
@@ -122,7 +130,7 @@ async def relatorio_ldo_orcamento(request: Request):
     ano_default = anos_disponiveis[0] if anos_disponiveis else date.today().year
     
     # Buscar todos os qualificadores folha
-    todos_qualificadores = list_active_qualificadores()
+    todos_qualificadores = list_active_qualificadores(_exercicio_combo())
     qualificadores_receita = [
         q for q in todos_qualificadores 
         if q.is_folha() and q.tipo_fluxo == 'receita'
@@ -165,7 +173,7 @@ async def relatorio_previsao_realizado(request: Request):
     cenarios = list_active_simuladores()
     meses = [(i, MONTH_NAME_PT[i]) for i in range(1, 13)]
     qualificadores = [
-        q for q in list_active_qualificadores() if q.is_folha()
+        q for q in list_active_qualificadores(_exercicio_combo()) if q.is_folha()
     ]
     return templates.TemplateResponse(
         "rel_previsao_realizado.html",
@@ -453,7 +461,7 @@ async def relatorio_backtest(request: Request):
     from ..services.backtest_service import MODELOS_DISPONIVEIS
 
     anos_disponiveis = get_available_years()
-    qualificadores = list_active_qualificadores()
+    qualificadores = list_active_qualificadores(_exercicio_combo())
 
     # Agrupar qualificadores por pai
     grupos = {}

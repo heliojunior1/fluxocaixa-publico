@@ -514,6 +514,55 @@ if _cen_dfc is None:
         ))
     db.session.commit()
 
+# ---------------------------------------------------------------------------
+# Massa da série treinada (serie_treinada.spec.ts, F10.2): cenário SEM versão
+# publicada com despesa MEDIA_HISTORICA sobre 2.8.1 (lançamento de 2031 acima)
+# — abrir a página executa ao vivo e o bloco `info-serie-treinada` declara o
+# treino (1 mês, ano 2031).
+# ---------------------------------------------------------------------------
+import json  # noqa: E402
+
+from fluxocaixa.models.simulador_cenario import CenarioConfig  # noqa: E402
+
+_cen_serie = SimuladorCenario.query.filter_by(
+    nom_cenario='Cenário E2E Série').first()
+if _cen_serie is None:
+    _q_serie = Qualificador.query.filter_by(num_qualificador='2.8.1').first()
+    _cen_serie = SimuladorCenario(
+        nom_cenario='Cenário E2E Série',
+        dsc_cenario='Cenário do E2E da série treinada (F10.2)',
+        ano_base=2032, num_periodos=12, cod_periodicidade='MENSAL',
+        ind_status='A',
+    )
+    db.session.add(_cen_serie)
+    db.session.flush()
+    db.session.add(CenarioConfig(
+        seq_simulador_cenario=_cen_serie.seq_simulador_cenario,
+        cod_tipo_lancamento='D', cod_tipo_modelo='MEDIA_HISTORICA',
+        json_configuracao=json.dumps(
+            {'seq_qualificador': _q_serie.seq_qualificador}),
+    ))
+    db.session.commit()
+
+# ---------------------------------------------------------------------------
+# Plano-ilha 2078 (telas_por_exercicio.spec.ts, F10.4): um segundo exercício
+# com raiz e folha próprias — o combo da tela de qualificadores troca o plano
+# exibido. Descrições distintivas para os asserts.
+# ---------------------------------------------------------------------------
+if not Qualificador.query.filter_by(num_ano_exercicio=2078).first():
+    _raiz_2078 = Qualificador(
+        num_qualificador='1', dsc_qualificador='Receita Ilha 2078',
+        ind_status='A', num_ano_exercicio=2078,
+    )
+    db.session.add(_raiz_2078)
+    db.session.commit()
+    db.session.add(Qualificador(
+        num_qualificador='1.1', dsc_qualificador='Rubrica Ilha 2078',
+        ind_status='A', num_ano_exercicio=2078,
+        cod_qualificador_pai=_raiz_2078.seq_qualificador,
+    ))
+    db.session.commit()
+
 # Árvore PROFUNDA para a F6.4: 6 níveis sob 1.6, com um lançamento na folha
 # "1.6.1.1.1.1.1" — é ela que prova, na tela, que folha em qualquer nível
 # recebe lançamento e que transformá-la em pai pede confirmação.

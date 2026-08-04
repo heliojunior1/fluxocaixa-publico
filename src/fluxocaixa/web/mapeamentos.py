@@ -27,6 +27,14 @@ from ..services.termo_regra_service import listar_termos
 from ..services.validacao import RegraNegocioError
 from . import handle_exceptions, router, templates
 
+
+def _exercicio_combo():
+    """F10.4 (R28): combos de tela oferecem o plano do exercício corrente
+    RESOLVIDO — nunca a união de todos os planos."""
+    from ..services.qualificador_service import exercicio_corrente
+
+    return exercicio_corrente()
+
 _DESTINO = '/mapeamentos'
 
 _ROTULO_TIPO = {TIPO_RECEITA: 'Receita', TIPO_DESPESA: 'Despesa'}
@@ -70,8 +78,8 @@ def _contexto_form(request, mapeamento=None):
         'tipos': [(TIPO_RECEITA, 'Receita'), (TIPO_DESPESA, 'Despesa')],
         'termos': [{'nom_termo': t.nom_termo, 'cod_tipo': t.cod_tipo} for t in termos],
         'operadores': ROTULOS_OPERADOR,
-        'qualificadores_receita': list_receita_qualificadores_folha(),
-        'qualificadores_despesa': list_despesa_qualificadores_folha(),
+        'qualificadores_receita': list_receita_qualificadores_folha(_exercicio_combo()),
+        'qualificadores_despesa': list_despesa_qualificadores_folha(_exercicio_combo()),
     }
 
 

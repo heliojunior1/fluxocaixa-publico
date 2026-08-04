@@ -24,6 +24,14 @@ import logging
 
 from . import handle_exceptions, router, templates
 
+
+def _exercicio_combo():
+    """F10.4 (R28): combos de tela oferecem o plano do exercício corrente
+    RESOLVIDO — nunca a união de todos os planos."""
+    from ..services.qualificador_service import exercicio_corrente
+
+    return exercicio_corrente()
+
 logger = logging.getLogger(__name__)
 
 
@@ -45,8 +53,8 @@ async def simulador_menu(request: Request):
 @handle_exceptions
 async def simulador_novo(request: Request):
     """Formulário para criar novo cenário simulador."""
-    qualificadores_receita = list_receita_qualificadores_folha()
-    qualificadores_despesa = list_despesa_qualificadores_folha()
+    qualificadores_receita = list_receita_qualificadores_folha(_exercicio_combo())
+    qualificadores_despesa = list_despesa_qualificadores_folha(_exercicio_combo())
     
     # Buscar todos os anos com dados históricos
     from ..services.formula_engine import listar_todos_anos_disponiveis
@@ -148,6 +156,9 @@ async def simulador_visualizar(request: Request, id: int):
             'cenario_total': cenario_total_json,
             'resumo': resultado['resumo'],
             'origem_versao': origem_versao,
+            # F10.2 (previsao R17): declaração do treino por perna — a versão
+            # publicada reconstruída não a tem (get vazio → bloco oculto).
+            'series_info': resultado.get('series_info') or {},
         }
     )
 
@@ -161,8 +172,8 @@ async def simulador_editar_get(request: Request, id: int):
         return RedirectResponse(url='/simulador', status_code=303)
     
     cenario_completo = obter_simulador_completo(id)
-    qualificadores_receita = list_receita_qualificadores_folha()
-    qualificadores_despesa = list_despesa_qualificadores_folha()
+    qualificadores_receita = list_receita_qualificadores_folha(_exercicio_combo())
+    qualificadores_despesa = list_despesa_qualificadores_folha(_exercicio_combo())
     
     # Converter cenario_completo para formato JSON-serializável
     cenario_json = None

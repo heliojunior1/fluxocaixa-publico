@@ -197,6 +197,13 @@ def _criar_ajustes(seq_cenario_config: int, ajustes_data: dict, ano_base: int,
         # tolerar. `RegraNegocioError` herda de Exception e escaparia hoje, mas
         # essa é a espécie de sutileza que quebra na próxima edição.
         _validar_qualificador_folha(seq_qualificador)
+        # F10.1 (R25): ajuste aponta para o qualificador do exercício-alvo —
+        # regra de transição, terceira porta ao lado de manual e importação.
+        from ..models import Qualificador
+        from .qualificador_service import validar_qualificador_do_exercicio
+
+        validar_qualificador_do_exercicio(
+            Qualificador.query.get(seq_qualificador), ano_base)
 
         repo.create_ajuste(CenarioAjuste(
             seq_cenario_config=seq_cenario_config,
@@ -507,6 +514,18 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
             historico['valor'] = historico['valor'].abs()
         return historico
 
+    def _com_serie_info(projecao, historico):
+        """F10.2 (previsao R17): a projeção declara com quanto treinou —
+        anexado DEPOIS de `_magnitude` (cópias podem perder attrs)."""
+        try:
+            projecao.attrs['serie_info'] = {
+                'pontos': int(len(historico)),
+                'anos': sorted({d.year for d in historico['data']}),
+            }
+        except Exception:  # cosmético — nunca derruba a projeção
+            pass
+        return projecao
+
     if modelo == 'MANUAL':
         projecao = _executar_cenario_manual(ajustes, ano_base, meses, periodicidade)
         return projecao, projecao.copy()
@@ -521,7 +540,7 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
         }[modelo]
         historico = _historico()
         projecao = motor(historico, meses, cfg, ano_base) if len(historico) >= 12 else vazio
-        return _magnitude(projecao), None
+        return _com_serie_info(_magnitude(projecao), historico), None
 
     if modelo == 'REGRESSAO':
         return _magnitude(modelos.projetar_regressao_multipla(meses, cfg, ano_base)), None
@@ -533,7 +552,7 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
         historico = _historico()
         projecao = (modelos.projetar_media_historica(historico, meses, cfg, ano_base)
                     if len(historico) > 0 else vazio)
-        return _magnitude(projecao), None
+        return _com_serie_info(_magnitude(projecao), historico), None
 
     if modelo == 'FORMULA':
         config_base = {}
@@ -620,6 +639,15 @@ def executar_simulacao(seq_simulador_cenario: int) -> dict | None:
         if mensagem:
             degradacoes.append({'perna': chave, 'mensagem': mensagem})
 
+    # F10.2 (previsao R17): o resultado declara com quanto cada perna treinou
+    # (attrs['serie_info'] dos modelos treináveis). Chave aditiva; a versão
+    # publicada reconstruída não a tem — consumidores tratam ausência.
+    series_info = {}
+    for chave, (projecao, _detalhada) in pernas.items():
+        info = getattr(projecao, 'attrs', {}).get('serie_info')
+        if info:
+            series_info[chave] = info
+
     resumo = {
         'total_receita': projecao_receita['valor_projetado'].sum() if len(projecao_receita) > 0 else 0,
         'total_despesa': projecao_despesa['valor_projetado'].sum() if len(projecao_despesa) > 0 else 0,
@@ -636,6 +664,7 @@ def executar_simulacao(seq_simulador_cenario: int) -> dict | None:
         'cenario_total': cenario_total,
         'resumo': resumo,
         'degradacoes': degradacoes,
+        'series_info': series_info,
     }
 
 

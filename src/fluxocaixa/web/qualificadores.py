@@ -15,8 +15,23 @@ from . import handle_exceptions, router, templates
 @router.get('/qualificadores', dependencies=[requer('FC_CONS_QUALIFICADOR')])
 @handle_exceptions
 async def qualificadores(request: Request):
-    qualificadores_raiz = list_root_qualificadores()
-    todos_qualificadores = list_active_qualificadores()
+    from datetime import date
+
+    from ..services.qualificador_service import (
+        candidatas_para_heranca,
+        exercicios_com_plano,
+        resolver_exercicio_do_plano,
+    )
+    from .entrada import inteiro
+
+    # F10.4 (R28): a tela exibe UM exercício por vez. Default = ano corrente
+    # RESOLVIDO pelo plano (nunca o relógio cru — pré-abertura resolve para o
+    # plano base; pós-abertura o usuário troca no combo).
+    exercicios = exercicios_com_plano()
+    exercicio = inteiro(request.query_params.get('exercicio'), 'exercicio',
+                        default=resolver_exercicio_do_plano(date.today().year))
+    qualificadores_raiz = list_root_qualificadores(exercicio)
+    todos_qualificadores = list_active_qualificadores(exercicio)
     # Fluxo de confirmação em duas etapas (spec cadastros-nucleo R4)
     confirmar_exclusao = None
     seq_confirmar = request.query_params.get('confirmar_exclusao')
@@ -71,6 +86,12 @@ async def qualificadores(request: Request):
             'confirmar_pai': confirmar_pai,
             'categorias_fiscais': siglas_ativas(),
             'origem_categoria': origem_categoria,
+            'exercicios': exercicios,
+            'exercicio_selecionado': exercicio,
+            # F10.5 (R30): rubricas cuja identidade pode ser herdada por uma
+            # criação neste exercício (C3/C4/C7).
+            'candidatas_heranca': (
+                candidatas_para_heranca(exercicio) if exercicio else []),
         },
     )
 
@@ -117,17 +138,43 @@ async def add_qualificador_route(request: Request):
 
     cod_qualificador_pai = int(pai_id) if pai_id and pai_id != '' else None
     cod_categoria_fiscal = _categoria_do_form(form)
+    # F10.4 (R28): a criação herda o exercício selecionado na tela.
+    from .entrada import inteiro
+    num_ano_exercicio = inteiro(
+        form.get('num_ano_exercicio'), 'num_ano_exercicio')
+    # F10.5 (R30): herança opcional da identidade estável (C3/C4/C7).
+    cod_rubrica_raiz = inteiro(form.get('herdar_raiz'), 'herdar_raiz')
 
     try:
         create_qualificador(num_qualif, desc, cod_qualificador_pai,
                             confirmado=_confirmado(form),
-                            cod_categoria_fiscal=cod_categoria_fiscal)
+                            cod_categoria_fiscal=cod_categoria_fiscal,
+                            num_ano_exercicio=num_ano_exercicio,
+                            cod_rubrica_raiz=cod_rubrica_raiz)
     except RegraNegocioError as exc:
         if 'confirme' in exc.mensagem.lower():
             _reerguer_com_confirmacao(exc, cod_qualificador_pai, num_qualif, desc)
         raise
 
     return RedirectResponse(request.url_for('qualificadores'), status_code=303)
+
+
+@router.post('/qualificadores/abrir-exercicio', name='abrir_exercicio',
+             dependencies=[requer('FC_ABRIR_EXERCICIO')])
+@handle_exceptions
+async def abrir_exercicio_route(request: Request):
+    """F10.3 (R29): abertura de exercício por cópia explícita e confirmada."""
+    from ..services.qualificador_service import abrir_exercicio
+    from .entrada import inteiro
+
+    form = await request.form()
+    ano_origem = inteiro(form.get('exercicio_origem'), 'exercício de origem',
+                         obrigatorio=True)
+    ano_novo = inteiro(form.get('exercicio_novo'), 'exercício novo',
+                       obrigatorio=True)
+    abrir_exercicio(ano_origem, ano_novo, confirmado=_confirmado(form))
+    return RedirectResponse(
+        f"/qualificadores?exercicio={ano_novo}", status_code=303)
 
 
 @router.post('/qualificadores/edit/{seq_qualificador}', dependencies=[requer('FC_ALT_QUALIFICADOR')])

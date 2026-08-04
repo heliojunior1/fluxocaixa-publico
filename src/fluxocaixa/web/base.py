@@ -24,6 +24,14 @@ from ..services import (
 )
 from ..services.seed import seed_data
 
+
+def _exercicio_combo():
+    """F10.4 (R28): combos de tela oferecem o plano do exercício corrente
+    RESOLVIDO — nunca a união de todos os planos."""
+    from ..services.qualificador_service import exercicio_corrente
+
+    return exercicio_corrente()
+
 logger = logging.getLogger(__name__)
 
 
@@ -175,7 +183,7 @@ async def saldos(request: Request):
     tipos = list_tipos_lancamento()
     origens = list_origens_lancamento()
     # Buscar apenas qualificadores folha (que não possuem filhos ativos)
-    qualificadores = list_active_qualificadores()
+    qualificadores = list_active_qualificadores(_exercicio_combo())
     qualificadores_folha = [q for q in qualificadores if q.is_folha()]
     contas = list_contas_bancarias()
 

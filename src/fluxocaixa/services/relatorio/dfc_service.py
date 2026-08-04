@@ -121,8 +121,13 @@ def get_dfc_data(
     def _tem_projecao_propria(seq) -> bool:
         return seq in seqs_com_projecao
 
-    # Build hierarchical tree from root qualificadores
-    qualificadores_root = qualificador_repository.get_root_qualificadores()
+    # Build hierarchical tree from root qualificadores.
+    # F10.4 (R28): a árvore é a do PLANO RESOLVIDO do ano do relatório — com
+    # dois exercícios vivos, misturar planos duplicaria cada nó.
+    from ..qualificador_service import resolver_exercicio_do_plano
+
+    qualificadores_root = qualificador_repository.get_root_qualificadores(
+        resolver_exercicio_do_plano(ano_selecionado))
 
     def build_node(q: Qualificador) -> dict:
         """Recursively build DFC node with values and children."""

@@ -53,8 +53,13 @@ def get_indicadores_data(
     pie_chart_data = {"labels": [], "values": []}
     
     # Import Qualificador model
+    # F10.4 (R28): folhas do plano resolvido do ano do relatório.
     from ...models import Qualificador
-    qualificadores = Qualificador.query.filter_by(ind_status='A').all()
+    from ..qualificador_service import resolver_exercicio_do_plano
+    qualificadores = Qualificador.query.filter_by(
+        ind_status='A',
+        num_ano_exercicio=resolver_exercicio_do_plano(ano_selecionado),
+    ).all()
     qualificadores_folha = [q for q in qualificadores if q.is_folha()]
     
     if tipo_selecionado in ("receita", "ambos"):

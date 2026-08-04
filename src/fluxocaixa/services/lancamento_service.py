@@ -93,6 +93,11 @@ def _validar_dados_lancamento(data: LancamentoCreate) -> None:
         raise RegraNegocioError("Qualificador inexistente ou inativo")
     if not qualificador.is_folha():
         raise RegraNegocioError("Lançamentos só podem ser feitos em qualificadores folha")
+    # F10.1 (R25): lançamento aponta para o qualificador do seu exercício —
+    # regra de transição (só morde quando existe plano no ano do lançamento).
+    from .qualificador_service import validar_qualificador_do_exercicio
+
+    validar_qualificador_do_exercicio(qualificador, data.dat_lancamento.year)
 
     if TipoLancamento.query.get(data.cod_tipo_lancamento) is None:
         raise RegraNegocioError("Tipo de lançamento inexistente")
@@ -281,6 +286,16 @@ def import_lancamentos_service(
                 errors.append(
                     f"Linha {i}: Qualificador '{desc}' não é folha — "
                     f"lançamento só em folha ativa")
+                continue
+            # F10.1 (R25): a planilha aplica as MESMAS garantias da porta
+            # manual — inclusive a regra de transição do exercício.
+            from .qualificador_service import validar_qualificador_do_exercicio
+            from .validacao import RegraNegocioError
+
+            try:
+                validar_qualificador_do_exercicio(qual, dat.year)
+            except RegraNegocioError as e:
+                errors.append(f"Linha {i}: {e}")
                 continue
 
             tipo = tipos_map.get(str(tipo_raw).strip().lower())

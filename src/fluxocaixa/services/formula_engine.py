@@ -112,13 +112,21 @@ def listar_anos_disponiveis(seq_qualificador: int) -> list[int]:
         db.session.query(
             extract('year', Lancamento.dat_lancamento).label('ano')
         )
-        .filter(Lancamento.seq_qualificador == seq_qualificador)
+        .filter(Lancamento.seq_qualificador.in_(
+            _seqs_da_rubrica(seq_qualificador)))
         .filter(Lancamento.ind_status == 'A')
         .distinct()
         .order_by(extract('year', Lancamento.dat_lancamento).desc())
         .all()
     )
     return [int(a.ano) for a in anos]
+
+
+def _seqs_da_rubrica(seq_qualificador):
+    """F10.2 (previsao R17): a série é da rubrica (raiz), não do seq."""
+    from .serie_historica import seqs_da_rubrica
+
+    return seqs_da_rubrica(seq_qualificador)
 
 
 def listar_todos_anos_disponiveis() -> list[int]:
@@ -227,7 +235,8 @@ def _buscar_valores_historicos_mes(
         )
         .filter(
             and_(
-                Lancamento.seq_qualificador == seq_qualificador,
+                Lancamento.seq_qualificador.in_(
+                    _seqs_da_rubrica(seq_qualificador)),
                 extract('month', Lancamento.dat_lancamento) == mes,
                 extract('year', Lancamento.dat_lancamento).in_(anos),
                 Lancamento.ind_status == 'A',
@@ -342,7 +351,8 @@ def _buscar_valores_historicos_anual(
         )
         .filter(
             and_(
-                Lancamento.seq_qualificador == seq_qualificador,
+                Lancamento.seq_qualificador.in_(
+                    _seqs_da_rubrica(seq_qualificador)),
                 extract('year', Lancamento.dat_lancamento).in_(anos),
                 Lancamento.ind_status == 'A',
             )

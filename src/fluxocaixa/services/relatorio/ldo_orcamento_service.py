@@ -44,8 +44,14 @@ def get_ldo_orcamento_data(ano: int, tipo_fluxo: str = 'ambos') -> dict:
     loa_repo = LoaRepository()
 
     # --- Buscar qualificadores folha ativos ---
+    # F10.4 (R28): folhas do plano resolvido do ano do relatório.
+    from ..qualificador_service import resolver_exercicio_do_plano
+
     qualificadores_ativos = [
-        q for q in Qualificador.query.filter_by(ind_status='A').all()
+        q for q in Qualificador.query.filter_by(
+            ind_status='A',
+            num_ano_exercicio=resolver_exercicio_do_plano(ano),
+        ).all()
         if q.is_folha()
     ]
 

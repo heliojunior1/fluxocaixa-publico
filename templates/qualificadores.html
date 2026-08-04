@@ -55,6 +55,18 @@
             <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
         </a>
         <h2 class="text-2xl font-bold text-gray-800 ml-4">Gestão de Qualificadores</h2>
+        {# F10.4 (R28): a tela exibe UM exercício por vez — o plano de cada
+           ano é registro próprio, e o combo troca o plano exibido. #}
+        <form method="GET" action="/qualificadores" class="ml-4">
+            <label for="filtro-exercicio" class="text-sm text-gray-600 mr-1">Exercício</label>
+            <select name="exercicio" id="filtro-exercicio" data-testid="filtro-exercicio"
+                class="form-select rounded-md border-gray-300 shadow-sm text-sm"
+                onchange="this.form.submit()">
+                {% for ex in exercicios %}
+                <option value="{{ ex }}" {% if ex == exercicio_selecionado %}selected{% endif %}>{{ ex }}</option>
+                {% endfor %}
+            </select>
+        </form>
     </div>
     <div class="flex space-x-3">
         <button id="expand-all-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg flex items-center">
@@ -71,8 +83,46 @@
             <span>Novo Qualificador</span>
         </button>
         {% endif %}
+        {% if tem_permissao(request, 'FC_ABRIR_EXERCICIO') %}
+        <button id="abrir-exercicio-btn" data-testid="abrir-exercicio"
+            onclick="document.getElementById('abrir-exercicio-form').classList.toggle('hidden')"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg flex items-center">
+            <i data-lucide="calendar-plus" class="w-5 h-5 mr-2"></i>
+            <span>Abrir Exercício</span>
+        </button>
+        {% endif %}
     </div>
 </div>
+
+{% if tem_permissao(request, 'FC_ABRIR_EXERCICIO') %}
+{# F10.3 (R29): o form É a etapa de confirmação — declara o que a cópia faz
+   antes do submit, que envia confirmado=true. #}
+<div id="abrir-exercicio-form" class="hidden mb-6 bg-white p-6 rounded-lg shadow-md border border-indigo-200"
+    data-testid="abrir-exercicio-form">
+    <h3 class="text-lg font-bold text-gray-800 mb-2">Abrir exercício</h3>
+    <p class="text-sm text-gray-600 mb-4">
+        Copia o plano ATIVO do exercício <strong>{{ exercicio_selecionado }}</strong>
+        (hierarquia, marcação de categoria e identidade das rubricas) para o
+        exercício informado. Valores (LOA, dotações, programação) não são
+        copiados. A abertura é única — o exercício de destino não pode ter plano.
+    </p>
+    <form method="POST" action="{{ url_for('abrir_exercicio') }}" class="flex items-end gap-3">
+        <input type="hidden" name="exercicio_origem" value="{{ exercicio_selecionado or '' }}">
+        <input type="hidden" name="confirmado" value="true">
+        <div>
+            <label for="exercicio_novo" class="block text-sm font-medium text-gray-700">Exercício novo</label>
+            <input type="number" name="exercicio_novo" id="exercicio_novo" required
+                min="1900" max="2200"
+                value="{{ (exercicio_selecionado or 0) + 1 }}"
+                class="form-input mt-1 block rounded-md border-gray-300 shadow-sm">
+        </div>
+        <button type="submit" data-testid="confirmar-abertura"
+            class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg">
+            Confirmar abertura
+        </button>
+    </form>
+</div>
+{% endif %}
 
 <!-- Árvore de Qualificadores -->
 <div class="bg-white p-6 rounded-lg shadow-md">
@@ -94,6 +144,8 @@
         </div>
         <div class="mt-5">
             <form action="{{ url_for('add_qualificador') }}" method="POST">
+                {# F10.4: criação herda o exercício exibido na tela. #}
+                <input type="hidden" name="num_ano_exercicio" value="{{ exercicio_selecionado or '' }}">
                 <div class="mb-4">
                     <label for="num_qualificador" class="block text-sm font-medium text-gray-700">Numeração</label>
                     <input type="text" name="num_qualificador" id="num_qualificador" class="form-input mt-1 block w-full rounded-md border-gray-300 shadow-sm" placeholder="Ex: 1.0.1" required>
@@ -121,6 +173,21 @@
                     </select>
                     <p class="mt-1 text-xs text-gray-500">Marque o bloco: as rubricas abaixo herdam. A marcação própria vence a herdada.</p>
                 </div>
+                {% if candidatas_heranca %}
+                {# F10.5 (R30): desdobramento/fusão/reativação — a rubrica nova
+                   pode CONTINUAR a série de uma rubrica que não segue. #}
+                <div class="mt-4">
+                    <label for="herdar_raiz" class="block text-sm font-medium text-gray-700">Herdar identidade de rubrica (opcional)</label>
+                    <select name="herdar_raiz" id="herdar_raiz" data-testid="herdar-raiz"
+                        class="form-select mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                        <option value="">Não — rubrica nova, sem histórico</option>
+                        {% for c in candidatas_heranca %}
+                        <option value="{{ c.cod_rubrica_raiz }}">{{ c.num_qualificador }} - {{ c.dsc_qualificador }} (exercício {{ c.num_ano_exercicio }})</option>
+                        {% endfor %}
+                    </select>
+                    <p class="mt-1 text-xs text-gray-500">A rubrica criada continua a série histórica da escolhida (desdobramento, fusão ou reativação).</p>
+                </div>
+                {% endif %}
 
                 <div class="flex justify-end mt-6">
                     <button type="button" id="cancel-add-btn" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded-lg mr-4">

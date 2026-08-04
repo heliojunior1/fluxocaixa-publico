@@ -64,8 +64,10 @@ def test_seed_demo_false_nao_remove_dados_reais(banco):
     con = sqlite3.connect(db_file)
     con.execute(
         "INSERT INTO flc_qualificador "
-        "(num_qualificador, dsc_qualificador, dat_inclusao, ind_status) "
-        "VALUES ('9.9.9', 'Rubrica cadastrada pelo usuário', date('now'), 'A')"
+        "(num_qualificador, dsc_qualificador, dat_inclusao, ind_status, "
+        " num_ano_exercicio) "
+        "VALUES ('9.9.9', 'Rubrica cadastrada pelo usuário', date('now'), 'A', "
+        " CAST(strftime('%Y','now') AS INTEGER))"
     )
     con.commit()
     con.close()

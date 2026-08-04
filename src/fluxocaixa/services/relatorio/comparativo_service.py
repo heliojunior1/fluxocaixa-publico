@@ -31,8 +31,16 @@ def get_analise_comparativa_data(
         from ...models import Qualificador
         lancamento_repo = LancamentoRepository()
 
-        # Get all leaf qualifiers for revenues
-        qualificadores = Qualificador.query.filter_by(ind_status='A').all()
+        # Get all leaf qualifiers for revenues.
+        # F10.4 (R28): plano resolvido do ano MAIS RECENTE da comparação —
+        # costurar a comparação entre planos diferentes por raiz é evolução
+        # da F10.2 (relatórios), fora deste escopo.
+        from ..qualificador_service import resolver_exercicio_do_plano
+
+        qualificadores = Qualificador.query.filter_by(
+            ind_status='A',
+            num_ano_exercicio=resolver_exercicio_do_plano(max(ano1, ano2)),
+        ).all()
         qualificadores_folha = [q for q in qualificadores if q.is_folha() and q.tipo_fluxo == 'receita']
         
         # Get all qualificador IDs

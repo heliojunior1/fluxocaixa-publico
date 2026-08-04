@@ -1,18 +1,48 @@
 from datetime import date
 
-from sqlalchemy import Column, Date, ForeignKey, Integer, String
+from sqlalchemy import Column, Date, ForeignKey, Index, Integer, String, event, text
 from sqlalchemy.orm import relationship
 
 from .base import Base
 
 
+def _ano_corrente() -> int:
+    return date.today().year
+
+
 class Qualificador(Base):
     __tablename__ = 'flc_qualificador'
+    __table_args__ = (
+        # F10.1 (cadastros-nucleo R25): a unicidade do código é POR EXERCÍCIO,
+        # entre ativos — índice único parcial no padrão da migração 0033 (LOA).
+        # A unique global de num_qualificador caiu na migração 0035.
+        Index(
+            'ux_flc_qualificador_ano_codigo_ativo',
+            'num_ano_exercicio',
+            'num_qualificador',
+            unique=True,
+            sqlite_where=text("ind_status = 'A'"),
+            postgresql_where=text("ind_status = 'A'"),
+        ),
+    )
+
     seq_qualificador = Column(Integer, primary_key=True)
+    # F10.1 (R25): a classificação orçamentária pertence a um exercício — a
+    # mesma rubrica em anos diferentes são linhas diferentes. Default = ano
+    # corrente (callable): quem não informa (telas até a F10.4, testes, seeds)
+    # trabalha no plano corrente.
+    num_ano_exercicio = Column(Integer, nullable=False, default=_ano_corrente)
+    # F10.1 (R26): identidade estável da rubrica — o "CPF" que costura a série
+    # histórica entre exercícios (D-B da concepção). Nula na criação ⇒ o evento
+    # after_insert grava o próprio seq. Renome/renumeração/reapontamento NUNCA
+    # tocam esta coluna; a cópia de exercício (F10.3) a propaga explicitamente.
+    # Nullable no DDL porque o valor-default só existe após o INSERT; o evento
+    # garante o preenchimento para serviço, seeds e testes.
+    cod_rubrica_raiz = Column(Integer, nullable=True)
     # 60, não 20: um código de 6 níveis com segmentos de três dígitos
     # ("1.100.200.300.400.500") tem 21 caracteres. SQLite não impõe tamanho de
     # VARCHAR e aceitava calado; PostgreSQL recusa (migração 0014).
-    num_qualificador = Column(String(60), nullable=False, unique=True)
+    num_qualificador = Column(String(60), nullable=False)
     dsc_qualificador = Column(String(255), nullable=False)
     cod_qualificador_pai = Column(Integer, ForeignKey('flc_qualificador.seq_qualificador'))
     # Marcação de categoria fiscal (F6.5) — OPCIONAL e, ao contrário de
@@ -24,6 +54,9 @@ class Qualificador(Base):
     cod_categoria_fiscal = Column(
         Integer, ForeignKey('flc_categoria_fiscal.seq_categoria_fiscal'))
     dat_inclusao = Column(Date, default=date.today, nullable=False)
+    # F10.3 (R29): autor da criação — nullable, linha legada não ganha autor
+    # fabricado (migração 0036).
+    cod_pessoa_inclusao = Column(Integer, nullable=True)
     ind_status = Column(String(1), default='A', nullable=False)
 
     pai = relationship('Qualificador', remote_side=[seq_qualificador], backref='filhos')
@@ -120,3 +153,24 @@ class Qualificador(Base):
 
     def is_folha(self):
         return len([f for f in self.filhos if f.ind_status == 'A']) == 0
+
+
+@event.listens_for(Qualificador, 'after_insert')
+def _atribuir_rubrica_raiz(mapper, connection, alvo):
+    """Raiz nula na criação ⇒ raiz = próprio seq (R26).
+
+    Evento ORM, não responsabilidade do chamador: vale para serviço, seeds e
+    testes que criam direto — o chamador nº N+1 esqueceria. O UPDATE roda na
+    mesma transação do INSERT.
+    """
+    if alvo.cod_rubrica_raiz is None:
+        connection.execute(
+            Qualificador.__table__.update()
+            .where(Qualificador.__table__.c.seq_qualificador == alvo.seq_qualificador)
+            .values(cod_rubrica_raiz=alvo.seq_qualificador)
+        )
+        # set_committed_value: reflete o valor no objeto sem marcá-lo sujo
+        # (atribuição direta dentro do flush agendaria um UPDATE redundante).
+        from sqlalchemy.orm.attributes import set_committed_value
+
+        set_committed_value(alvo, 'cod_rubrica_raiz', alvo.seq_qualificador)

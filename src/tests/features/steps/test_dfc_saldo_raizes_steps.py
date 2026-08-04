@@ -87,8 +87,9 @@ def so_raiz_despesa(app, monkeypatch):
 
     raiz_despesa = [q for q in qualificador_repository.get_root_qualificadores()
                     if isinstance(q, Qualificador) and q.tipo_fluxo == 'despesa']
+    # F10.4: a assinatura real aceita o exercício opcional — o stub também.
     monkeypatch.setattr(qualificador_repository, "get_root_qualificadores",
-                        lambda: raiz_despesa)
+                        lambda num_ano_exercicio=None: raiz_despesa)
     return True
 
 
