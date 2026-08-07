@@ -82,7 +82,9 @@ def constituir_reserva(
         raise RegraNegocioError(
             "Bloqueio judicial exige a referência do processo/ofício")
 
-    disponivel = (saldo_bruto_por_grupo()[fonte.grupo]
+    # Disponível LÍQUIDO do grupo (change tipo-instrumento-financeiro):
+    # reservar contra aplicação com carência inflaria o disponível.
+    disponivel = (saldo_bruto_por_grupo()[fonte.grupo]["liquido"]
                   - reservas_vigentes_do_grupo(fonte.grupo, date.today()))
     alerta = None
     if val_reserva > disponivel:

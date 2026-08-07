@@ -211,10 +211,10 @@
             {% if tem_permissao(request, 'FC_CONS_FUNDO') %}
             <a href="{{ url_for('fundos') }}" data-testid="menu-fundos"
                 class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
-                title="Fundos">
+                title="Aplicações/Fundos">
                 <i data-lucide="briefcase"
                     class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
-                <span class="sidebar-text whitespace-nowrap">Fundos</span>
+                <span class="sidebar-text whitespace-nowrap">Aplicações/Fundos</span>
                 {% set pendentes = fundos_pendentes(request) %}
                 {% if pendentes > 0 %}
                 <span class="ml-auto bg-amber-400 text-slate-900 text-xs font-bold px-2 py-0.5 rounded-full sidebar-text"

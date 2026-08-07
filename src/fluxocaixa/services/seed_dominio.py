@@ -63,6 +63,18 @@ FONTES_RECURSO = [
     ("1", "700", "Convênios e instrumentos congêneres", "V", "Convênios"),
 ]
 
+# (sigla, descrição) — tipos de instrumento financeiro (change
+# tipo-instrumento-financeiro, spec saldo-por-fundo R22). Extensível por
+# cadastro: um ente com LFT/LTN ou consórcio próprio adiciona o seu sem
+# release. A migração 0038 seeda o mesmo conjunto em banco existente.
+TIPOS_INSTRUMENTO = [
+    ("FUNDO", "Fundo de investimento"),
+    ("CONTA_MOVIMENTO", "Conta movimento"),
+    ("CDB", "Certificado de Depósito Bancário"),
+    ("POUPANCA", "Caderneta de poupança"),
+    ("TESOURO", "Título do Tesouro"),
+]
+
 # (nom_parametro, dsc_parametro, cod_tipo) — 'P' percentual, 'V' valor absoluto
 PARAMETROS_GLOBAIS = [
     # Macro
@@ -157,6 +169,14 @@ def seed_dominio(session=None):
     for nom, dsc, tipo in PARAMETROS_GLOBAIS:
         if nom not in existentes:
             session.add(ParametroGlobal(nom_parametro=nom, dsc_parametro=dsc, cod_tipo=tipo))
+
+    from ..models import TipoInstrumento
+
+    existentes = {t.txt_sigla for t in TipoInstrumento.query.all()}
+    for sigla, dsc in TIPOS_INSTRUMENTO:
+        if sigla not in existentes:
+            session.add(TipoInstrumento(
+                txt_sigla=sigla, dsc_tipo_instrumento=dsc, ind_status='A'))
 
     existentes = {c.txt_sigla for c in CategoriaFiscal.query.all()}
     for sigla, dsc, base, sentido, limite, atencao in CATEGORIAS_FISCAIS:

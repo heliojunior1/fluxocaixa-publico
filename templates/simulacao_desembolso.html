@@ -89,8 +89,11 @@
 <!-- Composição -->
 <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 text-sm">
     <div class="bg-white rounded-lg shadow-md p-3">
-        <p class="text-xs text-gray-500 uppercase font-semibold">Saldo bruto do grupo</p>
+        <p class="text-xs text-gray-500 uppercase font-semibold">Saldo líquido do grupo</p>
         <p class="font-bold text-gray-800">{{ resultado.saldo_inicial | format_currency }}</p>
+        {% if resultado.saldo_carencia %}
+        <p class="text-[10px] text-sky-700" data-testid="carencia-fora-curva">+ {{ resultado.saldo_carencia | format_currency }} aplicados com carência — fora da curva</p>
+        {% endif %}
     </div>
     <div class="bg-white rounded-lg shadow-md p-3">
         <p class="text-xs text-gray-500 uppercase font-semibold">Reservas/bloqueios</p>

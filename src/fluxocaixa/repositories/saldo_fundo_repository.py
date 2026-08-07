@@ -91,30 +91,48 @@ def saldo_bruto_por_grupo(data_referencia: date | None = None) -> dict:
     livre, conservador), derivado da vw_flc_saldo_fundo_fonte. Sem data,
     usa a linha mais recente de cada (conta, fundo); com data, o saldo do dia.
 
+    Cada grupo (e o "total") é um dict `{liquido, carencia, total}` (change
+    tipo-instrumento-financeiro): `liquido` = instrumentos com liquidez
+    imediata — a ÚNICA parcela autorizativa (simulação F7.2, reservas F7.4);
+    `carencia` = aplicado sem liquidez imediata — patrimônio visível, fora do
+    "posso pagar amanhã". ⚠️ O contrato antigo (Decimal por grupo) foi
+    quebrado de propósito: consumidor não migrado falha alto (TypeError),
+    nunca soma carência como disponível em silêncio.
+
     ⚠️ Entrega o BRUTO: reservas/bloqueios (F7.4) não são subtraídos aqui —
     a subtração acontece uma única vez, na leitura da disponibilidade
     operacional (doc do módulo, seção 4.4).
     """
     if data_referencia is None:
         sql = (
-            "SELECT cod_grupo, SUM(val_saldo) AS val_saldo "
+            "SELECT cod_grupo, ind_liquidez_imediata, SUM(val_saldo) AS val_saldo "
             "FROM vw_flc_saldo_fundo_fonte "
-            "WHERE num_ordem_recente = 1 GROUP BY cod_grupo"
+            "WHERE num_ordem_recente = 1 "
+            "GROUP BY cod_grupo, ind_liquidez_imediata"
         )
         params: dict = {}
     else:
         sql = (
-            "SELECT cod_grupo, SUM(val_saldo) AS val_saldo "
+            "SELECT cod_grupo, ind_liquidez_imediata, SUM(val_saldo) AS val_saldo "
             "FROM vw_flc_saldo_fundo_fonte "
-            "WHERE dat_saldo = :referencia GROUP BY cod_grupo"
+            "WHERE dat_saldo = :referencia "
+            "GROUP BY cod_grupo, ind_liquidez_imediata"
         )
         params = {"referencia": data_referencia}
 
     linhas = db.session.execute(text(sql), params).mappings().all()
-    grupos = {"L": _dec(0), "V": _dec(0), "P": _dec(0)}
+    grupos = {g: {"liquido": _dec(0), "carencia": _dec(0)} for g in ("L", "V", "P")}
     for linha in linhas:
-        grupos[linha["cod_grupo"]] = _dec(linha["val_saldo"])
-    grupos["total"] = _dec(grupos["L"] + grupos["V"] + grupos["P"])
+        parcela = "liquido" if linha["ind_liquidez_imediata"] == 'S' else "carencia"
+        grupos[linha["cod_grupo"]][parcela] += _dec(linha["val_saldo"])
+    for grupo in grupos.values():
+        grupo["total"] = _dec(grupo["liquido"] + grupo["carencia"])
+    grupos["total"] = {
+        "liquido": _dec(sum(grupos[g]["liquido"] for g in ("L", "V", "P"))),
+        "carencia": _dec(sum(grupos[g]["carencia"] for g in ("L", "V", "P"))),
+    }
+    grupos["total"]["total"] = _dec(
+        grupos["total"]["liquido"] + grupos["total"]["carencia"])
     return grupos
 
 

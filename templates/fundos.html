@@ -5,13 +5,13 @@
         <a href="{{ url_for('index') }}" class="text-gray-500 hover:text-gray-700">
             <i data-lucide="arrow-left-circle" class="w-8 h-8"></i>
         </a>
-        <h2 class="text-2xl font-bold text-gray-800 ml-4">Fundos de Investimento</h2>
+        <h2 class="text-2xl font-bold text-gray-800 ml-4">Aplicações/Fundos</h2>
     </div>
     {% if tem_permissao(request, 'FC_INS_FUNDO') %}
     <button id="novo-fundo-btn" data-testid="novo-fundo"
         class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center">
         <i data-lucide="plus" class="w-5 h-5 mr-2"></i>
-        <span>Novo Fundo</span>
+        <span>Nova Aplicação</span>
     </button>
     {% endif %}
 </div>
@@ -34,6 +34,15 @@
             <option value="inativo" {% if filtros.status == 'inativo' %}selected{% endif %}>Inativo</option>
         </select>
     </div>
+    <div>
+        <label class="block text-xs font-semibold text-gray-600 mb-1">Tipo de instrumento</label>
+        <select name="tipo" data-testid="filtro-tipo-instrumento" class="border rounded px-2 py-1">
+            <option value="">Todos</option>
+            {% for t in tipos_instrumento %}
+            <option value="{{ t.seq }}" {% if filtros.tipo == t.seq %}selected{% endif %}>{{ t.sigla }}</option>
+            {% endfor %}
+        </select>
+    </div>
     <label class="flex items-center gap-2 text-sm text-gray-700">
         <input type="checkbox" name="pendente" value="true" data-testid="filtro-pendentes"
             {% if filtros.pendente %}checked{% endif %}>
@@ -49,6 +58,7 @@
             <tr>
                 <th class="px-4 py-3 font-semibold">Código</th>
                 <th class="px-4 py-3 font-semibold">Descrição</th>
+                <th class="px-4 py-3 font-semibold">Tipo</th>
                 <th class="px-4 py-3 font-semibold">Origem</th>
                 <th class="px-4 py-3 font-semibold">Fonte de recursos</th>
                 <th class="px-4 py-3 font-semibold">Status</th>
@@ -64,6 +74,14 @@
                     {% if f.pendente %}
                     <span class="ml-2 bg-amber-100 text-amber-800 text-xs font-semibold px-2 py-0.5 rounded-full"
                         data-testid="badge-pendente-{{ f.cod_fundo }}">Pendente revisão</span>
+                    {% endif %}
+                </td>
+                <td class="px-4 py-3" data-testid="tipo-instrumento-{{ f.cod_fundo }}">
+                    <span class="font-mono text-gray-700">{{ f.tipo_instrumento }}</span>
+                    {% if not f.liquidez_imediata %}
+                    <span class="ml-1 bg-sky-100 text-sky-800 text-xs font-semibold px-2 py-0.5 rounded-full"
+                        data-testid="badge-carencia-{{ f.cod_fundo }}"
+                        title="Fora da disponibilidade operacional autorizativa{% if f.dat_vencimento %} — vencimento {{ f.dat_vencimento }}{% endif %}">com carência{% if f.dat_vencimento %} · {{ f.dat_vencimento }}{% endif %}</span>
                     {% endif %}
                 </td>
                 <td class="px-4 py-3 text-gray-600">{{ f.origem }}</td>
@@ -109,7 +127,7 @@
                     {% endif %}
                     {% if f.ativo and tem_permissao(request, 'FC_ALT_FUNDO') %}
                     <button type="button" data-testid="editar-fundo-{{ f.cod_fundo }}"
-                        onclick="abrirEdicao({{ f.seq_fundo }}, '{{ f.dsc_fundo|e }}')"
+                        onclick="abrirEdicao({{ f.seq_fundo }}, '{{ f.dsc_fundo|e }}', '{{ f.seq_tipo_instrumento }}', '{{ 'S' if f.liquidez_imediata else 'N' }}', '{{ f.dat_vencimento }}')"
                         class="text-blue-600 hover:text-blue-800 p-1" title="Editar">
                         <i data-lucide="edit-2" class="w-4 h-4"></i>
                     </button>
@@ -126,7 +144,7 @@
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="6" class="px-4 py-6 text-center text-gray-400">Nenhum fundo cadastrado</td></tr>
+            <tr><td colspan="7" class="px-4 py-6 text-center text-gray-400">Nenhuma aplicação cadastrada</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -146,6 +164,28 @@
                 <label class="block text-sm font-semibold text-gray-700 mb-1">Descrição</label>
                 <input type="text" name="dsc_fundo" id="fundo-dsc" data-testid="fundo-dsc"
                     class="w-full border rounded px-3 py-2" maxlength="120" required>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Tipo de instrumento</label>
+                <select name="seq_tipo_instrumento" id="fundo-tipo" data-testid="fundo-tipo"
+                    class="w-full border rounded px-3 py-2">
+                    {% for t in tipos_instrumento %}
+                    <option value="{{ t.seq }}" {% if t.sigla == 'FUNDO' %}selected{% endif %}>{{ t.sigla }} — {{ t.dsc }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Liquidez imediata</label>
+                <select name="ind_liquidez_imediata" id="fundo-liquidez" data-testid="fundo-liquidez"
+                    class="w-full border rounded px-3 py-2">
+                    <option value="S">Sim — conta na disponibilidade operacional</option>
+                    <option value="N">Não — com carência, fora do "posso pagar amanhã"</option>
+                </select>
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-semibold text-gray-700 mb-1">Vencimento (opcional, informativo)</label>
+                <input type="date" name="dat_vencimento" id="fundo-venc" data-testid="fundo-venc"
+                    class="w-full border rounded px-3 py-2">
             </div>
             <div class="flex justify-end gap-2">
                 <button type="button" onclick="fecharModal('fundo-modal')"
@@ -180,23 +220,31 @@
 <script>
     function fecharModal(id) { document.getElementById(id).classList.add('hidden'); }
 
+    const tipoDefault = document.getElementById('fundo-tipo').value;
+
     const novoBtn = document.getElementById('novo-fundo-btn');
     if (novoBtn) {
         novoBtn.addEventListener('click', () => {
-            document.getElementById('fundo-modal-titulo').textContent = 'Novo Fundo';
+            document.getElementById('fundo-modal-titulo').textContent = 'Nova Aplicação';
             document.getElementById('fundo-form').action = '/fundos/adicionar';
             document.getElementById('fundo-cod').value = '';
             document.getElementById('fundo-cod').disabled = false;
             document.getElementById('fundo-dsc').value = '';
+            document.getElementById('fundo-tipo').value = tipoDefault;
+            document.getElementById('fundo-liquidez').value = 'S';
+            document.getElementById('fundo-venc').value = '';
             document.getElementById('fundo-modal').classList.remove('hidden');
         });
     }
 
-    function abrirEdicao(seq, dsc) {
-        document.getElementById('fundo-modal-titulo').textContent = 'Editar Fundo';
+    function abrirEdicao(seq, dsc, seqTipo, liquidez, venc) {
+        document.getElementById('fundo-modal-titulo').textContent = 'Editar Aplicação';
         document.getElementById('fundo-form').action = '/fundos/' + seq + '/editar';
         document.getElementById('fundo-cod').disabled = true;
         document.getElementById('fundo-dsc').value = dsc;
+        document.getElementById('fundo-tipo').value = seqTipo || tipoDefault;
+        document.getElementById('fundo-liquidez').value = liquidez || 'S';
+        document.getElementById('fundo-venc').value = venc || '';
         document.getElementById('fundo-modal').classList.remove('hidden');
     }
 

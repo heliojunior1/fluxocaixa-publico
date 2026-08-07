@@ -2228,22 +2228,28 @@
    {
     "aplicacoes": "0.00",
     "conta": "<ContaBancaria CARACT-1>",
+    "dat_vencimento": null,
     "fundo": "<Fundo 9990>",
+    "liquidez_imediata": true,
     "origem": "Manual",
     "rendimento": "200.00",
     "resgates": "0.00",
     "saldo": "1200.00",
-    "saldo_inicial": "1000.00"
+    "saldo_inicial": "1000.00",
+    "tipo_instrumento": "FUNDO"
    },
    {
     "aplicacoes": "0.00",
     "conta": "<ContaBancaria CARACT-2>",
+    "dat_vencimento": null,
     "fundo": "<Fundo 9990>",
+    "liquidez_imediata": true,
     "origem": "Manual",
     "rendimento": "500.00",
     "resgates": "0.00",
     "saldo": "500.00",
-    "saldo_inicial": "0.00"
+    "saldo_inicial": "0.00",
+    "tipo_instrumento": "FUNDO"
    }
   ],
   "totais": {

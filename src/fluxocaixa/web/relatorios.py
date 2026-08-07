@@ -332,14 +332,21 @@ async def relatorio_saldos_diarios(request: Request):
     data_ref = data_iso(data_ref_str, "data", default=hoje)
     visao = params.get("visao") or "agregado"
     seq_conta = inteiro(params.get("seq_conta"), "seq_conta")
+    seq_tipo_instrumento = inteiro(params.get("tipo"), "tipo de instrumento")
 
-    data = get_saldos_diarios_data(data_ref, visao=visao, seq_conta=seq_conta)
+    data = get_saldos_diarios_data(data_ref, visao=visao, seq_conta=seq_conta,
+                                   seq_tipo_instrumento=seq_tipo_instrumento)
 
     contas_disponiveis = (
         ContaBancaria.query.filter_by(ind_status='A')
         .order_by(ContaBancaria.cod_banco, ContaBancaria.num_agencia,
                   ContaBancaria.num_conta)
         .all()
+    )
+    from ..models import TipoInstrumento
+    tipos_instrumento = (
+        TipoInstrumento.query.filter_by(ind_status='A')
+        .order_by(TipoInstrumento.txt_sigla).all()
     )
     return templates.TemplateResponse(
         "rel_saldos_diarios.html",
@@ -349,6 +356,8 @@ async def relatorio_saldos_diarios(request: Request):
             "visao": data["visao"],
             "seq_conta_selecionada": seq_conta,
             "contas_disponiveis": contas_disponiveis,
+            "tipos_instrumento": tipos_instrumento,
+            "seq_tipo_instrumento_selecionado": seq_tipo_instrumento,
             "rows": data["rows"],
             "totais": data["totais"],
             "rows_fundo": data["rows_fundo"],

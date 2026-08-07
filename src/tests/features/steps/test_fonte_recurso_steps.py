@@ -366,8 +366,8 @@ def grupo_soma(grupo, dat, valor):
 
     _db().session.expire_all()
     grupos = saldo_bruto_por_grupo(date.fromisoformat(dat))
-    assert grupos[grupo] == Decimal(valor).quantize(Decimal("0.01")), \
-        f"grupo {grupo}: esperava {valor}, veio {grupos[grupo]}"
+    assert grupos[grupo]["total"] == Decimal(valor).quantize(Decimal("0.01")), \
+        f"grupo {grupo}: esperava {valor}, veio {grupos[grupo]['total']}"
 
 
 @then(parsers.parse('a soma dos grupos em "{dat}" é igual ao agregado da conta em "{dat2}"'))
@@ -382,8 +382,8 @@ def soma_fecha_com_agregado(conta, dat, dat2):
     grupos = saldo_bruto_por_grupo(ref)
     agregado = agregado_por_conta(ref, ref, seq_conta=conta.seq_conta)
     total_agregado = sum((l["val_saldo"] for l in agregado), Decimal("0.00"))
-    assert grupos["total"] == total_agregado, \
-        f"grupos {grupos['total']} != agregado {total_agregado}"
+    assert grupos["total"]["total"] == total_agregado, \
+        f"grupos {grupos['total']['total']} != agregado {total_agregado}"
 
 
 @then(parsers.parse('a fonte "{codigo}" da vigência {vigencia:d} permanece ativa'))

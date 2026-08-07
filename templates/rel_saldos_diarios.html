@@ -35,6 +35,17 @@
       {% endfor %}
     </select>
   </div>
+  {% if visao == 'fundo' %}
+  <div>
+    <label class="block text-sm text-gray-600">Tipo de instrumento</label>
+    <select name="tipo" data-testid="filtro-tipo-instrumento" class="rounded-md border-gray-300 shadow-sm text-sm">
+      <option value="">Todos</option>
+      {% for t in tipos_instrumento %}
+      <option value="{{ t.seq_tipo_instrumento }}" {% if t.seq_tipo_instrumento == seq_tipo_instrumento_selecionado %}selected{% endif %}>{{ t.txt_sigla }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  {% endif %}
   <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">Filtrar</button>
 </form>
 
@@ -86,6 +97,7 @@
     <thead class="bg-gray-50">
       <tr>
         <th class="p-2 text-left">Conta</th>
+        <th class="p-2 text-left">Tipo</th>
         <th class="p-2 text-left">Fundo</th>
         <th class="p-2 text-right">Saldo Inicial</th>
         <th class="p-2 text-right">Aplicações</th>
@@ -99,6 +111,13 @@
       {% for r in rows_fundo %}
       <tr class="border-b" data-testid="linha-fundo-{{ r.fundo.cod_fundo }}">
         <td class="p-2">{{ r.conta.cod_banco }}/{{ r.conta.num_agencia }}/{{ r.conta.num_conta }}</td>
+        <td class="p-2" data-testid="tipo-linha-{{ r.fundo.cod_fundo }}">
+          <span class="font-mono text-gray-700">{{ r.tipo_instrumento }}</span>
+          {% if not r.liquidez_imediata %}
+          <span class="ml-1 bg-sky-100 text-sky-800 text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+            title="Fora da disponibilidade operacional autorizativa">com carência</span>
+          {% endif %}
+        </td>
         <td class="p-2">{{ r.fundo.cod_fundo }} — {{ r.fundo.dsc_fundo }}</td>
         <td class="p-2 text-right">{{ r.saldo_inicial | format_currency }}</td>
         <td class="p-2 text-right">{{ r.aplicacoes | format_currency }}</td>
@@ -110,7 +129,7 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="8" class="p-4 text-center text-gray-400">Nenhum saldo por fundo na data selecionada.</td>
+        <td colspan="9" class="p-4 text-center text-gray-400">Nenhum saldo por fundo na data selecionada.</td>
       </tr>
       {% endfor %}
     </tbody>

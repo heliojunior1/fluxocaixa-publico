@@ -1039,12 +1039,27 @@ def seed_data(session=None):
             session.commit()
             print(f"Seeded daily balances (fundo GERAL) for {len(contas)} accounts")
 
-            # Fundos de investimento fictícios com movimento (rendimento visível)
-            for cod, dsc in [("FIEX1", "Fundo Exemplo Renda Fixa"),
-                             ("FIRF2", "Fundo Exemplo Multimercado")]:
+            # Instrumentos fictícios com movimento (rendimento visível) —
+            # inclui um CDB com carência para a separação líquido × carência
+            # ficar visível na demo (change tipo-instrumento-financeiro).
+            from .fundo_service import resolver_tipo_instrumento
+
+            seq_tipo_fundo = resolver_tipo_instrumento('FUNDO').seq_tipo_instrumento
+            seq_tipo_cdb = resolver_tipo_instrumento('CDB').seq_tipo_instrumento
+            instrumentos_demo = [
+                ("FIEX1", "Fundo Exemplo Renda Fixa", seq_tipo_fundo, 'S', None),
+                ("FIRF2", "Fundo Exemplo Multimercado", seq_tipo_fundo, 'S', None),
+                ("CDB01", "CDB Exemplo com Carência", seq_tipo_cdb, 'N',
+                 date(2027, 6, 30)),
+            ]
+            for cod, dsc, seq_tipo, liquidez, venc in instrumentos_demo:
                 if not Fundo.query.filter_by(cod_fundo=cod).first():
                     session.add(Fundo(cod_fundo=cod, dsc_fundo=dsc,
-                                      seq_tipo_origem=seq_manual, ind_pendente_revisao='N',
+                                      seq_tipo_origem=seq_manual,
+                                      seq_tipo_instrumento=seq_tipo,
+                                      ind_liquidez_imediata=liquidez,
+                                      dat_vencimento=venc,
+                                      ind_pendente_revisao='N',
                                       ind_status='A', cod_pessoa_inclusao=1))
             session.commit()
             conta_um = contas[0].seq_conta
@@ -1053,6 +1068,8 @@ def seed_data(session=None):
                 ("FIEX1", date(2025, 3, 11), 5012000.00, 10000, 0),
                 ("FIRF2", date(2025, 3, 10), 3000000.00, 0, 0),
                 ("FIRF2", date(2025, 3, 11), 3008000.00, 0, 5000),
+                ("CDB01", date(2025, 3, 10), 1000000.00, 0, 0),
+                ("CDB01", date(2025, 3, 11), 1000400.00, 0, 0),
             ]
             for cod, dat, val, apl, resg in posicoes:
                 f = Fundo.query.filter_by(cod_fundo=cod).first()

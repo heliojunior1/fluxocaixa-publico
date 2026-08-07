@@ -15,6 +15,16 @@ test.describe('fontes de recurso (admin)', () => {
     await expect(page.getByTestId('fonte-1.500')).toBeVisible();
   });
 
+  test('separa disponível imediato de aplicado com carência', async ({ page }) => {
+    await page.goto('/fontes-recurso');
+    // Split do change tipo-instrumento-financeiro: o CDB do seed (CDBE2E,
+    // 20000.00 sem liquidez imediata) alimenta a parcela com carência
+    await expect(page.getByTestId('grupo-liquido')).toBeVisible();
+    const carencia = page.getByTestId('grupo-carencia');
+    await expect(carencia).toBeVisible();
+    await expect(carencia).not.toHaveText(/R\$\s*0,00/);
+  });
+
   test('cadastra uma fonte vinculada pelo modal', async ({ page }) => {
     await page.goto('/fontes-recurso');
     await page.getByTestId('nova-fonte').click();

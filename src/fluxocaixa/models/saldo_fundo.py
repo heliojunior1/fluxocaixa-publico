@@ -15,6 +15,8 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    event,
+    select,
     text,
 )
 
@@ -51,8 +53,30 @@ class SistemaOrigem(Base):
     cod_pessoa_alteracao = Column(Integer)
 
 
+class TipoInstrumento(Base):
+    """Domínio dos tipos de instrumento financeiro (change
+    tipo-instrumento-financeiro, spec saldo-por-fundo R22).
+
+    Seedado com FUNDO, CONTA_MOVIMENTO, CDB, POUPANCA e TESOURO; cadastrável
+    pela instalação (tudo parametrizável por cadastro). O tipo carrega a
+    semântica do compartimento — a tabela `flc_fundo` NÃO foi renomeada.
+    """
+
+    __tablename__ = 'flc_tipo_instrumento'
+
+    seq_tipo_instrumento = Column(Integer, primary_key=True)
+    txt_sigla = Column(String(20), nullable=False, unique=True)
+    dsc_tipo_instrumento = Column(String(120))
+    ind_status = Column(String(1), default='A', nullable=False)
+    dat_inclusao = Column(Date, default=date.today, nullable=False)
+    cod_pessoa_inclusao = Column(Integer)
+    dat_alteracao = Column(Date)
+    cod_pessoa_alteracao = Column(Integer)
+
+
 class Fundo(Base):
-    """Fundo de investimento (cod_fundo imutável — regra aplicada na F2.2)."""
+    """Compartimento de saldo — fundo, CDB, poupança, Tesouro, conta
+    movimento (cod_fundo imutável — regra aplicada na F2.2)."""
 
     __tablename__ = 'flc_fundo'
 
@@ -76,11 +100,41 @@ class Fundo(Base):
     seq_fonte_recurso = Column(
         Integer, ForeignKey('flc_fonte_recurso.seq_fonte_recurso'), nullable=True
     )
+    # Tipo de instrumento financeiro (R22): FUNDO, CONTA_MOVIMENTO, CDB, ...
+    # A liquidez é atributo do INSTRUMENTO, não do tipo (dois CDBs podem ter
+    # liquidez diferente) e é DECLARADA — nunca derivada do vencimento, que é
+    # informativo. Só a parcela com liquidez imediata ('S') entra na
+    # disponibilidade operacional autorizativa (F7.2/F7.4); a com carência é
+    # patrimônio visível, fora do "posso pagar amanhã".
+    seq_tipo_instrumento = Column(
+        Integer, ForeignKey('flc_tipo_instrumento.seq_tipo_instrumento'),
+        nullable=False
+    )
+    ind_liquidez_imediata = Column(
+        String(1), nullable=False, default='S', server_default='S'
+    )
+    dat_vencimento = Column(Date)
     ind_status = Column(String(1), default='A', nullable=False)
     dat_inclusao = Column(Date, default=date.today, nullable=False)
     cod_pessoa_inclusao = Column(Integer)
     dat_alteracao = Column(Date)
     cod_pessoa_alteracao = Column(Integer)
+
+
+@event.listens_for(Fundo, 'before_insert')
+def _fundo_default_tipo_instrumento(mapper, connection, fundo):
+    """Default do legado (R22): construção sem tipo explícito → FUNDO.
+
+    Evento ORM (padrão do `cod_rubrica_raiz` da F10.1) para valer em TODA
+    porta — seeds, testes e serviços. O serviço continua validando valores
+    explícitos; aqui só se preenche a ausência (o seq do tipo é dinâmico,
+    então um default de coluna não alcança).
+    """
+    if fundo.seq_tipo_instrumento is None:
+        fundo.seq_tipo_instrumento = connection.execute(
+            select(TipoInstrumento.seq_tipo_instrumento).where(
+                TipoInstrumento.txt_sigla == 'FUNDO')
+        ).scalar_one()
 
 
 class SaldoContaFundo(Base):

@@ -190,6 +190,19 @@ if not Fundo.query.filter_by(cod_fundo='FIE2E').first():
     criar_fundo('FIE2E', 'Fundo Investimento E2E')
 _fie2e = Fundo.query.filter_by(cod_fundo='FIE2E').first()
 
+# Instrumento CDB com carência (change tipo-instrumento-financeiro) — massa
+# do filtro por tipo em fundos.spec.ts e do split líquido × carência em
+# fontes_recurso.spec.ts. Ilha 2048.
+from fluxocaixa.services.fundo_service import resolver_tipo_instrumento  # noqa: E402
+
+if not Fundo.query.filter_by(cod_fundo='CDBE2E').first():
+    criar_fundo('CDBE2E', 'CDB Carencia E2E',
+                seq_tipo_instrumento=resolver_tipo_instrumento(
+                    'CDB').seq_tipo_instrumento,
+                ind_liquidez_imediata='N',
+                dat_vencimento=_date(2048, 12, 31))
+_cdbe2e = Fundo.query.filter_by(cod_fundo='CDBE2E').first()
+
 from fluxocaixa.models import SaldoContaFundo  # noqa: E402
 
 if not SaldoContaFundo.query.filter_by(seq_conta=_conta_e2e.seq_conta).first():
@@ -198,6 +211,10 @@ if not SaldoContaFundo.query.filter_by(seq_conta=_conta_e2e.seq_conta).first():
     gravar_saldo(seq_conta=_conta_e2e.seq_conta, seq_fundo=_fie2e.seq_fundo,
                  dat_saldo=_date(2025, 4, 1), val_saldo=_Dec("50000.00"),
                  val_aplicacoes=_Dec("1000.00"))
+    # Posição do CDB com carência — alimenta o "aplicado com carência" do
+    # painel de disponibilidade (fontes_recurso.spec.ts)
+    gravar_saldo(seq_conta=_conta_e2e.seq_conta, seq_fundo=_cdbe2e.seq_fundo,
+                 dat_saldo=_date(2025, 4, 1), val_saldo=_Dec("20000.00"))
 
 # --- Editor de layout / conector de arquivo (editor-layout.spec.ts) ---
 # Contas (número canônico só-dígitos, como o parser normaliza) + uma pasta
@@ -392,9 +409,12 @@ _conta_kpi_1 = _conta_kpi("001", "KPI-1")
 _conta_kpi_2 = _conta_kpi("104", "KPI-2")
 
 if Fundo.query.filter_by(cod_fundo="9902").first() is None:
+    from fluxocaixa.services.fundo_service import resolver_tipo_instrumento
     _tipo_manual = TipoOrigemSaldo.query.filter_by(txt_sigla="MANUAL").first()
     db.session.add(Fundo(cod_fundo="9902", dsc_fundo="Fundo KPI E2E",
-                         seq_tipo_origem=_tipo_manual.seq_tipo_origem_saldo))
+                         seq_tipo_origem=_tipo_manual.seq_tipo_origem_saldo,
+                         seq_tipo_instrumento=resolver_tipo_instrumento(
+                             'FUNDO').seq_tipo_instrumento))
     db.session.commit()
 _fundo_kpi = Fundo.query.filter_by(cod_fundo="9902").first()
 

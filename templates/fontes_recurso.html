@@ -34,20 +34,34 @@
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
         <div>
             <p class="text-xs text-gray-500">Bancário total</p>
-            <p class="text-lg font-bold text-gray-800" data-testid="grupo-total">{{ grupos.total | format_currency }}</p>
+            <p class="text-lg font-bold text-gray-800" data-testid="grupo-total">{{ grupos.total.total | format_currency }}</p>
         </div>
         <div>
             <p class="text-xs text-emerald-700">Livre (fontes 'L')</p>
-            <p class="text-lg font-bold text-emerald-700" data-testid="grupo-livre">{{ grupos.L | format_currency }}</p>
+            <p class="text-lg font-bold text-emerald-700" data-testid="grupo-livre">{{ grupos.L.total | format_currency }}</p>
         </div>
         <div>
             <p class="text-xs text-indigo-700">Vinculado por fonte</p>
-            <p class="text-lg font-bold text-indigo-700" data-testid="grupo-vinculado">{{ grupos.V | format_currency }}</p>
+            <p class="text-lg font-bold text-indigo-700" data-testid="grupo-vinculado">{{ grupos.V.total | format_currency }}</p>
         </div>
         <div>
             <p class="text-xs text-amber-700">Pendente de classificação</p>
-            <p class="text-lg font-bold text-amber-700" data-testid="grupo-pendente">{{ grupos.P | format_currency }}</p>
+            <p class="text-lg font-bold text-amber-700" data-testid="grupo-pendente">{{ grupos.P.total | format_currency }}</p>
             <p class="text-[11px] text-amber-600">fundo sem fonte — fora do livre (<a class="underline" href="{{ url_for('fundos') }}">classificar</a>)</p>
+        </div>
+    </div>
+    <!-- Separação líquido × carência (change tipo-instrumento-financeiro):
+         só o disponível imediato é autorizativo; o aplicado com carência é
+         patrimônio do caixa, fora do "posso pagar amanhã". -->
+    <div class="grid grid-cols-2 gap-4 text-sm mt-3 pt-3 border-t border-gray-100">
+        <div>
+            <p class="text-xs text-gray-500">Disponível imediato (líquido)</p>
+            <p class="text-lg font-bold text-emerald-800" data-testid="grupo-liquido">{{ grupos.total.liquido | format_currency }}</p>
+        </div>
+        <div>
+            <p class="text-xs text-gray-500">Aplicado com carência</p>
+            <p class="text-lg font-bold text-sky-800" data-testid="grupo-carencia">{{ grupos.total.carencia | format_currency }}</p>
+            <p class="text-[11px] text-sky-700">fora da disponibilidade operacional autorizativa</p>
         </div>
     </div>
 </div>

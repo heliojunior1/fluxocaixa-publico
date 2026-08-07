@@ -16,7 +16,13 @@ Cálculo em Decimal (2 casas); conversão para o template na borda.
 from datetime import date, timedelta
 from decimal import Decimal
 
-from ...models import ContaBancaria, Fundo, SistemaOrigem, TipoOrigemSaldo
+from ...models import (
+    ContaBancaria,
+    Fundo,
+    SistemaOrigem,
+    TipoInstrumento,
+    TipoOrigemSaldo,
+)
 from ...repositories import saldo_fundo_repository
 from ...repositories.lancamento_repository import LancamentoRepository
 from ...repositories.saldo_conta_repository import SaldoContaRepository
@@ -38,12 +44,18 @@ def get_saldos_diarios_data(
     data_ref: date,
     visao: str = "agregado",
     seq_conta: int | None = None,
+    seq_tipo_instrumento: int | None = None,
 ) -> dict:
-    """Relatório de saldos diários nos modos agregado (default) e por fundo."""
+    """Relatório de saldos diários nos modos agregado (default) e por fundo.
+
+    O filtro por tipo de instrumento (R16) só faz sentido no modo por fundo;
+    no agregado é ignorado (a linha agregada mistura instrumentos).
+    """
     visao = "fundo" if (visao or "").lower() == "fundo" else "agregado"
 
     if visao == "fundo":
-        rows_fundo, totais_fundo = _modo_fundo(data_ref, seq_conta)
+        rows_fundo, totais_fundo = _modo_fundo(
+            data_ref, seq_conta, seq_tipo_instrumento)
         rows, totais = [], _totais_vazios()
     else:
         rows, totais = _modo_agregado(data_ref, seq_conta)
@@ -178,7 +190,8 @@ def _descrever_origem(seq_tipo, seq_sistema, tipos: dict, sistemas: dict) -> str
     return f"Automatizado - {sistemas.get(seq_sistema, '')}"
 
 
-def _modo_fundo(data_ref: date, seq_conta: int | None) -> tuple[list, dict]:
+def _modo_fundo(data_ref: date, seq_conta: int | None,
+                seq_tipo_instrumento: int | None = None) -> tuple[list, dict]:
     linhas = saldo_fundo_repository.calc_por_periodo(
         data_ref, data_ref, seq_conta=seq_conta
     )
@@ -186,13 +199,22 @@ def _modo_fundo(data_ref: date, seq_conta: int | None) -> tuple[list, dict]:
     fundos = {f.seq_fundo: f for f in Fundo.query.all()}
     tipos = {t.seq_tipo_origem_saldo: t.txt_sigla for t in TipoOrigemSaldo.query.all()}
     sistemas = {s.seq_sistema_origem: s.txt_sigla for s in SistemaOrigem.query.all()}
+    instrumentos = {t.seq_tipo_instrumento: t.txt_sigla
+                    for t in TipoInstrumento.query.all()}
 
     rows = []
     totais = _totais_fundo_vazios()
     for linha in linhas:
+        fundo = fundos[linha["seq_fundo"]]
+        if (seq_tipo_instrumento is not None
+                and fundo.seq_tipo_instrumento != seq_tipo_instrumento):
+            continue
         rows.append({
             "conta": contas[linha["seq_conta"]],
-            "fundo": fundos[linha["seq_fundo"]],
+            "fundo": fundo,
+            "tipo_instrumento": instrumentos.get(fundo.seq_tipo_instrumento, ""),
+            "liquidez_imediata": fundo.ind_liquidez_imediata == 'S',
+            "dat_vencimento": fundo.dat_vencimento,
             "saldo_inicial": linha["val_saldo_inicial_derivado"],
             "aplicacoes": linha["val_aplicacoes"],
             "resgates": linha["val_resgates"],

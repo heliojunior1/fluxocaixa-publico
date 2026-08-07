@@ -27,7 +27,13 @@ from .projecao_versao import ProjecaoValor, ProjecaoVersao
 from .qualificador import Qualificador
 from .qualificador_fonte import QualificadorFonte
 from .reserva_financeira import ReservaEvento, ReservaFinanceira
-from .saldo_fundo import Fundo, SaldoContaFundo, SistemaOrigem, TipoOrigemSaldo
+from .saldo_fundo import (
+    Fundo,
+    SaldoContaFundo,
+    SistemaOrigem,
+    TipoInstrumento,
+    TipoOrigemSaldo,
+)
 from .simulacao_desembolso import ParametroDesembolso, SimulacaoDesembolso
 from .simulador_cenario import (
     CenarioAjuste,
@@ -94,6 +100,7 @@ __all__ = [
     'SimuladorCenarioHistorico',
     'SistemaOrigem',
     'TermoRegra',
+    'TipoInstrumento',
     'TipoLancamento',
     'TipoOrigemSaldo',
     'Transferencia',

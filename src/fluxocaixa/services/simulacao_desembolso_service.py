@@ -173,7 +173,13 @@ def simular(cenario_id: int, ano: int, grupo: str = GRUPO_LIVRE,
     from .reserva_service import reservas_vigentes_do_grupo
 
     reservas = reservas_vigentes_do_grupo(grupo, date.today())
-    saldo_inicial = saldo_bruto_por_grupo()[grupo] - reservas
+    # Só a parcela LÍQUIDA do grupo é autorizativa (change
+    # tipo-instrumento-financeiro, spec desembolso R9): CDB com carência é
+    # patrimônio do caixa, não "posso pagar amanhã" — vai ao resultado como
+    # informação (saldo_carencia), nunca à curva.
+    bruto_grupo = saldo_bruto_por_grupo()[grupo]
+    saldo_inicial = bruto_grupo["liquido"] - reservas
+    saldo_carencia = bruto_grupo["carencia"]
     colchao = colchao_do_grupo(grupo)
 
     periodos = []
@@ -213,6 +219,7 @@ def simular(cenario_id: int, ano: int, grupo: str = GRUPO_LIVRE,
     return {
         'grupo': grupo, 'modo': modo, 'ano': ano,
         'saldo_inicial': saldo_inicial, 'reservas': reservas,
+        'saldo_carencia': saldo_carencia,
         'colchao': colchao, 'periodos': periodos,
         'veredicto': veredicto, 'minimo': minimo_lote,
         'estrutural': estrutural,
