@@ -572,6 +572,16 @@ fora do controle de versão (nunca commite estado de sessão).
 - **Versionamento e publicação** de projeções, com snapshot do cenário — o número apresentado ao gestor não muda sozinho depois de publicado.
 - **Fórmulas de rubrica** com parâmetros globais cadastráveis (IPCA, PIB, Selic e outros).
 
+Ao escolher **Fórmula Parametrizável** na simulação anual, cada seção de
+receita/despesa mostra o qualificador e a expressão cadastrada que será
+aplicada. Qualificadores sem fórmula não recebem projeção por esse método.
+O campo `base` usa a configuração histórica do cenário. Em **Valores dos
+parâmetros neste cenário**, aparecem apenas as demais variáveis utilizadas,
+com a indicação das fórmulas e qualificadores que as consomem. O mesmo nome
+de parâmetro compartilha um único valor entre receitas e despesas; taxas
+usam formato decimal (por exemplo, `0.045` para 4,5%). Os valores são
+recuperados ao editar e deixam de ser gravados quando não são mais usados.
+
 ### Integração
 
 - **Extração embutida**, sem depender de orquestrador externo: conectores de arquivo (FTP, SFTP ou pasta local), API REST com OAuth2 e banco SQL, todos parametrizados por cadastro.

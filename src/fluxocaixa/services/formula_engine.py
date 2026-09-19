@@ -398,6 +398,18 @@ def projetar_com_formula_anual(
     return pd.DataFrame(records)
 
 
+def listar_formulas_aplicaveis(tipo_fluxo: str | None = None):
+    """Mesmo conjunto no formulário e no cálculo: fórmula e folha ativas."""
+    from ..repositories import formula_repository as f_repo
+
+    return [f for f in f_repo.get_all_formulas()
+            if f.qualificador is not None
+            and f.qualificador.ind_status == 'A'
+            and f.qualificador.tipo_fluxo in ('receita', 'despesa')
+            and (tipo_fluxo is None or f.qualificador.tipo_fluxo == tipo_fluxo)
+            and f.qualificador.is_folha()]
+
+
 def projetar_cenario_formula(
     seq_simulador_cenario: int,
     ano_base: int,
@@ -423,7 +435,6 @@ def projetar_cenario_formula(
     Returns:
         DataFrame com colunas ['data', 'seq_qualificador', 'valor_projetado']
     """
-    from ..models import Qualificador
     from ..repositories import formula_repository as f_repo
 
     if config_base is None:
@@ -433,19 +444,9 @@ def projetar_cenario_formula(
     valores_cenario = f_repo.get_valores_cenario(seq_simulador_cenario)
     parametros = {v.nom_parametro: float(v.val_parametro) for v in valores_cenario}
 
-    # Buscar qualificadores-folha do tipo informado
-    qualificadores = Qualificador.query.filter_by(ind_status='A').all()
-    folhas = [
-        q for q in qualificadores
-        if q.tipo_fluxo == tipo_fluxo and q.is_folha()
-    ]
-
     all_records = []
-    for folha in folhas:
-        formula = f_repo.get_formula_by_qualificador(folha.seq_qualificador)
-        if not formula:
-            continue
-
+    for formula in listar_formulas_aplicaveis(tipo_fluxo):
+        folha = formula.qualificador
         if periodicidade == 'ANUAL':
             df = projetar_com_formula_anual(
                 seq_qualificador=folha.seq_qualificador,
@@ -707,5 +708,4 @@ def projetar_media_crescimento_anos(
         })
 
     return pd.DataFrame(registros)
-
 

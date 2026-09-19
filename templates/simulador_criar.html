@@ -479,29 +479,9 @@
                 </div>
             </div>
 
-            <!-- Parâmetros Fórmula Parametrizável (fora de receita_model_fields para poder ser mostrado independentemente) -->
-            <div id="formula_params" class="hidden mb-4 p-4 bg-white rounded border">
-                <div class="bg-violet-50 border border-violet-200 rounded-lg p-4 mb-3">
-                    <p class="text-sm text-violet-700 font-medium mb-1">Projeção por Fórmula Parametrizável</p>
-                    <p class="text-xs text-violet-600">O sistema usará as fórmulas cadastradas para cada rubrica. Configure os valores dos parâmetros abaixo.</p>
-                </div>
-                <div id="formula_params_loading" class="text-sm text-gray-500 py-4 text-center">
-                    <i data-lucide="loader-2" class="w-5 h-5 animate-spin inline-block mr-2"></i>
-                    Carregando parâmetros...
-                </div>
-                <div id="formula_params_container" class="hidden space-y-4">
-                    <div id="formula_params_list" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
-                    <div id="formula_specific_params" class="hidden">
-                        <p class="text-xs text-orange-600 font-medium mb-2">⚠ Parâmetros específicos detectados nas fórmulas (não são globais):</p>
-                        <div id="formula_specific_list" class="grid grid-cols-2 md:grid-cols-3 gap-3"></div>
-                    </div>
-                    <div class="text-xs text-gray-500 border-t pt-3">
-                        <a href="/formulas" class="text-violet-600 underline hover:text-violet-800">Gerenciar Fórmulas</a>
-                        <span class="mx-2">•</span>
-                        <a href="/parametros-globais" class="text-violet-600 underline hover:text-violet-800">Gerenciar Parâmetros</a>
-                    </div>
-                </div>
-            </div>
+            {% with tipo_fluxo='receita' %}
+                {% include 'simulador_formulas.html' %}
+            {% endwith %}
 
             <!-- Tabela de Valores Receita (Sempre Visível) -->
             <div id="receita_manual_fields">
@@ -593,6 +573,10 @@
                         de Crescimento (Anos Selecionados)</option>
                 </select>
             </div>
+
+            {% with tipo_fluxo='despesa' %}
+                {% include 'simulador_formulas.html' %}
+            {% endwith %}
 
             <!-- Configuração LOA (Tabela Anual) -->
             <div id="despesa_loa_fields" class="hidden mb-4 p-4 bg-white rounded border">
@@ -712,6 +696,8 @@
                 </div>
             </div>
         </div>
+
+        {% include 'simulador_parametros_formula.html' %}
 
         <div class="flex justify-end gap-4">
             <a href="{{ url_for('simulador_menu') }}"
@@ -871,9 +857,7 @@
             filhosContainer.classList.add('hidden');
         }
 
-        // Sempre esconder formula_params e crescimento_params primeiro (estão fora de modelFields)
-        const formulaPanel = document.getElementById('formula_params');
-        if (formulaPanel) formulaPanel.classList.add('hidden');
+        atualizarFormulas();
         const crescimentoPanel = document.getElementById('crescimento_params');
         if (crescimentoPanel) crescimentoPanel.classList.add('hidden');
         const crescAnoInfo = document.getElementById('crescimento_ano_info');
@@ -891,7 +875,6 @@
         if (tipoSelect.value === 'FORMULA') {
             modelFields.classList.add('hidden');
             modelFields.querySelectorAll('input, select').forEach(el => el.disabled = true);
-            carregarParametrosFormula();
             return;
         }
 
@@ -961,9 +944,7 @@
         if (tipoSelect.value === 'MEDIA_HISTORICA' && mediaFields) {
             mediaFields.classList.remove('hidden');
         }
-        if (tipoSelect.value === 'FORMULA') {
-            carregarParametrosFormula();
-        }
+        atualizarFormulas();
     }
 
     async function onQualificadorChange() {
@@ -1598,101 +1579,25 @@
 
     // ==================== Fórmula Parametrizável ====================
 
-    async function carregarParametrosFormula() {
-        const formulaSection = document.getElementById('formula_params');
-        const loadingDiv = document.getElementById('formula_params_loading');
-        const containerDiv = document.getElementById('formula_params_container');
-        const paramsList = document.getElementById('formula_params_list');
-        const specificSection = document.getElementById('formula_specific_params');
-        const specificList = document.getElementById('formula_specific_list');
-
-        if (!formulaSection) return;
-
-        // Mostrar seção de fórmula
-        const modelFields = document.getElementById('receita_model_fields');
-        if (modelFields) modelFields.classList.add('hidden');
-
-        formulaSection.classList.remove('hidden');
-        if (loadingDiv) loadingDiv.classList.remove('hidden');
-        if (containerDiv) containerDiv.classList.add('hidden');
-
-        try {
-            const [paramsResp, formulasResp] = await Promise.all([
-                fetch('/api/parametros-globais'),
-                fetch('/api/formulas'),
-            ]);
-            const paramsData = await paramsResp.json();
-            const formulasData = await formulasResp.json();
-
-            const parametros = paramsData.parametros || [];
-            const formulas = formulasData.formulas || [];
-
-            // Coletar todas as variáveis de todas as fórmulas
-            const todasVariaveis = new Set();
-            formulas.forEach(f => {
-                (f.variaveis || []).forEach(v => {
-                    if (v !== 'base') todasVariaveis.add(v);
-                });
-            });
-
-            // Separar em globais e específicos
-            const nomesGlobais = new Set(parametros.map(p => p.nom_parametro));
-            const varsEspecificas = [...todasVariaveis].filter(v => !nomesGlobais.has(v));
-
-            // Renderizar parâmetros globais
-            if (paramsList) {
-                if (parametros.length > 0) {
-                    paramsList.innerHTML = parametros.map(p => {
-                        const usado = todasVariaveis.has(p.nom_parametro);
-                        return `
-                            <div class="bg-white border ${usado ? 'border-violet-200' : 'border-gray-200'} rounded-lg p-3">
-                                <label class="block text-xs font-medium ${usado ? 'text-violet-700' : 'text-gray-500'} mb-1">
-                                    ${p.nom_parametro}
-                                    ${p.cod_tipo === 'P' ? '<span class="text-gray-400">(%)</span>' : '<span class="text-gray-400">(R$)</span>'}
-                                    ${usado ? '<span class="text-violet-500 ml-1">●</span>' : ''}
-                                </label>
-                                <input type="number" step="any"
-                                    name="formula_param_${p.nom_parametro}"
-                                    class="w-full border rounded p-1.5 text-sm ${usado ? 'border-violet-300' : ''}"
-                                    placeholder="${p.cod_tipo === 'P' ? '0.045' : '0.00'}">
-                                <p class="text-[10px] text-gray-400 mt-1">${escHtml(p.dsc_parametro || '')}</p>
-                            </div>
-                        `;
-                    }).join('');
-                } else {
-                    paramsList.innerHTML = `
-                        <div class="col-span-full text-center py-6 text-gray-500">
-                            <p class="text-sm mb-2">Nenhum parâmetro cadastrado.</p>
-                            <a href="/parametros-globais" class="text-violet-600 underline text-sm">Cadastrar parâmetros</a>
-                        </div>
-                    `;
-                }
-            }
-
-            // Renderizar variáveis específicas
-            if (specificList && specificSection) {
-                if (varsEspecificas.length > 0) {
-                    specificSection.classList.remove('hidden');
-                    specificList.innerHTML = varsEspecificas.map(v => `
-                        <div class="bg-orange-50 border border-orange-200 rounded-lg p-3">
-                            <label class="block text-xs font-medium text-orange-700 mb-1">${v}</label>
-                            <input type="number" step="any"
-                                name="formula_param_${v}"
-                                class="w-full border border-orange-300 rounded p-1.5 text-sm"
-                                placeholder="0.00">
-                        </div>
-                    `).join('');
-                } else {
-                    specificSection.classList.add('hidden');
-                }
-            }
-
-            if (loadingDiv) loadingDiv.classList.add('hidden');
-            if (containerDiv) containerDiv.classList.remove('hidden');
-        } catch(e) {
-            console.error('Erro ao carregar parâmetros de fórmula:', e);
-            if (loadingDiv) loadingDiv.innerHTML = '<p class="text-red-500 text-sm">Erro ao carregar parâmetros</p>';
+    function atualizarFormulas() {
+        const tiposAtivos = ['receita', 'despesa'].filter(tipo =>
+            document.getElementById(`tipo_${tipo}`).value === 'FORMULA');
+        for (const tipo of ['receita', 'despesa']) {
+            document.getElementById(`formula_${tipo}`).classList.toggle('hidden', !tiposAtivos.includes(tipo));
         }
+        document.getElementById('formula_params').classList.toggle('hidden', tiposAtivos.length === 0);
+        let quantidade = 0;
+        document.querySelectorAll('[data-parametro-formula]').forEach(campo => {
+            const usos = Array.from(campo.querySelectorAll('[data-formula-fluxo]'));
+            const ativo = usos.some(uso => tiposAtivos.includes(uso.dataset.formulaFluxo));
+            usos.forEach(uso => uso.classList.toggle('hidden', !tiposAtivos.includes(uso.dataset.formulaFluxo)));
+            campo.classList.toggle('hidden', !ativo);
+            const input = campo.querySelector('input');
+            input.disabled = !ativo;
+            input.required = ativo;
+            if (ativo) quantidade++;
+        });
+        document.getElementById('formula_sem_parametros').classList.toggle('hidden', quantidade > 0);
     }
 
     // ==================== Periodicidade ====================
@@ -1754,7 +1659,6 @@
     window.aplicarMediaHistorica = aplicarMediaHistorica;
     window.toggleTodosQualificadores = toggleTodosQualificadores;
     window.atualizarContadorQualificadores = atualizarContadorQualificadores;
-    window.carregarParametrosFormula = carregarParametrosFormula;
     window.onPeriodicidadeChange = onPeriodicidadeChange;
     window.toggleMetodoBaseCenario = toggleMetodoBaseCenario;
     window.atualizarAnosCenario = atualizarAnosCenario;

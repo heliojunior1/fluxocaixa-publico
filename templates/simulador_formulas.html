@@ -1,0 +1,24 @@
+<div id="formula_{{ tipo_fluxo }}" class="hidden mb-4 p-4 bg-white rounded border border-violet-200">
+    <h4 class="font-medium text-violet-800 mb-2">Fórmulas aplicadas à {{ tipo_fluxo }}</h4>
+    <p class="text-sm text-gray-600 mb-3">Cada fórmula será aplicada automaticamente ao qualificador vinculado no cadastro. A variável <code>base</code> usa a Configuração da Base Histórica deste cenário.</p>
+    {% for formula in formulas_por_tipo[tipo_fluxo] %}
+    <div class="border rounded p-3 mb-3" data-testid="formula-{{ tipo_fluxo }}-item">
+        <p class="font-medium text-gray-800">{{ formula.qualificador }}</p>
+        <p class="text-sm text-gray-600">{{ formula.nome }}</p>
+        <code class="block my-2 p-2 bg-violet-50 text-violet-800 break-words">{{ formula.expressao }}</code>
+        {% if formula.variaveis %}
+        <p class="text-xs text-gray-600">Parâmetros utilizados: {{ formula.variaveis | join(', ') }}.
+            <a href="#formula_params" class="text-violet-700 underline">Preencher valores neste cenário</a>
+        </p>
+        {% else %}
+        <p class="text-xs text-gray-600">Esta fórmula não exige parâmetros adicionais.</p>
+        {% endif %}
+    </div>
+    {% else %}
+    <p class="p-3 bg-amber-50 text-amber-800" role="status">Nenhuma fórmula cadastrada para qualificadores folha ativos de {{ tipo_fluxo }}. Cadastre uma fórmula ou escolha outro método de projeção.</p>
+    {% endfor %}
+    <p class="text-xs text-gray-600 mt-3">Qualificadores sem fórmula não recebem projeção por este método.</p>
+    {% if tem_permissao(request, 'FC_CONS_FORMULA') %}
+    <a href="/formulas" class="inline-block mt-2 text-sm text-violet-700 underline">Consultar fórmulas cadastradas</a>
+    {% endif %}
+</div>

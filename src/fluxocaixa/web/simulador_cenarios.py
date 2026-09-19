@@ -7,6 +7,8 @@ from fastapi import Request
 from fastapi.responses import JSONResponse, RedirectResponse
 
 from ..auth.permissoes import requer
+from ..repositories import formula_repository
+from ..services.formula_cenario_service import contexto_formulas, parametros_do_formulario
 from ..services import (
     atualizar_simulador_cenario,
     criar_simulador_cenario,
@@ -70,6 +72,7 @@ async def simulador_novo(request: Request):
             'meses_nomes': MONTH_NAME_PT,
             'modo': 'criar',
             'anos_disponiveis': anos_disponiveis,
+            **contexto_formulas(),
         }
     )
 
@@ -107,11 +110,13 @@ async def simulador_criar(request: Request):
     """Cria um novo cenário simulador."""
     form = await request.form()
     dados = _parse_cenario_form(form)
+    parametros = parametros_do_formulario(form)
     simulador = criar_simulador_cenario(**dados)
 
     # Salvar parâmetros de fórmula se tipo FORMULA
     if 'FORMULA' in (dados['tipo_cenario_receita'], dados['tipo_cenario_despesa']):
-        _salvar_parametros_formula(form, simulador.seq_simulador_cenario)
+        formula_repository.set_valores_cenario_batch(
+            simulador.seq_simulador_cenario, parametros)
     
     # Redirecionar para visualização
     return RedirectResponse(
@@ -247,6 +252,7 @@ async def simulador_editar_get(request: Request, id: int):
             'meses_nomes': MONTH_NAME_PT,
             'modo': 'editar',
             'anos_disponiveis': anos_disponiveis,
+            **contexto_formulas(id),
         }
     )
 
@@ -257,11 +263,11 @@ async def simulador_atualizar(request: Request, id: int):
     """Atualiza um cenário simulador existente."""
     form = await request.form()
     dados = _parse_cenario_form(form)
+    parametros = parametros_do_formulario(form)
     atualizar_simulador_cenario(seq_simulador_cenario=id, **dados)
 
-    # Salvar parâmetros de fórmula se tipo FORMULA
-    if 'FORMULA' in (dados['tipo_cenario_receita'], dados['tipo_cenario_despesa']):
-        _salvar_parametros_formula(form, id)
+    # Substitui também por vazio ao deixar de usar fórmulas: sem valores ocultos.
+    formula_repository.set_valores_cenario_batch(id, parametros)
     
     return RedirectResponse(url=f'/simulador/{id}', status_code=303)
 
@@ -479,23 +485,6 @@ def _dataframe_to_json(df):
             record['data'] = record['data'].strftime('%Y-%m-%d') if hasattr(record['data'], 'strftime') else str(record['data'])
     
     return records
-
-
-def _salvar_parametros_formula(form, seq_simulador_cenario: int):
-    """Extrai e salva parâmetros de fórmula do formulário."""
-    from ..repositories import formula_repository as f_repo
-    
-    parametros = {}
-    for key, value in form.items():
-        if key.startswith('formula_param_') and value:
-            nome = key.replace('formula_param_', '')
-            try:
-                parametros[nome] = float(value)
-            except (ValueError, TypeError):
-                pass
-    
-    if parametros:
-        f_repo.set_valores_cenario_batch(seq_simulador_cenario, parametros)
 
 
 def _parse_config_base_from_form(form) -> str:

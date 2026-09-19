@@ -1,0 +1,26 @@
+<div id="formula_params" class="hidden mb-8 p-4 bg-violet-50 rounded-lg border border-violet-200">
+    <h3 class="text-lg font-medium text-violet-800 mb-2">Valores dos parâmetros neste cenário</h3>
+    <p class="text-sm text-gray-600 mb-4">A fórmula e seu qualificador vêm do cadastro. Aqui você informa apenas os valores das variáveis para esta simulação. Um parâmetro com o mesmo nome tem o mesmo valor em todas as fórmulas de receita e despesa que o utilizam.</p>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {% for parametro in parametros_formula %}
+        <div class="hidden bg-white border rounded-lg p-3" data-parametro-formula>
+            <label for="formula_param_{{ parametro.nome }}" class="block text-sm font-medium text-violet-800 mb-1">{{ parametro.nome }}{% if parametro.tipo == 'P' %} (taxa decimal){% elif parametro.tipo == 'V' %} (valor){% endif %}</label>
+            <input id="formula_param_{{ parametro.nome }}" name="formula_param_{{ parametro.nome }}"
+                type="number" step="any" value="{{ parametro.valor }}" disabled
+                aria-describedby="formula_ajuda_{{ loop.index }}"
+                class="w-full border rounded p-2 text-sm">
+            <div id="formula_ajuda_{{ loop.index }}" class="text-xs text-gray-600 mt-2">
+                {% if parametro.descricao %}<p>{{ parametro.descricao }}</p>{% endif %}
+                {% if parametro.tipo == 'P' %}<p>Exemplo: para 4,5%, informe 0.045.</p>{% endif %}
+                <p class="font-medium mt-2">Utilizado em:</p>
+                <ul>
+                    {% for uso in parametro.usos %}
+                    <li data-formula-fluxo="{{ uso.tipo_fluxo }}">{{ uso.tipo_fluxo | capitalize }} · {{ uso.qualificador }} · {{ uso.formula }}</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <p id="formula_sem_parametros" class="text-sm text-gray-600">Não há parâmetros adicionais a preencher. Confira acima as fórmulas aplicáveis.</p>
+</div>
