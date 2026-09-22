@@ -80,7 +80,7 @@ visitados (guarda de ciclo). A tela mostra o método **e se é próprio ou herda
 | `VALOR_FIXO` | C e D | folha ou bloco | Valor **anual** (distribuído pelo perfil sazonal) ou **12 valores mensais** |
 | `PERCENTUAL` | C e D | folha ou bloco | % sobre o realizado do ano anterior **ou** da média de N anos |
 | `FORMULA` | C e D | folha | Expressão (biblioteca ou própria do cenário — RN18) + base (método, anos, pesos) |
-| `MODELO` | C (econométricos); D (média histórica); C e D (crescimento) — catálogo do simulador | nó marcado | Tipo (HW, ARIMA, SARIMA, XGBoost, LightGBM, média histórica, crescimento), janela de treino |
+| `MODELO` | C (econométricos); C e D (média histórica e crescimento) | nó marcado | Tipo (HW, ARIMA, SARIMA, XGBoost, LightGBM, média histórica, crescimento), janela de treino |
 | `LOA` | D | folha ou bloco | Ano da LOA; perfil do realizado para distribuir |
 | `PROPOSTA_SETORIAL` | C e D | bloco | Versão publicada fixada (RN24–RN29) |
 | `SEM_PROJECAO` | C e D | folha ou bloco | Motivo obrigatório. Zero **declarado** — não é lacuna |
@@ -326,7 +326,11 @@ receita fora do veredicto — e tudo que vem depois escreve na mesma saída.
 - **Folha relevante para lacuna** = folha ativa do plano do exercício do
   cenário com realizado nos três anos anteriores ao ano-base (ou com método
   declarado). Folha sem histórico e sem método não é lacuna.
-- **Modelos na marcação** usam o mesmo catálogo de pernas do simulador
-  (econométricos só em receita; média histórica só em despesa; crescimento nas
-  duas). Treinam 12 meses e a série é emitida na periodicidade do cenário
+- **Modelos na marcação** usam o catálogo de pernas do simulador
+  (econométricos só em receita; crescimento nas duas), com uma exceção
+  deliberada: **média histórica vale nas duas pernas** na marcação. O backtest
+  a avalia e a recomenda para receita (no seed, ganhou em 3 de 4 rubricas), e
+  com a restrição "só despesa" a melhor recomendação sumia em silêncio de
+  "Aplicar recomendações". A restrição segue valendo para a configuração da
+  perna (spec R2). Treinam 12 meses e a série é emitida na periodicidade do cenário
   (quinzenal/semanal rateiam o mês).

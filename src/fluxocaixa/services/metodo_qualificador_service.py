@@ -100,9 +100,9 @@ def perna_do_qualificador(qualificador) -> str | None:
 def pernas_do_metodo(cod_metodo: str, config: dict | None) -> tuple:
     """Pernas em que o método se aplica (RN04). Tupla vazia = inexistente.
 
-    MODELO usa o MESMO catálogo do simulador (`CATALOGO_MODELOS`): os
-    econométricos só em receita, média histórica só em despesa — recupera a
-    garantia que valia para a configuração da perna.
+    MODELO usa o catálogo do simulador (`CATALOGO_MODELOS`): os
+    econométricos só em receita — com uma exceção, média histórica nas duas
+    pernas (ver abaixo).
     """
     from ..models.simulador_cenario import pernas_do_modelo
 
@@ -112,6 +112,13 @@ def pernas_do_metodo(cod_metodo: str, config: dict | None) -> tuple:
         modelo = (config or {}).get('modelo')
         if modelo not in MODELOS_DE_SERIE:
             return ()
+        if modelo == 'MEDIA_HISTORICA':
+            # Na marcação vale para as DUAS pernas: o backtest avalia e
+            # recomenda média histórica para receita, e a recomendação
+            # sumia em silêncio de "Aplicar recomendações". A restrição
+            # "só despesa" do `CATALOGO_MODELOS` é da configuração da perna
+            # (legado das tabelas separadas, spec R2) e continua lá.
+            return ('C', 'D')
         return pernas_do_modelo(modelo)
     if cod_metodo in METODOS:
         return ('C', 'D')
@@ -842,8 +849,19 @@ def _valor_fixo_mensal(ex, config, folhas) -> dict[int, float]:
     if config.get('valores_mensais'):
         return {int(m): float(v) for m, v in config['valores_mensais'].items()}
     perfil = ex.realizado.perfil([q.seq_qualificador for q in folhas], ex.ano - 1)
-    anual = float(config.get('valor_anual') or 0)
-    return {m: anual * perfil[m] for m in range(1, 13)}
+    return _ratear_em_centavos(float(config.get('valor_anual') or 0), perfil)
+
+
+def _ratear_em_centavos(total: float, pesos: dict) -> dict:
+    """Reparte `total` pelos pesos em CENTAVOS, com o resíduo do
+    arredondamento no maior peso — a soma das partes é exatamente o total
+    (RN13). Sem isso, R$ 5.000.000,00 distribuídos pelo perfil mensal viravam
+    R$ 4.999.999,99 nas folhas."""
+    partes = {chave: round(total * peso, 2) for chave, peso in pesos.items()}
+    if partes:
+        maior = max(pesos, key=pesos.get)
+        partes[maior] = round(partes[maior] + round(total, 2) - round(sum(partes.values()), 2), 2)
+    return partes
 
 
 def _distribuir(ex, perna, folhas, total_mes, metodo, seq_no, calc):
@@ -858,14 +876,10 @@ def _distribuir(ex, perna, folhas, total_mes, metodo, seq_no, calc):
             f"Bloco {folhas[0].pai.num_qualificador if folhas[0].pai else ''}: "
             "sem realizado para distribuir — o total não foi projetado")
         return
-    maior = max(pesos, key=pesos.get)
+    por_mes = {m: _ratear_em_centavos(v, pesos) for m, v in total_mes.items()}
     for folha in folhas:
         seq = folha.seq_qualificador
-        valores = {m: round(v * pesos[seq], 2) for m, v in total_mes.items()}
-        if seq == maior:
-            for m, v in total_mes.items():
-                resto = round(v, 2) - sum(round(v * p, 2) for p in pesos.values())
-                valores[m] = round(valores[m] + resto, 2)
+        valores = {m: partes[seq] for m, partes in por_mes.items()}
         ex.emitir_mensal(perna, seq, valores, metodo, calc)
         if pesos[seq] <= 0:
             ex.marcar(seq, STATUS_SEM_PARTICIPACAO,
