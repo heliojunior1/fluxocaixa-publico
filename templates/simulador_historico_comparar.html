@@ -23,6 +23,10 @@
         <div class="bg-white p-5 rounded-lg shadow-md border">
             <div class="text-xs uppercase text-gray-500 mb-1">Versão A (anterior)</div>
             <div class="font-semibold text-gray-800">{{ va.nom_versao }}</div>
+            {% if comparativo.cenario_a and comparativo.cenario_b
+                  and comparativo.cenario_a.seq_simulador_cenario != comparativo.cenario_b.seq_simulador_cenario %}
+            <div class="text-xs text-blue-700" data-testid="cenario-a">{{ comparativo.cenario_a.nom_cenario }}</div>
+            {% endif %}
             <div class="text-xs text-gray-500">
                 {{ va.dat_versao.strftime('%d/%m/%Y %H:%M') if va.dat_versao else '-' }}
             </div>
@@ -33,6 +37,10 @@
         <div class="bg-white p-5 rounded-lg shadow-md border">
             <div class="text-xs uppercase text-gray-500 mb-1">Versão B (mais recente)</div>
             <div class="font-semibold text-gray-800">{{ vb.nom_versao }}</div>
+            {% if comparativo.cenario_a and comparativo.cenario_b
+                  and comparativo.cenario_a.seq_simulador_cenario != comparativo.cenario_b.seq_simulador_cenario %}
+            <div class="text-xs text-blue-700" data-testid="cenario-b">{{ comparativo.cenario_b.nom_cenario }}</div>
+            {% endif %}
             <div class="text-xs text-gray-500">
                 {{ vb.dat_versao.strftime('%d/%m/%Y %H:%M') if vb.dat_versao else '-' }}
             </div>

@@ -696,4 +696,34 @@ if not Qualificador.query.filter_by(num_qualificador='2.8.9').first():
                                 ind_status='A'))
     db.session.commit()
 
+# ---------------------------------------------------------------------------
+# Previsão por qualificador (metodos-qualificador.spec.ts): bloco de receita
+# com duas folhas no plano corrente e um cenário SEM padrão nas pernas.
+# Dados fictícios.
+# ---------------------------------------------------------------------------
+if not Qualificador.query.filter_by(num_qualificador='1.986.60').first():
+    _raiz_rec = Qualificador.query.filter_by(num_qualificador='1').first()
+    _bloco_mq = Qualificador(num_qualificador='1.986.60',
+                             dsc_qualificador='Bloco métodos E2E',
+                             cod_qualificador_pai=_raiz_rec.seq_qualificador if _raiz_rec else None,
+                             ind_status='A')
+    db.session.add(_bloco_mq)
+    db.session.commit()
+    for _n in (1, 2):
+        db.session.add(Qualificador(num_qualificador=f'1.986.60.{_n}',
+                                    dsc_qualificador=f'Folha métodos E2E {_n}',
+                                    cod_qualificador_pai=_bloco_mq.seq_qualificador,
+                                    ind_status='A'))
+    db.session.commit()
+
+if not SimuladorCenario.query.filter_by(nom_cenario='Cenário métodos E2E').first():
+    from datetime import date as _date_mq
+
+    from fluxocaixa.services.simulador_cenario_service import criar_simulador_cenario
+
+    criar_simulador_cenario(
+        nom_cenario='Cenário métodos E2E', dsc_cenario='E2E', ano_base=_date_mq.today().year,
+        num_periodos=12, tipo_cenario_receita='', config_receita={},
+        tipo_cenario_despesa='', config_despesa={}, user_id=1)
+
 print("usuarios e2e prontos")

@@ -110,8 +110,9 @@ def cenario_com_versao(app):
         tipo_cenario_despesa="MANUAL", config_despesa={},
         ajustes_receita=ajustes, user_id=1)
     versao = salvar_projecao_como_versao(
-        cenario.seq_simulador_cenario, nom_versao="Q14", publicar=True)
-    publicar_versao(versao.seq_projecao_versao)
+        cenario.seq_simulador_cenario, nom_versao="Q14", publicar=True,
+        confirmado=True)
+    publicar_versao(versao.seq_projecao_versao, confirmado=True)
     return cenario
 
 

@@ -46,6 +46,18 @@ class SimuladorCenario(Base):
     cod_pessoa_inclusao = Column(Integer, nullable=False, default=_cod_pessoa_default)
     dat_alteracao = Column(Date)
     cod_pessoa_alteracao = Column(Integer)
+    # Cópia de cenário (previsao R19): de qual cenário esta cópia nasceu.
+    # Só rastro — a cópia é independente, nada é lido da origem depois.
+    seq_cenario_origem = Column(
+        Integer, ForeignKey('flc_simulador_cenario.seq_simulador_cenario'),
+        nullable=True)
+    # Cenário setorial (previsao R24): restrito ao recorte do setor na árvore.
+    # Nulo = cenário que pode projetar TODOS os qualificadores (R23).
+    seq_setor_previsao = Column(
+        Integer, ForeignKey('flc_setor_previsao.seq_setor_previsao'),
+        nullable=True)
+
+    setor = relationship('SetorPrevisao')
 
 
 # ---------------------------------------------------------------------------
@@ -132,6 +144,76 @@ class CenarioAjuste(Base):
 
     config = relationship(
         'CenarioConfig', backref=backref('ajustes', cascade='all, delete-orphan'))
+    qualificador = relationship('Qualificador')
+
+
+class CenarioMetodo(Base):
+    """Marcação de método por qualificador (previsao R01–R09).
+
+    Pode ficar em QUALQUER nó — bloco ou folha: marcar o bloco é o propósito
+    (as folhas herdam, a marcação mais próxima vence). O método EFETIVO de
+    uma folha é derivado na leitura por
+    `metodo_qualificador_service.metodo_resolvido` e nunca persistido — o
+    reapontamento de pai o mudaria para a subárvore inteira.
+
+    Configuração do cenário, não fato: excluída fisicamente como os ajustes
+    (a versão publicada congela as marcações em `json_inputs`).
+    """
+
+    __tablename__ = 'flc_cenario_metodo'
+    __table_args__ = (
+        UniqueConstraint('seq_simulador_cenario', 'seq_qualificador',
+                         name='uix_cenario_metodo_qualificador'),
+    )
+
+    seq_cenario_metodo = Column(Integer, primary_key=True)
+    seq_simulador_cenario = Column(
+        Integer, ForeignKey('flc_simulador_cenario.seq_simulador_cenario'),
+        nullable=False)
+    seq_qualificador = Column(
+        Integer, ForeignKey('flc_qualificador.seq_qualificador'), nullable=False)
+    # VALOR_FIXO | PERCENTUAL | FORMULA | MODELO | LOA | PROPOSTA_SETORIAL |
+    # SEM_PROJECAO — catálogo em `metodo_qualificador_service.METODOS`
+    cod_metodo = Column(String(30), nullable=False)
+    json_configuracao = Column(Text)
+    dat_inclusao = Column(Date, default=date.today, nullable=False)
+    cod_pessoa_inclusao = Column(Integer, nullable=False, default=_cod_pessoa_default)
+    dat_alteracao = Column(Date)
+    cod_pessoa_alteracao = Column(Integer)
+
+    simulador_cenario = relationship(
+        'SimuladorCenario',
+        backref=backref('metodos', cascade='all, delete-orphan'))
+    qualificador = relationship('Qualificador')
+
+
+class CenarioFormula(Base):
+    """Fórmula PRÓPRIA do cenário para uma rubrica (previsao R18).
+
+    O cenário usa a fórmula da biblioteca (`flc_rubrica_formula`) por
+    referência; editar a fórmula dentro do cenário grava aqui e nunca altera a
+    biblioteca nem os outros cenários. A leitura dá precedência a esta linha.
+    """
+
+    __tablename__ = 'flc_cenario_formula'
+    __table_args__ = (
+        UniqueConstraint('seq_simulador_cenario', 'seq_qualificador',
+                         name='uix_cenario_formula_qualificador'),
+    )
+
+    seq_cenario_formula = Column(Integer, primary_key=True)
+    seq_simulador_cenario = Column(
+        Integer, ForeignKey('flc_simulador_cenario.seq_simulador_cenario'),
+        nullable=False)
+    seq_qualificador = Column(
+        Integer, ForeignKey('flc_qualificador.seq_qualificador'), nullable=False)
+    dsc_formula_expressao = Column(Text, nullable=False)
+    dat_inclusao = Column(Date, default=date.today, nullable=False)
+    cod_pessoa_inclusao = Column(Integer, nullable=False, default=_cod_pessoa_default)
+
+    simulador_cenario = relationship(
+        'SimuladorCenario',
+        backref=backref('formulas_proprias', cascade='all, delete-orphan'))
     qualificador = relationship('Qualificador')
 
 

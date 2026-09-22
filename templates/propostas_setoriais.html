@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+
+{% block content %}
+{% set pode_avaliar = tem_permissao(request, 'FC_AVALIAR_PROPOSTA') %}
+{% set estilo = {'E': 'bg-yellow-100 text-yellow-800', 'A': 'bg-green-100 text-green-800', 'D': 'bg-red-100 text-red-800'} %}
+<div class="space-y-6" data-testid="tela-propostas">
+    <div class="bg-white p-6 rounded-lg shadow-md border flex flex-wrap items-end justify-between gap-4">
+        <div>
+            <h2 class="text-2xl font-semibold text-gray-800">Propostas setoriais</h2>
+            <p class="text-sm text-gray-600 mt-1 max-w-3xl">
+                Versões publicadas dos cenários setoriais. Aceite ou devolva com motivo; para usar uma proposta,
+                marque o nó no seu cenário com o método <b>Proposta setorial</b> e fixe a versão.
+                Uma versão nova do setor não muda nenhum cenário até a versão fixada ser trocada.
+            </p>
+        </div>
+        <form method="get" action="/previsao/propostas" class="flex items-end gap-2">
+            <div>
+                <label for="p-setor" class="block text-xs text-gray-600 mb-1">Setor</label>
+                <select id="p-setor" name="setor" class="border border-gray-300 rounded px-3 py-2 text-sm">
+                    <option value="">Todos</option>
+                    {% for s in setores %}
+                    <option value="{{ s.seq_setor_previsao }}" {{ 'selected' if setor_filtro == s.seq_setor_previsao }}>{{ s.sgl_setor }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="px-3 py-2 border border-gray-300 rounded text-sm">Filtrar</button>
+        </form>
+    </div>
+
+    <div class="bg-white p-6 rounded-lg shadow-md border">
+        {% if propostas %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-50 text-gray-700"><tr>
+                    <th class="px-3 py-2 text-left">Setor</th>
+                    <th class="px-3 py-2 text-left">Cenário · versão</th>
+                    <th class="px-3 py-2 text-left">Situação</th>
+                    <th class="px-3 py-2 text-right">Receita</th>
+                    <th class="px-3 py-2 text-right">Despesa</th>
+                    <th class="px-3 py-2 text-left">Fixada em</th>
+                    <th class="px-3 py-2 text-left">Avaliação</th>
+                </tr></thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for p in propostas %}
+                    {% set v = p.versao %}
+                    <tr data-testid="proposta-{{ v.seq_projecao_versao }}">
+                        <td class="px-3 py-2 font-semibold">{{ p.setor.sgl_setor }}</td>
+                        <td class="px-3 py-2">
+                            <a class="text-primary-700 hover:underline" href="/simulador/{{ p.cenario.seq_simulador_cenario }}/historico/{{ v.seq_projecao_versao }}">
+                                {{ p.cenario.nom_cenario }} · {{ v.nom_versao }}</a>
+                            <div class="text-xs text-gray-500">{{ v.dat_versao.strftime('%d/%m/%Y %H:%M') }} · {{ p.cenario.ano_base }} · {{ p.cenario.cod_periodicidade|title }}
+                                {% if p.e_a_mais_nova %}<span class="ml-1 text-green-700">mais recente</span>{% endif %}</div>
+                        </td>
+                        <td class="px-3 py-2">
+                            <span class="px-2 py-0.5 rounded text-xs {{ estilo[p.situacao] }}" data-testid="situacao">{{ p.rotulo_situacao }}</span>
+                            {% if v.dsc_motivo_devolucao %}<div class="text-xs text-red-700 mt-1">{{ v.dsc_motivo_devolucao }}</div>{% endif %}
+                        </td>
+                        <td class="px-3 py-2 text-right">{{ p.total_receita|format_currency }}</td>
+                        <td class="px-3 py-2 text-right">{{ p.total_despesa|format_currency }}</td>
+                        <td class="px-3 py-2 text-xs">
+                            {% for uso in p.usos %}
+                            <a class="block text-primary-700 hover:underline" href="/simulador/{{ uso.seq_simulador_cenario }}/metodos?no={{ uso.seq_qualificador }}">
+                                {{ uso.simulador_cenario.nom_cenario }} → {{ uso.qualificador.num_qualificador }}</a>
+                            {% else %}<span class="text-gray-500">nenhum cenário</span>{% endfor %}
+                            {% if p.usos and not p.e_a_mais_nova %}
+                            <span class="block mt-1 text-yellow-800">há versão mais nova do setor</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-3 py-2">
+                            {% if pode_avaliar and p.situacao == 'E' %}
+                            <div class="flex flex-col gap-2">
+                                <form method="post" action="/previsao/propostas/{{ v.seq_projecao_versao }}/aceitar">
+                                    <button type="submit" class="px-2 py-1 bg-green-600 text-white rounded text-xs" data-testid="aceitar">Aceitar</button>
+                                </form>
+                                <form method="post" action="/previsao/propostas/{{ v.seq_projecao_versao }}/devolver" class="flex gap-1">
+                                    <input name="motivo" required maxlength="255" placeholder="motivo da devolução" aria-label="Motivo da devolução"
+                                           class="border border-gray-300 rounded px-2 py-1 text-xs w-40">
+                                    <button type="submit" class="px-2 py-1 border border-red-300 text-red-700 rounded text-xs" data-testid="devolver">Devolver</button>
+                                </form>
+                            </div>
+                            {% elif v.dat_avaliacao %}
+                            <span class="text-xs text-gray-500">{{ v.dat_avaliacao.strftime('%d/%m/%Y') }}</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500 italic">Nenhuma proposta publicada. Um cenário vira setorial na tela de métodos
+            por qualificador; ao publicar uma versão dele, ela aparece aqui.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

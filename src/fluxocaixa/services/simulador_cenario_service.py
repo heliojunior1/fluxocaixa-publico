@@ -55,9 +55,14 @@ def criar_simulador_cenario(
     cod_periodicidade: str = 'MENSAL',
     cod_metodo_base: str = 'MEDIA_SIMPLES',
     json_config_base: str | None = None,
+    marcacoes: dict | None = None,
 ) -> SimuladorCenario:
     """
     Cria um cenário simulador completo com receita e despesa.
+
+    `marcacoes` (modo "por qualificador" do formulário): {seq: (método,
+    config)} gravadas na MESMA transação — marcação inválida desfaz o cenário
+    inteiro (previsao R13).
     
     Args:
         nom_cenario: Nome do cenário
@@ -110,11 +115,61 @@ def criar_simulador_cenario(
             if modelo == 'MANUAL' and ajustes:
                 _criar_ajustes(config.seq_cenario_config, ajustes, ano_base,
                                prefixo, commit=False)
+        if marcacoes:
+            from .metodo_qualificador_service import aplicar_marcacoes_do_formulario
+
+            aplicar_marcacoes_do_formulario(simulador.seq_simulador_cenario,
+                                            marcacoes, user_id)
         db.session.commit()
     except Exception:
         db.session.rollback()
         raise
 
+    return simulador
+
+
+def atualizar_cenario_por_qualificador(
+    seq_simulador_cenario: int,
+    nom_cenario: str,
+    dsc_cenario: str,
+    ano_base: int,
+    num_periodos: int,
+    marcacoes: dict,
+    user_id: int | None = None,
+    cod_periodicidade: str = 'MENSAL',
+    cod_metodo_base: str = 'MEDIA_SIMPLES',
+    json_config_base: str | None = None,
+) -> SimuladorCenario | None:
+    """Atualização do formulário no modo "por qualificador": cabeçalho +
+    sincronização das marcações, numa transação única. A configuração das
+    pernas (padrão) NÃO é tocada — segue valendo para as rubricas sem método.
+    """
+    from ..models.base import db
+    from .metodo_qualificador_service import aplicar_marcacoes_do_formulario
+
+    simulador = repo.get_simulador_by_id(seq_simulador_cenario)
+    if not simulador:
+        return None
+    try:
+        criar_snapshot_cenario(seq_simulador_cenario, user_id)
+    except Exception:  # snapshot é auditoria; não bloqueia a edição
+        pass
+    try:
+        simulador.nom_cenario = nom_cenario
+        simulador.dsc_cenario = dsc_cenario
+        simulador.ano_base = ano_base
+        simulador.num_periodos = num_periodos
+        simulador.cod_periodicidade = cod_periodicidade
+        simulador.cod_metodo_base = cod_metodo_base
+        simulador.json_config_base = json_config_base
+        simulador.dat_alteracao = date.today()
+        simulador.cod_pessoa_alteracao = user_id or cod_pessoa_atual()
+        db.session.flush()
+        aplicar_marcacoes_do_formulario(seq_simulador_cenario, marcacoes, user_id)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
     return simulador
 
 
@@ -310,6 +365,130 @@ def atualizar_simulador_cenario(
     return simulador
 
 
+# ==================== Duplicar Cenário (previsao RN19–RN21) ====================
+
+def duplicar_cenario(seq_simulador_cenario: int, nom_cenario: str,
+                     congelar_formulas: bool = False,
+                     user_id: int | None = None) -> SimuladorCenario:
+    """Cópia PROFUNDA e independente do cenário, numa transação única.
+
+    Leva cabeçalho, configuração das pernas, ajustes, parâmetros econômicos,
+    valores de parâmetro de fórmula, marcações por qualificador e fórmulas
+    próprias. NÃO leva versões: a cópia nasce sem histórico (versão é
+    registro de quem publicou). `seq_cenario_origem` guarda o rastro.
+
+    `congelar_formulas` transforma as fórmulas da biblioteca que o cenário
+    usa por referência em fórmulas PRÓPRIAS da cópia (RN20) — blindagem contra
+    mudança futura da biblioteca.
+    """
+    from ..models import (
+        CenarioFormula,
+        CenarioMetodo,
+        CenarioParametroValor,
+    )
+    from ..models.base import db
+    from .validacao import RegraNegocioError
+
+    origem = repo.get_simulador_by_id(seq_simulador_cenario)
+    if origem is None or origem.ind_status != 'A':
+        raise RegraNegocioError("Cenário de origem inexistente ou inativo")
+    nom_cenario = (nom_cenario or '').strip()
+    if not nom_cenario:
+        raise RegraNegocioError("Informe o nome da cópia")
+    if len(nom_cenario) > 100:
+        raise RegraNegocioError("O nome do cenário tem até 100 caracteres")
+    repetido = SimuladorCenario.query.filter(
+        SimuladorCenario.ind_status == 'A',
+        SimuladorCenario.nom_cenario == nom_cenario).first()
+    if repetido is not None:
+        raise RegraNegocioError(f"Já existe cenário ativo chamado '{nom_cenario}'")
+
+    autor = user_id or cod_pessoa_atual()
+    try:
+        copia = SimuladorCenario(
+            nom_cenario=nom_cenario,
+            dsc_cenario=origem.dsc_cenario,
+            ano_base=origem.ano_base,
+            num_periodos=origem.num_periodos,
+            cod_periodicidade=origem.cod_periodicidade,
+            cod_metodo_base=origem.cod_metodo_base,
+            json_config_base=origem.json_config_base,
+            seq_cenario_origem=origem.seq_simulador_cenario,
+            seq_setor_previsao=origem.seq_setor_previsao,
+            ind_status='A',
+            cod_pessoa_inclusao=autor,
+        )
+        repo.create_simulador(copia, commit=False)
+        novo_id = copia.seq_simulador_cenario
+
+        for config in list(origem.configs):
+            nova = CenarioConfig(
+                seq_simulador_cenario=novo_id,
+                cod_tipo_lancamento=config.cod_tipo_lancamento,
+                cod_tipo_modelo=config.cod_tipo_modelo,
+                json_configuracao=config.json_configuracao,
+            )
+            db.session.add(nova)
+            db.session.flush()
+            for ajuste in list(config.ajustes):
+                db.session.add(CenarioAjuste(
+                    seq_cenario_config=nova.seq_cenario_config,
+                    seq_qualificador=ajuste.seq_qualificador,
+                    ano=ajuste.ano, mes=ajuste.mes,
+                    cod_tipo_ajuste=ajuste.cod_tipo_ajuste,
+                    val_ajuste=ajuste.val_ajuste,
+                    dsc_ajuste=ajuste.dsc_ajuste,
+                ))
+            for parametro in list(config.parametros_economicos):
+                db.session.add(ModeloEconomicoParametro(
+                    seq_cenario_config=nova.seq_cenario_config,
+                    nom_variavel=parametro.nom_variavel,
+                    val_coeficiente=parametro.val_coeficiente,
+                    json_valores_historicos=parametro.json_valores_historicos,
+                ))
+
+        for valor in CenarioParametroValor.query.filter_by(
+                seq_simulador_cenario=seq_simulador_cenario).all():
+            db.session.add(CenarioParametroValor(
+                seq_simulador_cenario=novo_id,
+                nom_parametro=valor.nom_parametro,
+                val_parametro=valor.val_parametro,
+            ))
+
+        for marcacao in CenarioMetodo.query.filter_by(
+                seq_simulador_cenario=seq_simulador_cenario).all():
+            db.session.add(CenarioMetodo(
+                seq_simulador_cenario=novo_id,
+                seq_qualificador=marcacao.seq_qualificador,
+                cod_metodo=marcacao.cod_metodo,
+                json_configuracao=marcacao.json_configuracao,
+                cod_pessoa_inclusao=autor,
+            ))
+
+        proprias = {}
+        for formula in CenarioFormula.query.filter_by(
+                seq_simulador_cenario=seq_simulador_cenario).all():
+            proprias[formula.seq_qualificador] = formula.dsc_formula_expressao
+        if congelar_formulas:
+            from .formula_engine import expressoes_do_cenario
+
+            for folha, expressao in expressoes_do_cenario(seq_simulador_cenario):
+                proprias.setdefault(folha.seq_qualificador, expressao)
+        for seq_qualificador, expressao in proprias.items():
+            db.session.add(CenarioFormula(
+                seq_simulador_cenario=novo_id,
+                seq_qualificador=seq_qualificador,
+                dsc_formula_expressao=expressao,
+                cod_pessoa_inclusao=autor,
+            ))
+
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        raise
+    return copia
+
+
 # ==================== Obter Dados Completos ====================
 
 def obter_simulador_completo(seq_simulador_cenario: int) -> dict | None:
@@ -481,6 +660,19 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
     if config is None:
         return vazio, None
 
+    def _por_folha(projecao):
+        """Saída por folha dos modelos AGREGADOS (previsao RN05/RN14): o
+        total treinado é distribuído aos qualificadores do modelo pela
+        participação no realizado do ano anterior. Antes a detalhada era
+        `None` (ou uma cópia sem qualificador) e os relatórios que leem por
+        rubrica mostravam previsão zero; a receita sem qualificador caía no
+        grupo "não classificado" da simulação de disponibilidade."""
+        from .metodo_qualificador_service import distribuir_projecao_agregada
+
+        quals = cfg.get('seq_qualificadores') or (
+            [cfg['seq_qualificador']] if cfg.get('seq_qualificador') else [])
+        return distribuir_projecao_agregada(projecao, quals, ano_base)
+
     modelo = config.cod_tipo_modelo
     periodicidade = periodo_resolver.normalizar(simulador.cod_periodicidade or 'MENSAL')
     ano_base = simulador.ano_base
@@ -500,7 +692,9 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
         que pretendia: barrar projeção negativa.
         """
         quals = cfg.get('seq_qualificadores', [])
-        um = cfg.get('seq_qualificador')
+        # Lista com UM qualificador é o caso comum da tela; antes caía no
+        # `elif um` (chave ausente) e a série vinha VAZIA — modelo sem treino.
+        um = cfg.get('seq_qualificador') or (quals[0] if len(quals) == 1 else None)
         fim = date(ano_base - 1, 12, 31)
         inicio = fim - relativedelta(years=anos_atras)
         if quals and len(quals) > 1:
@@ -540,19 +734,23 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
         }[modelo]
         historico = _historico()
         projecao = motor(historico, meses, cfg, ano_base) if len(historico) >= 12 else vazio
-        return _com_serie_info(_magnitude(projecao), historico), None
+        projecao = _com_serie_info(_magnitude(projecao), historico)
+        return projecao, _por_folha(projecao)
 
     if modelo == 'REGRESSAO':
         return _magnitude(modelos.projetar_regressao_multipla(meses, cfg, ano_base)), None
 
     if modelo == 'LOA':
-        return _magnitude(modelos.projetar_loa(meses, cfg)), None
+        # Datado pelo ANO-BASE, não pelo relógio: `date.today()` deslocava a
+        # projeção um mês a cada mês que passava (e quebrava a golden).
+        return _magnitude(modelos.projetar_loa(meses, cfg, ano_base=ano_base)), None
 
     if modelo == 'MEDIA_HISTORICA':
         historico = _historico()
         projecao = (modelos.projetar_media_historica(historico, meses, cfg, ano_base)
                     if len(historico) > 0 else vazio)
-        return _com_serie_info(_magnitude(projecao), historico), None
+        projecao = _com_serie_info(_magnitude(projecao), historico)
+        return projecao, _por_folha(projecao)
 
     if modelo == 'FORMULA':
         config_base = {}
@@ -586,7 +784,7 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
                 seq_qualificadores=quals, ano_projecao=ano_base,
                 anos_referencia=anos, mes_referencia=mes_ref, num_periodos=meses)
         projecao = _magnitude(projecao)
-        return projecao, (projecao.copy() if len(projecao) > 0 else None)
+        return projecao, _por_folha(projecao)
 
     return vazio, None
 
@@ -621,9 +819,29 @@ def executar_simulacao(seq_simulador_cenario: int) -> dict | None:
     pernas = {}
     for perna, chave in ((TIPO_CREDITO, 'receita'), (TIPO_DEBITO, 'despesa')):
         secao = cenario_completo.get(chave) or {}
-        pernas[chave] = _projetar_perna(
+        projecao, detalhada = _projetar_perna(
             perna, secao.get('config'), secao.get('ajustes', []),
             simulador, modelos, pd)
+        config = secao.get('config')
+        if (detalhada is not None and len(detalhada) and config is not None
+                and 'cod_metodo' not in detalhada.columns):
+            # Rastro do número (RN14): a configuração da perna é o "padrão"
+            detalhada = detalhada.copy()
+            detalhada['cod_metodo'] = config.cod_tipo_modelo
+        pernas[chave] = (projecao, detalhada)
+
+    # Marcações por qualificador (RN01–RN17): SÓ quando o cenário tem alguma —
+    # sem marcação o resultado é exatamente o de antes. A marcação vence o
+    # padrão da perna nas folhas que cobre.
+    execucao_marcacoes = None
+    from .metodo_qualificador_service import carregar_marcacoes, combinar
+
+    marcacoes = carregar_marcacoes(seq_simulador_cenario)
+    if marcacoes:
+        combinadas, execucao_marcacoes = combinar(pernas, simulador, marcacoes)
+        for chave, (projecao, detalhada) in combinadas.items():
+            projecao.attrs = dict(getattr(pernas[chave][0], 'attrs', {}))
+            pernas[chave] = (projecao, detalhada)
 
     projecao_receita, projecao_receita_detalhada = pernas['receita']
     projecao_despesa, projecao_despesa_detalhada = pernas['despesa']
@@ -665,6 +883,9 @@ def executar_simulacao(seq_simulador_cenario: int) -> dict | None:
         'resumo': resumo,
         'degradacoes': degradacoes,
         'series_info': series_info,
+        # Status por folha e avisos das marcações (None sem marcação) — a
+        # cobertura (`metodo_qualificador_service.cobertura`) os consome.
+        'execucao_marcacoes': execucao_marcacoes,
     }
 
 

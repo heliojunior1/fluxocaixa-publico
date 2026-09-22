@@ -33,10 +33,19 @@
                        class="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-primary-500 focus:border-primary-500" />
             </div>
         </div>
-        <div class="flex items-center justify-between">
-            <label class="inline-flex items-center text-sm text-gray-700">
-                <input type="checkbox" name="publicar" value="S" class="mr-2"> Publicar imediatamente (versão imutável)
-            </label>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-col gap-1">
+                <label class="inline-flex items-center text-sm text-gray-700">
+                    <input type="checkbox" name="publicar" value="S" class="mr-2"> Publicar imediatamente (versão imutável)
+                </label>
+                <label class="inline-flex items-center text-sm text-gray-700" data-testid="confirmar-lacunas">
+                    <input type="checkbox" name="confirmado" value="S" class="mr-2">
+                    Publicar mesmo com rubricas sem projeção (as lacunas ficam registradas na versão)
+                </label>
+                <a href="/simulador/{{ simulador.seq_simulador_cenario }}/metodos" class="text-xs text-primary-700 hover:underline">
+                    Ver cobertura e métodos por qualificador
+                </a>
+            </div>
             <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 flex items-center gap-2">
                 <i data-lucide="save" class="h-4 w-4"></i> Salvar versão
             </button>
@@ -93,6 +102,18 @@
                                     Rascunho
                                 </span>
                                 {% endif %}
+                                {% if v.lacunas %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-red-100 text-red-800"
+                                      data-testid="lacunas-versao" title="{{ v.rubricas_sem_projecao|join(', ') }}">
+                                    {{ v.lacunas }} sem projeção
+                                </span>
+                                {% endif %}
+                                {% if v.cod_situacao_proposta %}
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800"
+                                      data-testid="situacao-proposta" title="{{ v.dsc_motivo_devolucao or '' }}">
+                                    Proposta {{ {'E': 'enviada', 'A': 'aceita', 'D': 'devolvida'}[v.cod_situacao_proposta] }}
+                                </span>
+                                {% endif %}
                             </td>
                             <td class="px-3 py-2 text-right text-green-700 font-medium">
                                 R$ {{ "{:,.2f}".format(v.total_receita).replace(',', 'X').replace('.', ',').replace('X', '.') }}
@@ -112,7 +133,13 @@
                                     {% if v.ind_publicado != 'S' %}
                                     <form method="post"
                                           action="/simulador/{{ simulador.seq_simulador_cenario }}/historico/{{ v.seq_projecao_versao }}/publicar"
-                                          onsubmit="return confirm('Publicar versão? Após publicada não poderá ser deletada.');">
+                                          onsubmit="return confirm('Publicar versão? Após publicada não poderá ser deletada.');"
+                                          class="inline-flex items-center gap-1">
+                                        {% if v.lacunas %}
+                                        <label class="text-xs text-red-700 inline-flex items-center gap-1">
+                                            <input type="checkbox" name="confirmado" value="S" required> com lacunas
+                                        </label>
+                                        {% endif %}
                                         <button type="submit" class="text-green-600 hover:text-green-800" title="Publicar">
                                             <i data-lucide="check-circle" class="h-4 w-4"></i>
                                         </button>

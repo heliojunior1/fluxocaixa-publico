@@ -72,6 +72,15 @@
                                 </span>
                                 {% endfor %}
                             </div>
+                            {% if item.cenarios_afetados %}
+                            <p class="mt-3 text-xs text-slate-600" data-testid="cenarios-afetados">
+                                Usada por referência em:
+                                {% for c in item.cenarios_afetados %}<a class="text-primary-700 hover:underline"
+                                    href="/simulador/{{ c.seq_simulador_cenario }}/metodos">{{ c.nom_cenario }}</a>{{ ', ' if not loop.last }}{% endfor %}
+                                — alterar aqui muda a projeção ao vivo desses cenários (versões publicadas não mudam;
+                                para mudar só um cenário, edite a fórmula dentro dele).
+                            </p>
+                            {% endif %}
                         </div>
 
                         <!-- Nota sobre base -->

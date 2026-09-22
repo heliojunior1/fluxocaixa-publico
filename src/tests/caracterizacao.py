@@ -62,6 +62,10 @@ CAMPOS_EXCLUIDOS = {
     "kpis.defasagem",
     # DFC projetado: _meses_abertos usa date.today() (coberto pelo BDD da F5.2)
     "dfc_projetado",
+    # Metadado da porta única da projeção (previsao RN15/RN16): cenário/versão
+    # de onde veio o projetado — não é número de relatório (None no realizado).
+    "controle_despesa.projecao_origem",
+    "resumo.projecao_origem",
 }
 
 
@@ -342,6 +346,11 @@ def restringir_a_ilha(nome: str, dados):
 # Coleta
 # ---------------------------------------------------------------------------
 
+def _sem_origem(dados: dict) -> dict:
+    """Tira o metadado `projecao_origem` (ver CAMPOS_EXCLUIDOS)."""
+    return {k: v for k, v in dados.items() if k != "projecao_origem"}
+
+
 def coletar_snapshot() -> dict:
     """Roda os relatórios cobertos sobre a massa e devolve o snapshot canônico.
 
@@ -384,9 +393,10 @@ def coletar_snapshot() -> dict:
         "kpis": kpis,
         "saldos_diarios_agregado": get_saldos_diarios_data(DIA_BASE, visao="agregado"),
         "saldos_diarios_fundo": get_saldos_diarios_data(DIA_BASE, visao="fundo"),
-        "resumo": get_resumo_data(ANO, meses, "realizado", None),
+        "resumo": _sem_origem(get_resumo_data(ANO, meses, "realizado", None)),
         "indicadores": get_indicadores_data(ANO, meses, "ambos"),
-        "controle_despesa": get_controle_despesa_data(ANO, None, quals_despesa, meses),
+        "controle_despesa": _sem_origem(
+            get_controle_despesa_data(ANO, None, quals_despesa, meses)),
         "ldo": get_ldo_orcamento_data(ANO),
         "previsao_realizado": get_previsao_realizado_data(ANO, None, meses, quals_todos),
         "comparativa": get_analise_comparativa_data(ANO, ANO - 1, meses, "ambos"),

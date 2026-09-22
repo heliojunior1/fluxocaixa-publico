@@ -53,6 +53,10 @@
                                 class="text-green-600 hover:text-green-800 p-1" title="Editar">
                                 <i data-lucide="edit" class="h-5 w-5"></i>
                             </a>
+                            <a href="/simulador/{{ simulador.seq_simulador_cenario }}/metodos"
+                                class="text-sky-700 hover:text-sky-900 p-1" title="Métodos por qualificador, cobertura e duplicar">
+                                <i data-lucide="list-tree" class="h-5 w-5"></i>
+                            </a>
                             <form action="/simulador/{{ simulador.seq_simulador_cenario }}/deletar" method="POST"
                                 class="inline"
                                 onsubmit="return confirm('Tem certeza que deseja deletar este cenário?');">

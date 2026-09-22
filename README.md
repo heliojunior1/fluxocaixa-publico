@@ -571,6 +571,10 @@ fora do controle de versão (nunca commite estado de sessão).
 - **Backtest** que treina em exercícios passados, testa contra o realizado e ordena os modelos por erro percentual, indicando o mais acurado para cada rubrica.
 - **Versionamento e publicação** de projeções, com snapshot do cenário — o número apresentado ao gestor não muda sozinho depois de publicado.
 - **Fórmulas de rubrica** com parâmetros globais cadastráveis (IPCA, PIB, Selic e outros).
+- **Método por qualificador**: no mesmo cenário, cada rubrica ou bloco pode ter seu método — valor fixo, percentual sobre o realizado, fórmula, modelo estatístico, LOA, proposta de setor ou "sem projeção" declarada. A marcação do bloco vale para as folhas e a mais próxima vence; métodos calculados no bloco são distribuídos às folhas pela participação histórica. A tela mostra de onde vem o método de cada rubrica (próprio, herdado ou padrão) e aplica, a pedido, as recomendações do backtest.
+- **Cobertura**: rubrica com histórico e sem projeção aparece como lacuna — nunca como zero — e publicar com lacuna exige confirmação.
+- **Duplicar cenário**: cópia independente (métodos, ajustes, parâmetros e fórmulas próprias), sem as versões; a fórmula editada dentro de um cenário é própria dele e não altera a biblioteca nem os outros cenários. Versões de cenários diferentes podem ser comparadas.
+- **Propostas setoriais (opcional)**: setores respondem por um recorte da árvore, projetam num cenário setorial (no simulador ou por planilha) e publicam a versão como proposta; quem consolida aceita/devolve e fixa a versão de cada setor num nó do próprio cenário, projetando o restante como quiser. Detalhes em `docs/previsao-metodo-por-qualificador.md`.
 
 Ao escolher **Fórmula Parametrizável** na simulação anual, cada seção de
 receita/despesa mostra o qualificador e a expressão cadastrada que será
@@ -690,6 +694,8 @@ ativo, `'I'` inativo), e toda tabela carrega auditoria (`dat_inclusao`,
 | `flc_cenario_ajuste` | Ajustes manuais sobre o calculado, por valor ou percentual |
 | `flc_projecao_versao`, `flc_projecao_valor` | Versões publicadas da projeção — registro histórico, não recalculado |
 | `flc_rubrica_formula`, `flc_parametro_global` | Fórmulas por rubrica e parâmetros macroeconômicos cadastráveis |
+| `flc_cenario_metodo`, `flc_cenario_formula` | Método por qualificador (herdado pela árvore) e fórmulas próprias do cenário |
+| `flc_setor_previsao` | Setores da previsão; o recorte fica em `flc_qualificador.seq_setor_previsao` e a situação da proposta na versão |
 
 ### Integração e automação
 

@@ -752,6 +752,7 @@ def projetar_lightgbm(
 def projetar_loa(
     num_periodos: int,
     config: dict,
+    ano_base: int | None = None,
 ) -> pd.DataFrame:
     """
     Projeta despesas usando valores da LOA (Lei Orçamentária Anual).
@@ -785,9 +786,14 @@ def projetar_loa(
                 # Repetir padrão se necessário
                 projecoes.append(valores_mensais[mes % len(valores_mensais)] if valores_mensais else 0)
     
-    # Criar DataFrame de resultado
-    data_base = date.today().replace(day=1)
-    datas_futuras = [data_base + relativedelta(months=i) for i in range(num_periodos)]
+    # Datas do ANO-BASE do cenário. O fallback no relógio é só para chamada
+    # avulsa sem cenário: dentro do simulador, `date.today()` deslocava a
+    # projeção um mês a cada mês corrido.
+    if ano_base:
+        datas_futuras = _datas_do_ano_base(ano_base, num_periodos)
+    else:
+        data_base = date.today().replace(day=1)
+        datas_futuras = [data_base + relativedelta(months=i) for i in range(num_periodos)]
     
     resultado = pd.DataFrame({
         'data': datas_futuras,

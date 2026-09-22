@@ -163,7 +163,8 @@ def test_publicada_nao_pode_ser_deletada(client, cenario_fake, monkeypatch):
                         lambda _id: _mock_resultado())
     monkeypatch.setattr(svc, 'obter_simulador_completo', lambda _id: {'simulador': cenario_fake})
     v = svc.salvar_projecao_como_versao(
-        cenario_fake.seq_simulador_cenario, 'X', publicar=True
+        cenario_fake.seq_simulador_cenario, 'X', publicar=True,
+        confirmado=True
     )
     assert v.ind_publicado == 'S'
 

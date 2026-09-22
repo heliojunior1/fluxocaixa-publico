@@ -20,7 +20,15 @@ _TIPOS = {
     "dotacao": ("FC_IMP_DOTACAO", "/orcamento/dotacoes"),
     "execucao": ("FC_IMP_EXECUCAO_ORCAMENTARIA", "/orcamento/execucao"),
     "disponibilidade_contabil": ("FC_IMP_DISPONIBILIDADE_CONTABIL", "/fontes-recurso/conciliacao"),
+    # Retorno real vem do contexto do preview (a tela do cenário importado)
+    "previsao_setorial": ("FC_ALT_PREVISAO", "/simulador"),
 }
+
+
+def _retorno(preview) -> str:
+    """Rota de retorno: a do contexto do preview (gravada pela rota que o
+    criou, nunca pelo cliente) ou a fixa do tipo."""
+    return (preview.contexto or {}).get("retorno") or _TIPOS.get(preview.tipo, (None, "/"))[1]
 
 
 def _exigir(request: Request, tipo: str):
@@ -34,7 +42,7 @@ def _exigir(request: Request, tipo: str):
 def render_preview(request: Request, tipo: str, token, preview):
     return templates.TemplateResponse('importacao_preview.html', {
         'request': request, 'tipo': tipo, 'token': token, 'preview': preview,
-        'retorno': _TIPOS.get(tipo, (None, "/"))[1],
+        'retorno': _retorno(preview),
     })
 
 
@@ -48,7 +56,7 @@ async def confirmar_importacao(request: Request, token: str):
     if inseridas is None and isinstance(resultado, dict):
         inseridas = resultado.get('sucesso', 0)
     request.session['flash'] = f"Importação concluída: {inseridas} registro(s) gravado(s)."
-    return RedirectResponse(_TIPOS.get(preview.tipo, (None, "/"))[1], status_code=303)
+    return RedirectResponse(_retorno(preview), status_code=303)
 
 
 @router.post('/importacoes/{token}/descartar', name='descartar_importacao')
@@ -61,4 +69,4 @@ async def descartar_importacao(request: Request, token: str, tipo: str = Form("s
     preview = obter_preview(token, request.session)
     _exigir(request, preview.tipo)
     descartar(token, request.session)
-    return RedirectResponse(_TIPOS.get(tipo, (None, "/"))[1], status_code=303)
+    return RedirectResponse(_retorno(preview), status_code=303)

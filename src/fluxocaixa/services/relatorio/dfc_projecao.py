@@ -75,6 +75,28 @@ def resolver_projecao(cenario_id: int, ano: int) -> tuple[dict, dict]:
     return mapa, origem
 
 
+def projecao_por_qualificador(cenario_id: int, ano: int,
+                              cod_tipo: str) -> tuple[dict, dict]:
+    """PORTA ÚNICA dos relatórios por rubrica (previsao RN15): o mesmo
+    `resolver_projecao` do DFC (última publicada → ao vivo com aviso),
+    recortado por perna. Devolve `({(seq_qualificador, mês): Decimal em
+    magnitude}, origem)` — `seq_qualificador` `None` é projeção agregada
+    que não pôde ser distribuída.
+
+    Antes, previsão de receita, controle de despesa e resumo chamavam
+    `executar_simulacao` direto: ignoravam a versão publicada (o número
+    mudava sem publicar) e liam a `_detalhada`, que era `None` para os
+    modelos agregados — previsão ZERO na tela.
+    """
+    mapa, origem = resolver_projecao(cenario_id, ano)
+    saida: dict = {}
+    for (seq, tipo, mes), valor in mapa.items():
+        if tipo != cod_tipo or mes is None:
+            continue
+        saida[(seq, mes)] = saida.get((seq, mes), Decimal(0)) + abs(valor)
+    return saida, origem
+
+
 def _mapa_da_versao(versao, ano: int, periodicidade: str) -> dict:
     from ...models import ProjecaoValor
 

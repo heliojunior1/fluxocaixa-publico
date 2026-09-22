@@ -67,6 +67,10 @@ PERMISSOES = [
     ("FC_INS_PREVISAO", "Criar cenário / salvar versão de projeção"),
     ("FC_ALT_PREVISAO", "Alterar cenário / publicar versão"),
     ("FC_DEL_PREVISAO", "Excluir cenário ou versão"),
+    # Previsão setorial (opcional): setores, recorte na árvore e avaliação das
+    # propostas — avaliar é ato distinto de manter, como confirmar liberação.
+    ("FC_MANT_SETOR_PREVISAO", "Cadastrar setores da previsão e marcar o recorte de cada um"),
+    ("FC_AVALIAR_PROPOSTA", "Aceitar ou devolver proposta de previsão de setor"),
     # Repartição da projeção por fonte (percentuais-fallback)
     ("FC_CONS_REPARTICAO_FONTE", "Consultar repartição de qualificadores por fonte"),
     ("FC_MANT_REPARTICAO_FONTE", "Definir repartição de qualificadores por fonte"),

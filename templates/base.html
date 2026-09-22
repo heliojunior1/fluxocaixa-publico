@@ -298,6 +298,20 @@
                     class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
                 <span class="sidebar-text whitespace-nowrap">Simulador</span>
             </a>
+            <a href="{{ url_for('propostas_setoriais') }}" data-testid="menu-propostas"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="Propostas dos setores">
+                <i data-lucide="inbox"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">Propostas setoriais</span>
+            </a>
+            <a href="{{ url_for('setores_previsao') }}" data-testid="menu-setores-previsao"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="Setores da previsão">
+                <i data-lucide="users"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">Setores da previsão</span>
+            </a>
             {% endif %}
 
             {% if tem_permissao(request, 'FC_REL_BACKTEST') %}

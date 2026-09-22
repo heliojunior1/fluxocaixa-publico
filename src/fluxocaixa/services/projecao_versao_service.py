@@ -51,17 +51,45 @@ def _periodicidade_da_versao(versao) -> str:
 
 # ==================== Salvar nova versão ====================
 
+def _cobertura_do_resultado(simulador, resultado: dict) -> dict:
+    """Resumo de cobertura (RN11/RN12) gravado no `json_resumo` da versão."""
+    from .metodo_qualificador_service import cobertura, resumo_cobertura
+
+    if simulador is None or getattr(simulador, 'seq_simulador_cenario', None) is None:
+        return {'lacunas': 0, 'rubricas_sem_projecao': []}
+    return resumo_cobertura(cobertura(simulador, resultado))
+
+
+def _exigir_confirmacao_de_lacunas(cobertura: dict, confirmado: bool) -> None:
+    """RN12 — lacuna não é zero: publicar com rubrica sem projeção exige
+    `confirmado=true`, citando quantas e quais. Não é bloqueio (há rubrica
+    extinta de propósito); o que não pode é passar em silêncio."""
+    from .validacao import RegraNegocioError
+
+    lacunas = int(cobertura.get('lacunas') or 0)
+    if lacunas and not confirmado:
+        exemplos = ', '.join(cobertura.get('rubricas_sem_projecao', [])[:8])
+        raise RegraNegocioError(
+            f"{lacunas} rubrica(s) com histórico ficaram sem projeção "
+            f"({exemplos}{'…' if lacunas > 8 else ''}). Resolva na tela de métodos "
+            "por qualificador ou confirme a publicação com as lacunas.")
+
+
 def salvar_projecao_como_versao(
     seq_simulador_cenario: int,
     nom_versao: str,
     dsc_motivo: str | None = None,
     user_id: int | None = None,
     publicar: bool = False,
+    confirmado: bool = False,
 ) -> ProjecaoVersao:
     """Executa a simulação atual do cenário e persiste como uma versão.
 
     Cria header em flc_projecao_versao + linhas em flc_projecao_valor numa
-    única transação. Se algo falhar, faz rollback.
+    única transação. Se algo falhar, faz rollback. A cobertura da execução
+    (lacunas) vai para o `json_resumo`; publicar com lacuna exige
+    `confirmado` (RN12). Versão publicada de cenário SETORIAL nasce como
+    proposta ENVIADA (RN26).
     """
     if not nom_versao or not nom_versao.strip():
         raise ValueError("nom_versao é obrigatório")
@@ -71,12 +99,17 @@ def salvar_projecao_como_versao(
         raise ValueError(f"Simulação não pôde ser executada para cenário {seq_simulador_cenario}")
 
     cenario_completo = obter_simulador_completo(seq_simulador_cenario)
-    periodicidade = _periodicidade_do_cenario(cenario_completo.get('simulador'))
+    simulador = cenario_completo.get('simulador')
+    periodicidade = _periodicidade_do_cenario(simulador)
     json_inputs = _serializar_inputs(cenario_completo)
+    cobertura = _cobertura_do_resultado(simulador, resultado)
+    if publicar:
+        _exigir_confirmacao_de_lacunas(cobertura, confirmado)
     json_resumo = json.dumps({
         'total_receita': float(resultado['resumo']['total_receita'] or 0),
         'total_despesa': float(resultado['resumo']['total_despesa'] or 0),
         'saldo_final': float(resultado['resumo']['saldo_final'] or 0),
+        **cobertura,
     })
 
     try:
@@ -89,6 +122,7 @@ def salvar_projecao_como_versao(
             ind_publicado='S' if publicar else 'N',
             json_inputs=json_inputs,
             json_resumo=json_resumo,
+            cod_situacao_proposta=_situacao_ao_publicar(simulador) if publicar else None,
         )
         repo.create_versao(versao)
 
@@ -101,6 +135,36 @@ def salvar_projecao_como_versao(
     except Exception:
         repo.rollback()
         raise
+
+
+def _situacao_ao_publicar(simulador) -> str | None:
+    from .setor_previsao_service import situacao_inicial_da_versao
+
+    if simulador is None or not hasattr(simulador, 'seq_setor_previsao'):
+        return None
+    return situacao_inicial_da_versao(simulador)
+
+
+def _marcacoes_e_formulas(simulador) -> dict:
+    """Congela no `json_inputs` o que produziu o número: marcações por
+    qualificador e fórmulas próprias do cenário (auditoria — RN19/RN18)."""
+    from ..models import CenarioFormula, CenarioMetodo
+
+    seq = getattr(simulador, 'seq_simulador_cenario', None)
+    if seq is None:
+        return {'marcacoes': [], 'formulas_proprias': []}
+    return {
+        'marcacoes': [
+            {'seq_qualificador': m.seq_qualificador,
+             'num_qualificador': m.qualificador.num_qualificador if m.qualificador else None,
+             'cod_metodo': m.cod_metodo,
+             'json_configuracao': m.json_configuracao}
+            for m in CenarioMetodo.query.filter_by(seq_simulador_cenario=seq).all()],
+        'formulas_proprias': [
+            {'seq_qualificador': f.seq_qualificador,
+             'expressao': f.dsc_formula_expressao}
+            for f in CenarioFormula.query.filter_by(seq_simulador_cenario=seq).all()],
+    }
 
 
 def _serializar_inputs(cenario_completo: dict | None) -> str:
@@ -148,6 +212,7 @@ def _serializar_inputs(cenario_completo: dict | None) -> str:
             'config': _config(cenario_completo.get('despesa')),
             'ajustes': _ajustes(cenario_completo.get('despesa') or {}),
         },
+        **_marcacoes_e_formulas(simulador),
     }, default=str)
 
 
@@ -195,14 +260,24 @@ def _df_para_linhas(df, seq_versao: int, cod_tipo: str,
         valor = row.get('valor_projetado', 0)
         if pd.isna(valor):
             valor = 0
-        out.append({
+        linha = {
             'seq_projecao_versao': seq_versao,
             'seq_qualificador': seq_q,
             'cod_tipo': cod_tipo,
             'ano': ano,
             'num_periodo': num_periodo,
             'val_projetado': float(valor),
-        })
+        }
+        # Rastro do número (RN14): método e nó de cálculo, quando a execução
+        # os declara. Ausentes (versões antigas, stubs) ficam nulos.
+        metodo = row.get('cod_metodo') if 'cod_metodo' in df.columns else None
+        if metodo is not None and not pd.isna(metodo):
+            linha['cod_metodo'] = str(metodo)
+        calculo = (row.get('seq_qualificador_calculo')
+                   if 'seq_qualificador_calculo' in df.columns else None)
+        if calculo is not None and not pd.isna(calculo):
+            linha['seq_qualificador_calculo'] = int(calculo)
+        out.append(linha)
     return out
 
 
@@ -229,6 +304,11 @@ def list_versoes(seq_simulador_cenario: int) -> list[dict]:
             'total_receita': resumo.get('total_receita', 0),
             'total_despesa': resumo.get('total_despesa', 0),
             'saldo_final': resumo.get('saldo_final', 0),
+            # RN12: lacunas registradas na versão (0 em versões antigas)
+            'lacunas': int(resumo.get('lacunas') or 0),
+            'rubricas_sem_projecao': resumo.get('rubricas_sem_projecao', []),
+            'cod_situacao_proposta': v.cod_situacao_proposta,
+            'dsc_motivo_devolucao': v.dsc_motivo_devolucao,
         })
     return out
 
@@ -279,8 +359,12 @@ def comparar_versoes(seq_versao_a: int, seq_versao_b: int) -> dict | None:
     versao_b = repo.get_versao_by_id(seq_versao_b)
     if versao_a is None or versao_b is None:
         return None
-    if versao_a.seq_simulador_cenario != versao_b.seq_simulador_cenario:
-        raise ValueError("Versões pertencem a cenários diferentes")
+    # RN22: versões de cenários DIFERENTES são comparáveis (origem × cópia,
+    # otimista × pessimista) — desde que o par (ano, período) signifique a
+    # mesma coisa nos dois, isto é, mesma periodicidade.
+    if (versao_a.seq_simulador_cenario != versao_b.seq_simulador_cenario
+            and _periodicidade_da_versao(versao_a) != _periodicidade_da_versao(versao_b)):
+        raise ValueError("Versões de cenários com periodicidades diferentes não são comparáveis")
 
     linhas = repo.get_comparativo(seq_versao_a, seq_versao_b)
 
@@ -305,6 +389,8 @@ def comparar_versoes(seq_versao_a: int, seq_versao_b: int) -> dict | None:
     return {
         'versao_a': versao_a,
         'versao_b': versao_b,
+        'cenario_a': SimuladorCenario.query.get(versao_a.seq_simulador_cenario),
+        'cenario_b': SimuladorCenario.query.get(versao_b.seq_simulador_cenario),
         'linhas': linhas,
         'total_a': total_a,
         'total_b': total_b,
@@ -318,7 +404,22 @@ def deletar_versao(seq_projecao_versao: int) -> int:
     return repo.delete_versao(seq_projecao_versao)
 
 
-def publicar_versao(seq_projecao_versao: int) -> ProjecaoVersao | None:
+def publicar_versao(seq_projecao_versao: int,
+                    confirmado: bool = False) -> ProjecaoVersao | None:
+    """Publica um rascunho. As lacunas gravadas na versão exigem confirmação
+    (RN12); versão de cenário setorial vira proposta ENVIADA (RN26)."""
+    versao = repo.get_versao_by_id(seq_projecao_versao)
+    if versao is None:
+        return None
+    if versao.ind_publicado != 'S':
+        resumo = {}
+        try:
+            resumo = json.loads(versao.json_resumo or '{}')
+        except (json.JSONDecodeError, TypeError):
+            pass
+        _exigir_confirmacao_de_lacunas(resumo, confirmado)
+        versao.cod_situacao_proposta = _situacao_ao_publicar(
+            SimuladorCenario.query.get(versao.seq_simulador_cenario))
     return repo.publicar_versao(seq_projecao_versao)
 
 
@@ -484,3 +585,17 @@ def resultado_da_versao(seq_simulador_cenario: int):
         'degradacoes': [],
     }
     return resultado, versao
+
+
+def comparacao_com_origem(simulador) -> tuple[int, int] | None:
+    """(versão da origem, versão da cópia) para comparar uma cópia com o
+    cenário de origem (RN22): a última PUBLICADA de cada um. `None` quando o
+    cenário não é cópia ou algum dos dois não tem versão publicada."""
+    origem = getattr(simulador, 'seq_cenario_origem', None)
+    if not origem:
+        return None
+    va = repo.get_ultima_publicada(origem)
+    vb = repo.get_ultima_publicada(simulador.seq_simulador_cenario)
+    if va is None or vb is None:
+        return None
+    return va.seq_projecao_versao, vb.seq_projecao_versao

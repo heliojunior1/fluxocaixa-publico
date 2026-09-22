@@ -90,7 +90,22 @@ def get_previsao_realizado_data(
     ajustes_fin_receita = get_ajustes_from_versao(versao_final, 'receita')
     ajustes_fin_despesa = get_ajustes_from_versao(versao_final, 'despesa')
 
+    # Porta das VERSÕES (previsao RN15): com versão publicada, a previsão
+    # inicial é a primeira publicada e a final a última — os valores gravados
+    # em flc_projecao_valor, qualquer que seja o método (antes só os ajustes
+    # MANUAL do snapshot eram enxergados). Sem versão publicada, mantém o
+    # cálculo legado por ajustes.
+    publicadas = _versoes_publicadas(cenario_id) if cenario_id else []
+    if publicadas:
+        tipo_por_qual = {q.seq_qualificador: q.tipo_fluxo for q in qs}
+        valores_ini = _valores_da_versao(publicadas[0], tipo_por_qual)
+        valores_fin = _valores_da_versao(publicadas[-1], tipo_por_qual)
+        ajustes_ini_receita = ajustes_ini_despesa = valores_ini
+        ajustes_fin_receita = ajustes_fin_despesa = valores_fin
+
     def previsao_val_for_year(ajustes_map, q_id, mes, ano_ref):
+        if publicadas:
+            return ajustes_map.get((q_id, ano_ref, mes), 0.0)
         base = lanc_val(q_id, ano_ref - 1, mes, qual_tipo_map.get(q_id, cod_entrada))
         
         ajuste = ajustes_map.get((q_id, ano_ref, mes))
@@ -194,3 +209,37 @@ def get_previsao_realizado_data(
             "inicial": diff_inicial,
         },
     }
+
+
+def _versoes_publicadas(cenario_id: int) -> list:
+    """Versões publicadas do cenário, da mais antiga à mais recente."""
+    from ..models import ProjecaoVersao
+
+    return (ProjecaoVersao.query
+            .filter_by(seq_simulador_cenario=cenario_id, ind_publicado='S')
+            .order_by(ProjecaoVersao.dat_versao, ProjecaoVersao.seq_projecao_versao)
+            .all())
+
+
+def _valores_da_versao(versao, tipo_por_qual: dict) -> dict:
+    """{(seq, ano, mês): valor COM SINAL} — despesa negativa, como o realizado
+    deste relatório (que soma `valor_com_sinal`)."""
+    from ..models import ProjecaoValor, SimuladorCenario
+    from . import periodo_resolver
+
+    cenario = SimuladorCenario.query.get(versao.seq_simulador_cenario)
+    periodicidade = periodo_resolver.normalizar(
+        getattr(cenario, 'cod_periodicidade', None) or periodo_resolver.MENSAL)
+    saida: dict = {}
+    for linha in ProjecaoValor.query.filter(
+            ProjecaoValor.seq_projecao_versao == versao.seq_projecao_versao,
+            ProjecaoValor.seq_qualificador.in_(list(tipo_por_qual))).all():
+        mes = periodo_resolver.mes_do_periodo(periodicidade, linha.ano, linha.num_periodo)
+        if mes is None:
+            continue  # ANUAL: sem mês — o relatório é mensal
+        valor = abs(float(linha.val_projetado or 0))
+        if tipo_por_qual.get(linha.seq_qualificador) == 'despesa':
+            valor = -valor
+        chave = (linha.seq_qualificador, linha.ano, mes)
+        saida[chave] = saida.get(chave, 0.0) + valor
+    return saida

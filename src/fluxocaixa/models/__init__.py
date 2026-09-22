@@ -35,9 +35,12 @@ from .saldo_fundo import (
     TipoOrigemSaldo,
 )
 from .simulacao_desembolso import ParametroDesembolso, SimulacaoDesembolso
+from .setor_previsao import SetorPrevisao
 from .simulador_cenario import (
     CenarioAjuste,
     CenarioConfig,
+    CenarioFormula,
+    CenarioMetodo,
     ModeloEconomicoParametro,
     SimuladorCenario,
 )
@@ -55,6 +58,8 @@ __all__ = [
     'CategoriaFiscal',
     'CenarioAjuste',
     'CenarioConfig',
+    'CenarioFormula',
+    'CenarioMetodo',
     'CenarioParametroValor',
     'Conferencia',
     'ContaBancaria',
@@ -95,6 +100,7 @@ __all__ = [
     'ReservaFinanceira',
     'RubricaFormula',
     'SaldoContaFundo',
+    'SetorPrevisao',
     'SimulacaoDesembolso',
     'SimuladorCenario',
     'SimuladorCenarioHistorico',

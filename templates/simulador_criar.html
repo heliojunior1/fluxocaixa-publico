@@ -138,6 +138,9 @@
             </div>
         </div>
 
+        {% include 'simulador_por_qualificador.html' %}
+
+        <div id="bloco_por_perna">
         <!-- 2. Configuração de Receita -->
         <div class="mb-8 p-4 bg-green-50 rounded-lg border border-green-100">
             <h3 class="text-lg font-medium text-green-800 mb-4 flex items-center gap-2">
@@ -696,6 +699,8 @@
                 </div>
             </div>
         </div>
+
+        </div>{# /bloco_por_perna #}
 
         {% include 'simulador_parametros_formula.html' %}
 
@@ -1651,6 +1656,7 @@
     }
 
     // Expor funções globalmente
+    window.atualizarFormulas = atualizarFormulas;
     window.toggleReceitaFields = toggleReceitaFields;
     window.toggleDespesaFields = toggleDespesaFields;
     window.aplicarTodos = aplicarTodos;

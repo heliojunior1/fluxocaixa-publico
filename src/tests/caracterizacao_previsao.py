@@ -25,6 +25,17 @@ esse motivo, e só por ele: a comparação acusou divergência em
 `simulacoes.MEDIA_HISTORICA` e em NENHUM outro ponto. Ficou escrito aqui antes
 de acontecer, e a previsão se confirmou.
 
+⚠️ **Segunda mudança DECLARADA** (change `previsao-por-qualificador`,
+22/09/2026 — RN05/RN14 "saída sempre por folha"): as `*_detalhada` de
+CRESCIMENTO_ANO, MEDIA_CRESCIMENTO e MEDIA_HISTORICA deixaram de ser uma cópia
+agregada (ou `None`) e passaram a vir DISTRIBUÍDAS pelos qualificadores do
+modelo, pela participação no realizado do ano anterior — 12 → 24 linhas (dois
+qualificadores). Os agregados `receita`/`despesa` e o `resumo` NÃO se moveram:
+a distribuição preserva o total por período. E o LOA passou a ser datado pelo
+ANO-BASE (`projetar_loa(..., ano_base=)`): antes usava `date.today()`, então a
+golden quebrava sozinha a cada mês corrido. Regenerada por esses dois motivos,
+e só por eles.
+
 Nota de implementação: a magnitude precisou valer para a ENTRADA dos modelos,
 não só para a saída. `projetar_media_historica` aplica `max(valor, 0)` — com a
 série chegando negativa, projetava zero e o `abs()` na saída não recuperava

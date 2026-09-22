@@ -34,6 +34,48 @@ def _exercicio_combo():
 
     return exercicio_corrente()
 
+
+MODO_PERNA = 'PERNA'
+MODO_QUALIFICADOR = 'QUALIFICADOR'
+
+
+def _contexto_por_qualificador(simulador=None) -> dict:
+    """Árvore do modo "método por qualificador" do formulário: cada linha com
+    as opções da sua perna e o valor atual (marcação existente, na edição)."""
+    from ..services import metodo_qualificador_service as mq
+
+    exercicio = (mq.exercicio_do_cenario(simulador) if simulador is not None
+                 else _exercicio_combo())
+    marcacoes = mq.carregar_marcacoes(simulador.seq_simulador_cenario) if simulador else {}
+    linhas = []
+    for linha in mq.nos_do_plano(exercicio):
+        if linha['perna'] is None:
+            continue
+        marcacao = marcacoes.get(linha['q'].seq_qualificador)
+        valor, param = mq.valor_do_formulario(marcacao)
+        linha.update({
+            'opcoes': mq.opcoes_do_formulario(linha['perna']),
+            'valor': valor,
+            'param': param,
+            'rotulo_mantido': (mq.rotulo(marcacao.cod_metodo, mq.config_da_marcacao(marcacao))
+                               if valor == mq.MANTER else ''),
+        })
+        linhas.append(linha)
+    padroes = {}
+    if simulador is not None:
+        from ..models import CenarioConfig
+
+        for config in CenarioConfig.query.filter_by(
+                seq_simulador_cenario=simulador.seq_simulador_cenario).all():
+            padroes[config.cod_tipo_lancamento] = mq.ROTULO_PADRAO.get(
+                config.cod_tipo_modelo, config.cod_tipo_modelo)
+    return {
+        'arvore_metodos': linhas,
+        'modo_projecao': MODO_QUALIFICADOR if marcacoes else MODO_PERNA,
+        'metodo_manter': mq.MANTER,
+        'padrao_perna': padroes,
+    }
+
 logger = logging.getLogger(__name__)
 
 
@@ -73,6 +115,7 @@ async def simulador_novo(request: Request):
             'modo': 'criar',
             'anos_disponiveis': anos_disponiveis,
             **contexto_formulas(),
+            **_contexto_por_qualificador(),
         }
     )
 
@@ -110,6 +153,29 @@ async def simulador_criar(request: Request):
     """Cria um novo cenário simulador."""
     form = await request.form()
     dados = _parse_cenario_form(form)
+    if form.get('modo_projecao') == MODO_QUALIFICADOR:
+        # Método por qualificador: sem padrão nas pernas; as marcações do
+        # formulário gravam JUNTO com o cenário (transação única).
+        from ..services.formula_cenario_service import parametros_informados
+        from ..services.metodo_qualificador_service import marcacoes_do_formulario
+        from ..services.validacao import RegraNegocioError
+
+        marcacoes = marcacoes_do_formulario(form)
+        if not any(metodo for metodo, _ in marcacoes.values()):
+            raise RegraNegocioError(
+                "Escolha o método de ao menos um qualificador (ou use um método "
+                "para cada perna)")
+        parametros = parametros_informados(form)
+        dados.update(tipo_cenario_receita='', config_receita={},
+                     tipo_cenario_despesa='', config_despesa={},
+                     ajustes_receita=None, ajustes_despesa=None)
+        simulador = criar_simulador_cenario(**dados, marcacoes=marcacoes)
+        formula_repository.set_valores_cenario_batch(
+            simulador.seq_simulador_cenario, parametros)
+        return RedirectResponse(
+            url=f'/simulador/{simulador.seq_simulador_cenario}/metodos?cobertura=1',
+            status_code=303)
+
     parametros = parametros_do_formulario(form)
     simulador = criar_simulador_cenario(**dados)
 
@@ -253,6 +319,7 @@ async def simulador_editar_get(request: Request, id: int):
             'modo': 'editar',
             'anos_disponiveis': anos_disponiveis,
             **contexto_formulas(id),
+            **_contexto_por_qualificador(simulador),
         }
     )
 
@@ -263,7 +330,23 @@ async def simulador_atualizar(request: Request, id: int):
     """Atualiza um cenário simulador existente."""
     form = await request.form()
     dados = _parse_cenario_form(form)
-    parametros = parametros_do_formulario(form)
+    if form.get('modo_projecao') == MODO_QUALIFICADOR:
+        from ..services.formula_cenario_service import parametros_informados
+        from ..services.metodo_qualificador_service import marcacoes_do_formulario
+        from ..services.simulador_cenario_service import atualizar_cenario_por_qualificador
+
+        parametros = parametros_informados(form)
+        atualizar_cenario_por_qualificador(
+            id, nom_cenario=dados['nom_cenario'], dsc_cenario=dados['dsc_cenario'],
+            ano_base=dados['ano_base'], num_periodos=dados['num_periodos'],
+            marcacoes=marcacoes_do_formulario(form),
+            cod_periodicidade=dados['cod_periodicidade'],
+            cod_metodo_base=dados['cod_metodo_base'],
+            json_config_base=dados['json_config_base'])
+        formula_repository.set_valores_cenario_batch(id, parametros)
+        return RedirectResponse(url=f'/simulador/{id}/metodos?cobertura=1', status_code=303)
+
+    parametros = parametros_do_formulario(form, id)
     atualizar_simulador_cenario(seq_simulador_cenario=id, **dados)
 
     # Substitui também por vazio ao deixar de usar fórmulas: sem valores ocultos.
@@ -532,6 +615,8 @@ async def simulador_historico_salvar(request: Request, id: int):
     nom_versao = (form.get('nom_versao') or '').strip()
     dsc_motivo = (form.get('dsc_motivo') or '').strip() or None
     publicar = form.get('publicar') in ('S', 'on', 'true', '1')
+    # RN12: publicar com rubricas sem projeção exige confirmação explícita
+    confirmado = form.get('confirmado') in ('S', 'on', 'true', '1')
 
     if not nom_versao:
         return JSONResponse({'error': 'nom_versao é obrigatório'}, status_code=400)
@@ -542,6 +627,7 @@ async def simulador_historico_salvar(request: Request, id: int):
             nom_versao=nom_versao,
             dsc_motivo=dsc_motivo,
             publicar=publicar,
+            confirmado=confirmado,
         )
     except ValueError as exc:
         return JSONResponse({'error': str(exc)}, status_code=400)
@@ -608,7 +694,10 @@ async def simulador_historico_detalhe(request: Request, id: int, seq_versao: int
 async def simulador_historico_publicar(request: Request, id: int, seq_versao: int):
     """Marca uma versão como publicada (imutável)."""
     from ..services import projecao_versao_service as historico_service
-    historico_service.publicar_versao(seq_versao)
+
+    form = await request.form()
+    historico_service.publicar_versao(
+        seq_versao, confirmado=form.get('confirmado') in ('S', 'on', 'true', '1'))
     return RedirectResponse(url=f'/simulador/{id}/historico', status_code=303)
 
 

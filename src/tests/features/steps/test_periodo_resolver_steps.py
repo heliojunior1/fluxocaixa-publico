@@ -176,7 +176,8 @@ def salva_versao(contexto, cenario):
     from fluxocaixa.services.projecao_versao_service import salvar_projecao_como_versao
 
     contexto["versao"] = salvar_projecao_como_versao(
-        cenario.seq_simulador_cenario, "v1 período", publicar=True)
+        cenario.seq_simulador_cenario, "v1 período", publicar=True,
+        confirmado=True)
 
 
 @when("apuro os realizados da versão")
@@ -187,7 +188,8 @@ def apura_realizados(contexto, cenario):
     )
 
     versao = salvar_projecao_como_versao(
-        cenario.seq_simulador_cenario, "v1 realizado", publicar=True)
+        cenario.seq_simulador_cenario, "v1 realizado", publicar=True,
+        confirmado=True)
     atualizar_realizados_de_lancamentos(versao.seq_projecao_versao)
     contexto["versao"] = versao
 

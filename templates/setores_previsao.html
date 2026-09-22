@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block content %}
+{% set pode_manter = tem_permissao(request, 'FC_MANT_SETOR_PREVISAO') %}
+<div class="space-y-6" data-testid="tela-setores-previsao">
+    <div class="bg-white p-6 rounded-lg shadow-md border">
+        <h2 class="text-2xl font-semibold text-gray-800">Setores da previsão</h2>
+        <p class="text-sm text-gray-600 mt-1 max-w-3xl">
+            Opcional. Cada setor responde por um recorte da árvore — marque o <b>bloco</b> e as folhas herdam;
+            a marcação mais próxima vence. O setor projeta o recorte num cenário setorial e publica a versão como
+            proposta; quem consolida a fixa no próprio cenário. Sem setores, um cenário projeta todos os qualificadores.
+        </p>
+    </div>
+
+    {% if pode_manter %}
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <form method="post" action="/previsao/setores" class="bg-white p-6 rounded-lg shadow-md border space-y-3" data-testid="form-novo-setor">
+            <h3 class="font-semibold text-gray-800">Novo setor</h3>
+            <div class="grid grid-cols-3 gap-3">
+                <div>
+                    <label for="s-sigla" class="block text-xs text-gray-600 mb-1">Sigla</label>
+                    <input id="s-sigla" name="sgl_setor" required maxlength="20" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                </div>
+                <div class="col-span-2">
+                    <label for="s-nome" class="block text-xs text-gray-600 mb-1">Nome</label>
+                    <input id="s-nome" name="nom_setor" required maxlength="100" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                </div>
+            </div>
+            <div>
+                <label for="s-dsc" class="block text-xs text-gray-600 mb-1">Descrição (opcional)</label>
+                <input id="s-dsc" name="dsc_setor" maxlength="255" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+            </div>
+            <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded text-sm">Cadastrar setor</button>
+        </form>
+
+        <form method="post" action="/previsao/setores/recorte" class="bg-white p-6 rounded-lg shadow-md border space-y-3" data-testid="form-recorte">
+            <h3 class="font-semibold text-gray-800">Marcar recorte na árvore</h3>
+            <div>
+                <label for="r-qual" class="block text-xs text-gray-600 mb-1">Qualificador (bloco ou folha)</label>
+                <select id="r-qual" name="seq_qualificador" required class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                    {% for q in qualificadores %}
+                    <option value="{{ q.seq_qualificador }}">{{ q.num_qualificador }} — {{ q.dsc_qualificador }}{% if q.setor_previsao %} [{{ q.setor_previsao.sgl_setor }}]{% endif %}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="r-setor" class="block text-xs text-gray-600 mb-1">Setor</label>
+                <select id="r-setor" name="seq_setor_previsao" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                    <option value="">Nenhum (limpa a marcação própria)</option>
+                    {% for item in setores %}
+                    <option value="{{ item.setor.seq_setor_previsao }}">{{ item.setor.sgl_setor }} — {{ item.setor.nom_setor }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded text-sm">Salvar recorte</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <div class="bg-white p-6 rounded-lg shadow-md border">
+        <h3 class="font-semibold text-gray-800 mb-3">Setores cadastrados</h3>
+        {% if setores %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-50 text-gray-700"><tr>
+                    <th class="px-3 py-2 text-left">Sigla</th><th class="px-3 py-2 text-left">Nome</th>
+                    <th class="px-3 py-2 text-left">Recorte marcado (as folhas abaixo herdam)</th><th></th>
+                </tr></thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for item in setores %}
+                    {% set s = item.setor %}
+                    <tr data-testid="setor-{{ s.sgl_setor }}">
+                        <td class="px-3 py-2 font-semibold">{{ s.sgl_setor }}</td>
+                        <td class="px-3 py-2">{{ s.nom_setor }}<div class="text-xs text-gray-500">{{ s.dsc_setor or '' }}</div></td>
+                        <td class="px-3 py-2">
+                            {% for q in item.recorte %}
+                            <span class="inline-block px-2 py-0.5 mr-1 mb-1 rounded bg-pink-50 text-pink-800 text-xs">{{ q.num_qualificador }} {{ q.dsc_qualificador }} ({{ q.num_ano_exercicio }})</span>
+                            {% else %}
+                            <span class="text-xs text-gray-500">nenhum nó marcado</span>
+                            {% endfor %}
+                        </td>
+                        <td class="px-3 py-2 text-right">
+                            {% if pode_manter %}
+                            <form method="post" action="/previsao/setores/{{ s.seq_setor_previsao }}/inativar"
+                                  onsubmit="return confirm('Inativar o setor {{ s.sgl_setor }}?');">
+                                <button type="submit" class="text-xs text-red-700 hover:underline">Inativar</button>
+                            </form>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500 italic">Nenhum setor cadastrado — os cenários projetam a árvore inteira.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

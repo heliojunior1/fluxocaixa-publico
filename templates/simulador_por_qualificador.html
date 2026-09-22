@@ -1,0 +1,187 @@
+{#- Modo de projeção do formulário do cenário (docs/previsao-metodo-por-qualificador.md).
+    "Um método por perna" = seções de receita/despesa de sempre.
+    "Por qualificador"    = árvore com o método de cada rubrica; a marcação do
+                            bloco vale para as folhas e a mais próxima vence. -#}
+<div class="mb-8 p-4 bg-sky-50 rounded-lg border border-sky-200" data-testid="modo-projecao">
+    <h3 class="text-lg font-medium text-sky-900 mb-3 flex items-center gap-2">
+        <i data-lucide="list-tree" class="h-5 w-5"></i>
+        Como projetar
+    </h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <label class="flex items-start gap-3 p-3 rounded border bg-white cursor-pointer has-[:checked]:border-sky-500 has-[:checked]:ring-1 has-[:checked]:ring-sky-500">
+            <input type="radio" name="modo_projecao" value="PERNA" class="mt-1"
+                   {{ 'checked' if modo_projecao != 'QUALIFICADOR' }} onchange="onModoProjecaoChange()">
+            <span>
+                <span class="block font-medium text-gray-800">Um método para cada perna</span>
+                <span class="block text-sm text-gray-600">Um método para toda a receita e outro para toda a despesa.</span>
+            </span>
+        </label>
+        <label class="flex items-start gap-3 p-3 rounded border bg-white cursor-pointer has-[:checked]:border-sky-500 has-[:checked]:ring-1 has-[:checked]:ring-sky-500">
+            <input type="radio" name="modo_projecao" value="QUALIFICADOR" class="mt-1" data-testid="modo-qualificador"
+                   {{ 'checked' if modo_projecao == 'QUALIFICADOR' }} onchange="onModoProjecaoChange()">
+            <span>
+                <span class="block font-medium text-gray-800">Escolher o método por qualificador</span>
+                <span class="block text-sm text-gray-600">Cada rubrica ou bloco com seu método: valor fixo, percentual,
+                    fórmula, modelo, LOA… O método do bloco vale para as folhas abaixo; a escolha mais próxima vence.</span>
+            </span>
+        </label>
+    </div>
+
+    <div id="bloco_por_qualificador" class="mt-4 {{ '' if modo_projecao == 'QUALIFICADOR' else 'hidden' }}">
+        {% if padrao_perna %}
+        <p class="text-sm text-gray-700 mb-2">
+            Rubricas sem método usam o padrão da perna:
+            {% if padrao_perna.get('C') %}receita — <b>{{ padrao_perna.C }}</b>{% endif %}
+            {% if padrao_perna.get('D') %}{{ '; ' if padrao_perna.get('C') }}despesa — <b>{{ padrao_perna.D }}</b>{% endif %}.
+        </p>
+        {% endif %}
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <input type="search" id="filtro_arvore_metodos" placeholder="Filtrar por código ou nome"
+                   aria-label="Filtrar qualificadores" oninput="filtrarArvoreMetodos()"
+                   class="border border-gray-300 rounded px-3 py-1.5 text-sm w-72">
+            <span class="text-xs text-gray-500">Valor fixo: valor ANUAL (distribuído pelos meses pelo histórico). Percentual: % sobre o realizado do ano anterior.</span>
+        </div>
+        <div class="bg-white rounded border overflow-x-auto max-h-[32rem] overflow-y-auto">
+            <table class="min-w-full text-sm" id="arvore_metodos_form" data-testid="arvore-metodos-form">
+                <thead class="bg-gray-50 text-gray-700 sticky top-0">
+                    <tr>
+                        <th class="px-3 py-2 text-left">Qualificador</th>
+                        <th class="px-3 py-2 text-left">Método</th>
+                        <th class="px-3 py-2 text-left">Parâmetro</th>
+                        <th class="px-3 py-2 text-left">Resultado</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for l in arvore_metodos %}
+                    {% set q = l.q %}
+                    <tr class="linha-metodo" data-seq="{{ q.seq_qualificador }}" data-pai="{{ q.cod_qualificador_pai or '' }}"
+                        data-perna="{{ l.perna }}" data-codigo="{{ q.num_qualificador }}"
+                        data-busca="{{ (q.num_qualificador ~ ' ' ~ q.dsc_qualificador)|lower }}"
+                        data-testid="linha-{{ q.num_qualificador }}">
+                        <td class="py-1.5 pr-2 whitespace-nowrap" style="padding-left: {{ 0.75 + l.nivel * 1.25 }}rem">
+                            <span class="font-mono text-xs text-gray-500">{{ q.num_qualificador }}</span>
+                            <span class="{{ 'font-semibold' if not l.folha }} text-gray-800">{{ q.dsc_qualificador }}</span>
+                        </td>
+                        <td class="py-1.5 px-2">
+                            <select name="metodo_{{ q.seq_qualificador }}" class="sel-metodo border border-gray-300 rounded px-2 py-1 text-xs"
+                                    aria-label="Método de {{ q.num_qualificador }}" onchange="atualizarLinhaMetodo(this)">
+                                <option value="">— herdar —</option>
+                                {% if l.valor == metodo_manter %}
+                                <option value="{{ metodo_manter }}" selected>{{ l.rotulo_mantido }} (ajustar na tela de métodos)</option>
+                                {% endif %}
+                                {% for valor, rotulo in l.opcoes %}
+                                <option value="{{ valor }}" {{ 'selected' if l.valor == valor }}>{{ rotulo }}</option>
+                                {% endfor %}
+                            </select>
+                        </td>
+                        <td class="py-1.5 px-2">
+                            <input name="param_{{ q.seq_qualificador }}" value="{{ l.param }}"
+                                   aria-label="Parâmetro de {{ q.num_qualificador }}"
+                                   class="inp-param hidden border border-gray-300 rounded px-2 py-1 text-xs w-36">
+                        </td>
+                        <td class="py-1.5 px-2 text-xs text-gray-500 res-metodo"></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="text-xs text-gray-500 mt-2">Depois de salvar, a tela de métodos mostra a cobertura (rubricas sem projeção)
+            e permite ajustes finos: valores mês a mês, proposta de setor, fórmula própria e recomendações do backtest.</p>
+    </div>
+</div>
+
+<script>
+(function () {
+    const PADRAO = {{ (padrao_perna or {}) | tojson }};
+    const PARAM = {
+        'VALOR_FIXO': { tipo: 'number', ph: 'valor anual', obrig: true },
+        'PERCENTUAL': { tipo: 'number', ph: '% (ex.: 5)', obrig: false },
+        'SEM_PROJECAO': { tipo: 'text', ph: 'motivo', obrig: true },
+    };
+
+    function linhas() { return Array.from(document.querySelectorAll('#arvore_metodos_form .linha-metodo')); }
+
+    function rotuloSelecionado(sel) {
+        const opt = sel.options[sel.selectedIndex];
+        return opt ? opt.text.replace(' (ajustar na tela de métodos)', '') : '';
+    }
+
+    function atualizarResultados() {
+        const porSeq = {};
+        linhas().forEach(tr => { porSeq[tr.dataset.seq] = tr; });
+        linhas().forEach(tr => {
+            const alvo = tr.querySelector('.res-metodo');
+            const sel = tr.querySelector('.sel-metodo');
+            if (sel.value) { alvo.textContent = 'próprio'; alvo.className = 'py-1.5 px-2 text-xs text-sky-800 font-semibold res-metodo'; return; }
+            let no = porSeq[tr.dataset.pai];
+            const vistos = new Set();
+            while (no && !vistos.has(no.dataset.seq)) {
+                vistos.add(no.dataset.seq);
+                const s = no.querySelector('.sel-metodo');
+                if (s.value) {
+                    alvo.textContent = `herda ${rotuloSelecionado(s)} de ${no.dataset.codigo}`;
+                    alvo.className = 'py-1.5 px-2 text-xs text-gray-600 res-metodo';
+                    return;
+                }
+                no = porSeq[no.dataset.pai];
+            }
+            const padrao = PADRAO[tr.dataset.perna];
+            alvo.textContent = padrao ? `padrão da perna (${padrao})` : 'sem método';
+            alvo.className = 'py-1.5 px-2 text-xs res-metodo ' + (padrao ? 'text-gray-500' : 'text-red-700');
+        });
+    }
+
+    function configurarParametro(sel) {
+        const inp = sel.closest('tr').querySelector('.inp-param');
+        const cfg = PARAM[sel.value];
+        const ativo = !!cfg && document.querySelector('[name="modo_projecao"][value="QUALIFICADOR"]').checked;
+        inp.classList.toggle('hidden', !cfg);
+        if (cfg) { inp.type = cfg.tipo; inp.placeholder = cfg.ph; if (cfg.tipo === 'number') inp.step = 'any'; }
+        inp.required = ativo && cfg.obrig;
+    }
+
+    window.atualizarLinhaMetodo = function (sel) {
+        configurarParametro(sel);
+        atualizarResultados();
+    };
+
+    window.filtrarArvoreMetodos = function () {
+        const termo = (document.getElementById('filtro_arvore_metodos').value || '').toLowerCase().trim();
+        linhas().forEach(tr => tr.classList.toggle('hidden', !!termo && !tr.dataset.busca.includes(termo)));
+    };
+
+    window.onModoProjecaoChange = function () {
+        const porQualificador = document.querySelector('[name="modo_projecao"][value="QUALIFICADOR"]').checked;
+        document.getElementById('bloco_por_qualificador').classList.toggle('hidden', !porQualificador);
+        const blocoPerna = document.getElementById('bloco_por_perna');
+        if (blocoPerna) {
+            blocoPerna.classList.toggle('hidden', porQualificador);
+            // Campos ocultos da perna não vão no POST nem travam a validação do navegador
+            blocoPerna.querySelectorAll('input, select, textarea').forEach(el => { el.disabled = porQualificador; });
+        }
+        // As linhas da árvore só vão no POST no modo por qualificador
+        linhas().forEach(tr => tr.querySelectorAll('select, input').forEach(el => { el.disabled = !porQualificador; }));
+        // Parâmetros de fórmula: no modo por qualificador ficam todos visíveis e opcionais
+        document.querySelectorAll('[data-parametro-formula]').forEach(campo => {
+            const input = campo.querySelector('input');
+            if (porQualificador) {
+                campo.classList.remove('hidden');
+                campo.querySelectorAll('[data-formula-fluxo]').forEach(u => u.classList.remove('hidden'));
+                input.disabled = false;
+                input.required = false;
+            }
+        });
+        const params = document.getElementById('formula_params');
+        if (params && porQualificador) params.classList.remove('hidden');
+        if (!porQualificador && typeof window.atualizarFormulas === 'function') window.atualizarFormulas();
+        document.querySelectorAll('#arvore_metodos_form .sel-metodo').forEach(configurarParametro);
+        atualizarResultados();
+    };
+
+    // setTimeout: roda DEPOIS da inicialização do formulário (que ajusta a
+    // seção de fórmulas pelo método das pernas) — o modo escolhido prevalece.
+    document.addEventListener('DOMContentLoaded', function () {
+        setTimeout(window.onModoProjecaoChange, 0);
+    });
+})();
+</script>

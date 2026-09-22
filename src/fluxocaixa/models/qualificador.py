@@ -58,9 +58,15 @@ class Qualificador(Base):
     # fabricado (migração 0036).
     cod_pessoa_inclusao = Column(Integer, nullable=True)
     ind_status = Column(String(1), default='A', nullable=False)
+    # Setor responsável pela previsão (previsao R24) — marcação PRÓPRIA, no
+    # padrão da categoria fiscal: marca-se o bloco e as folhas herdam; o setor
+    # efetivo é derivado por `setor_previsao_service.setor_resolvido`.
+    seq_setor_previsao = Column(
+        Integer, ForeignKey('flc_setor_previsao.seq_setor_previsao'))
 
     pai = relationship('Qualificador', remote_side=[seq_qualificador], backref='filhos')
     categoria_fiscal = relationship('CategoriaFiscal')
+    setor_previsao = relationship('SetorPrevisao')
 
     def _erro_ciclo(self):
         from ..services.validacao import RegraNegocioError

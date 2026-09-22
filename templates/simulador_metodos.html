@@ -1,0 +1,443 @@
+{% extends 'base.html' %}
+
+{% block content %}
+{% set pode_alterar = tem_permissao(request, 'FC_ALT_PREVISAO') %}
+{% set id = simulador.seq_simulador_cenario %}
+{% set cor_metodo = {
+    'VALOR_FIXO': 'bg-cyan-100 text-cyan-800',
+    'PERCENTUAL': 'bg-lime-100 text-lime-800',
+    'FORMULA': 'bg-violet-100 text-violet-800',
+    'MODELO': 'bg-sky-100 text-sky-800',
+    'LOA': 'bg-amber-100 text-amber-800',
+    'PROPOSTA_SETORIAL': 'bg-pink-100 text-pink-800',
+    'SEM_PROJECAO': 'bg-slate-200 text-slate-700',
+} %}
+{% set status_estilo = {
+    'PROJETADA': ('bg-green-100 text-green-800', 'Projetada'),
+    'LACUNA': ('bg-red-100 text-red-800', 'Lacuna'),
+    'DECLARADA': ('bg-slate-200 text-slate-700', 'Sem projeção declarada'),
+    'SEM_PARTICIPACAO': ('bg-yellow-100 text-yellow-800', 'Sem participação'),
+} %}
+<div class="space-y-6" data-testid="tela-metodos">
+    <!-- Cabeçalho -->
+    <div class="bg-white p-6 rounded-lg shadow-md border space-y-4">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="flex items-start gap-3">
+                <a href="/simulador/{{ id }}" class="text-blue-600 hover:text-blue-800 mt-1" title="Voltar ao cenário">
+                    <i data-lucide="arrow-left-circle" class="h-6 w-6"></i>
+                </a>
+                <div>
+                    <h2 class="text-2xl font-semibold text-gray-800">Métodos por qualificador</h2>
+                    <p class="text-sm text-gray-600">{{ simulador.nom_cenario }}</p>
+                    <div class="flex flex-wrap gap-2 mt-2 text-xs">
+                        <span class="px-2 py-0.5 rounded bg-gray-100 text-gray-700">Ano-base {{ simulador.ano_base }}</span>
+                        <span class="px-2 py-0.5 rounded bg-gray-100 text-gray-700">{{ simulador.cod_periodicidade|title }} · {{ simulador.num_periodos }} períodos</span>
+                        {% if simulador.setor %}
+                        <span class="px-2 py-0.5 rounded bg-pink-100 text-pink-800" data-testid="cenario-setorial">
+                            Cenário setorial · {{ simulador.setor.sgl_setor }}</span>
+                        {% else %}
+                        <span class="px-2 py-0.5 rounded bg-blue-50 text-blue-800">Projeta todos os qualificadores</span>
+                        {% endif %}
+                        {% if origem %}
+                        <span class="px-2 py-0.5 rounded bg-blue-100 text-blue-800" data-testid="origem-copia">
+                            Cópia de {{ origem.nom_cenario }}</span>
+                        {% if comparar_origem %}
+                        <a class="px-2 py-0.5 rounded bg-blue-600 text-white" data-testid="comparar-origem"
+                           href="/simulador/{{ id }}/historico/comparar?v1={{ comparar_origem[0] }}&v2={{ comparar_origem[1] }}">
+                            Comparar com a origem</a>
+                        {% else %}
+                        <span class="px-2 py-0.5 text-gray-500">publique uma versão aqui e na origem para comparar</span>
+                        {% endif %}
+                        {% endif %}
+                        <span class="px-2 py-0.5 rounded bg-gray-100 text-gray-700">{{ qtd_marcacoes }} marcação(ões) própria(s)</span>
+                    </div>
+                </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <a href="/simulador/{{ id }}/metodos?cobertura=1{% if painel %}&no={{ painel.linha.q.seq_qualificador }}{% endif %}"
+                   data-testid="btn-cobertura"
+                   class="px-3 py-2 bg-primary-600 text-white rounded hover:bg-primary-700 text-sm flex items-center gap-2">
+                    <i data-lucide="scan-search" class="h-4 w-4"></i> Calcular cobertura
+                </a>
+                <a href="/simulador/{{ id }}/historico"
+                   class="px-3 py-2 border border-gray-300 rounded hover:bg-gray-50 text-sm flex items-center gap-2">
+                    <i data-lucide="history" class="h-4 w-4"></i> Versões e publicação
+                </a>
+                {% if tem_permissao(request, 'FC_ALT_PREVISAO') %}
+                <a href="/simulador/{{ id }}/editar"
+                   class="px-3 py-2 border border-gray-300 rounded hover:bg-gray-50 text-sm flex items-center gap-2">
+                    <i data-lucide="settings" class="h-4 w-4"></i> Padrão das pernas
+                </a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+            {% for perna, nome in (('C', 'Receitas'), ('D', 'Despesas')) %}
+            <div class="rounded border border-gray-200 px-3 py-2">
+                <span class="text-gray-500">Padrão das {{ nome|lower }}:</span>
+                {% if padroes.get(perna) %}
+                <span class="font-medium">{{ rotulo_padrao.get(padroes[perna].cod_tipo_modelo, padroes[perna].cod_tipo_modelo) }}</span>
+                <span class="text-xs text-gray-500">— vale para as rubricas sem marcação</span>
+                {% else %}
+                <span class="font-medium text-red-700">sem padrão</span>
+                <span class="text-xs text-gray-500">— rubrica sem marcação vira lacuna</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        {% if tem_permissao(request, 'FC_INS_PREVISAO') %}
+        <details class="rounded border border-gray-200 px-3 py-2" data-testid="duplicar">
+            <summary class="cursor-pointer text-sm font-medium text-gray-700">Duplicar este cenário</summary>
+            <form method="post" action="/simulador/{{ id }}/duplicar" class="mt-3 flex flex-wrap items-end gap-3">
+                <div>
+                    <label for="dup-nome" class="block text-xs text-gray-600 mb-1">Nome da cópia</label>
+                    <input id="dup-nome" name="nom_cenario" required maxlength="100"
+                           value="{{ simulador.nom_cenario[:80] }} — cópia"
+                           class="border border-gray-300 rounded px-3 py-1.5 text-sm w-72">
+                </div>
+                <label class="text-sm text-gray-700 inline-flex items-center gap-2">
+                    <input type="checkbox" name="congelar_formulas" value="S">
+                    Congelar as fórmulas da biblioteca na cópia
+                </label>
+                <button type="submit" class="px-3 py-1.5 bg-primary-600 text-white rounded text-sm">Criar cópia</button>
+                <p class="w-full text-xs text-gray-500">A cópia leva padrão das pernas, marcações, ajustes, parâmetros e
+                    fórmulas próprias — e é independente: editar uma nunca altera a outra. Versões publicadas não são copiadas.</p>
+            </form>
+        </details>
+        {% endif %}
+    </div>
+
+    {% if cobertura %}
+    <!-- Cobertura -->
+    <div class="bg-white p-6 rounded-lg shadow-md border space-y-3" data-testid="painel-cobertura">
+        {% set todas = cobertura.C + cobertura.D %}
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <h3 class="text-lg font-semibold text-gray-800">Cobertura</h3>
+            <span class="text-sm {{ 'text-red-700 font-semibold' if cobertura.lacunas else 'text-green-700' }}" data-testid="total-lacunas">
+                {% if cobertura.lacunas %}{{ cobertura.lacunas }} rubrica(s) com histórico sem projeção{% else %}Nenhuma lacuna{% endif %}
+            </span>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+            {% for st, (estilo, rot) in status_estilo.items() %}
+            <div class="rounded border border-gray-200 px-3 py-2">
+                <div class="text-xl font-semibold">{{ todas|selectattr('status', 'equalto', st)|list|length }}</div>
+                <div class="text-gray-600">{{ rot }}</div>
+            </div>
+            {% endfor %}
+        </div>
+        {% for aviso in cobertura.avisos %}
+        <p class="text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded px-3 py-2">{{ aviso }}</p>
+        {% endfor %}
+        {% set pendentes = todas|selectattr('status', 'in', ['LACUNA', 'SEM_PARTICIPACAO'])|list %}
+        {% if pendentes %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead class="bg-gray-50 text-gray-700"><tr>
+                    <th class="px-3 py-2 text-left">Rubrica</th><th class="px-3 py-2 text-left">Situação</th>
+                    <th class="px-3 py-2 text-left">Motivo</th><th class="px-3 py-2 text-right">Realizado 3 anos</th><th></th>
+                </tr></thead>
+                <tbody class="divide-y divide-gray-100">
+                    {% for item in pendentes %}
+                    <tr data-testid="lacuna-{{ item.num_qualificador }}">
+                        <td class="px-3 py-2"><span class="font-mono text-xs text-gray-500">{{ item.num_qualificador }}</span> {{ item.dsc_qualificador }}</td>
+                        <td class="px-3 py-2"><span class="px-2 py-0.5 rounded text-xs {{ status_estilo[item.status][0] }}">{{ status_estilo[item.status][1] }}</span></td>
+                        <td class="px-3 py-2 text-gray-600">{{ item.nota }}</td>
+                        <td class="px-3 py-2 text-right">{{ item.historico|format_currency }}</td>
+                        <td class="px-3 py-2"><a class="text-primary-700 hover:underline" href="/simulador/{{ id }}/metodos?cobertura=1&no={{ item.seq_qualificador }}">Resolver</a></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="grid grid-cols-1 xl:grid-cols-5 gap-6 items-start">
+        <!-- Árvore -->
+        <div class="xl:col-span-3 bg-white rounded-lg shadow-md border">
+            <div class="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b">
+                <h3 class="font-semibold text-gray-800">Árvore de qualificadores</h3>
+                <span class="text-xs text-gray-500">A marcação do bloco vale para as folhas; a mais próxima vence.</span>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full text-sm" data-testid="arvore-metodos">
+                    <tbody class="divide-y divide-gray-100">
+                        {% for l in linhas %}
+                        {% set q = l.q %}
+                        {% set atual = painel and painel.linha.q.seq_qualificador == q.seq_qualificador %}
+                        <tr class="{{ 'bg-primary-50' if atual else 'hover:bg-gray-50' }} {{ 'opacity-50' if l.fora_do_recorte }}"
+                            data-testid="no-{{ q.num_qualificador }}" data-origem="{{ l.origem }}" data-metodo="{{ l.cod_metodo or '' }}">
+                            <td class="py-2 pr-2" style="padding-left: {{ 0.75 + l.nivel * 1.25 }}rem">
+                                <a href="/simulador/{{ id }}/metodos?no={{ q.seq_qualificador }}{% if cobertura %}&cobertura=1{% endif %}"
+                                   class="flex items-baseline gap-2 {{ 'font-semibold' if not l.folha }}">
+                                    <span class="font-mono text-xs text-gray-500 flex-none">{{ q.num_qualificador }}</span>
+                                    <span class="text-gray-800">{{ q.dsc_qualificador }}</span>
+                                </a>
+                            </td>
+                            <td class="py-2 px-2 text-right whitespace-nowrap">
+                                {% if l.fora_do_recorte %}
+                                <span class="text-xs text-gray-500">fora do recorte do setor</span>
+                                {% else %}
+                                {% if l.status and l.status.status != 'PROJETADA' %}
+                                <span class="px-2 py-0.5 rounded text-xs {{ status_estilo[l.status.status][0] }}" title="{{ l.status.nota }}">{{ status_estilo[l.status.status][1] }}</span>
+                                {% endif %}
+                                {% if l.origem == 'PROPRIA' %}
+                                <span class="text-[10px] font-bold uppercase tracking-wide text-primary-700 bg-primary-50 px-1.5 py-0.5 rounded">próprio</span>
+                                {% elif l.origem == 'HERDADA' %}
+                                <span class="text-xs text-gray-500">herdado de {{ l.de.num_qualificador }}</span>
+                                {% elif l.origem == 'PADRAO' %}
+                                <span class="text-xs text-gray-500">padrão</span>
+                                {% endif %}
+                                <span class="px-2 py-0.5 rounded text-xs {{ cor_metodo.get(l.cod_metodo, 'bg-gray-100 text-gray-700') if l.origem != 'NENHUM' else 'bg-red-50 text-red-700' }}
+                                      {{ 'opacity-70' if l.origem in ('HERDADA', 'PADRAO') }}">{{ l.rotulo }}</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Painel do nó -->
+        <div class="xl:col-span-2 space-y-6">
+            {% if painel %}
+            {% set l = painel.linha %}
+            {% set q = l.q %}
+            {% set m = l.marcacao_propria %}
+            {% set cfg = l.config if l.origem == 'PROPRIA' else {} %}
+            <div class="bg-white rounded-lg shadow-md border" data-testid="painel-no">
+                <div class="px-4 py-3 border-b">
+                    <h3 class="font-semibold text-gray-800">{{ q.num_qualificador }} {{ q.dsc_qualificador }}</h3>
+                    <p class="text-xs text-gray-500">
+                        {{ 'Folha' if l.folha else 'Bloco com ' ~ painel.qtd_folhas ~ ' folha(s)' }} ·
+                        {{ 'receita' if l.perna == 'C' else 'despesa' }}
+                    </p>
+                </div>
+                <div class="p-4 space-y-4">
+                    {% if l.origem != 'PROPRIA' %}
+                    <p class="text-sm bg-gray-50 border border-gray-200 rounded px-3 py-2 text-gray-700">
+                        Sem marcação própria. Usa <b>{{ l.rotulo }}</b>
+                        {% if l.origem == 'HERDADA' %}, herdado de <b>{{ l.de.num_qualificador }} {{ l.de.dsc_qualificador }}</b>.
+                        {% elif l.origem == 'PADRAO' %}, padrão da perna.
+                        {% else %}— nenhum ancestral define método e a perna está sem padrão.{% endif %}
+                    </p>
+                    {% endif %}
+
+                    {% if l.fora_do_recorte %}
+                    <p class="text-sm text-gray-600">Este nó está fora do recorte do setor do cenário.</p>
+                    {% elif pode_alterar %}
+                    <form method="post" action="/simulador/{{ id }}/metodos" class="space-y-3" id="form-metodo">
+                        <input type="hidden" name="seq_qualificador" value="{{ q.seq_qualificador }}">
+                        <div>
+                            <label for="f-metodo" class="block text-xs text-gray-600 mb-1">{{ 'Método deste nó' if m else 'Definir método próprio' }}</label>
+                            <select id="f-metodo" name="cod_metodo" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                                <option value="">— herdar —</option>
+                                {% for cod, nome in painel.metodos %}
+                                <option value="{{ cod }}" {{ 'selected' if m and m.cod_metodo == cod }}>{{ nome }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div data-metodo="VALOR_FIXO" class="campo-metodo space-y-2 hidden">
+                            <label for="f-valor" class="block text-xs text-gray-600">Valor anual {{ simulador.ano_base }} (magnitude)</label>
+                            <input id="f-valor" name="valor_anual" type="number" step="0.01" min="0"
+                                   value="{{ cfg.get('valor_anual', '') }}" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                            <p class="text-xs text-gray-500">{{ 'Distribuído nos meses pelo perfil do realizado.' if l.folha else 'Distribuído às folhas pela participação no realizado do ano anterior e nos meses pelo perfil.' }}</p>
+                            <details {{ 'open' if cfg.get('valores_mensais') }}>
+                                <summary class="text-xs text-primary-700 cursor-pointer">Informar mês a mês (substitui o anual)</summary>
+                                <div class="grid grid-cols-3 gap-2 mt-2">
+                                    {% for mes in range(1, 13) %}
+                                    <input name="valor_mes_{{ mes }}" type="number" step="0.01" min="0" placeholder="mês {{ mes }}"
+                                           aria-label="Valor do mês {{ mes }}"
+                                           value="{{ cfg.get('valores_mensais', {}).get(mes|string, '') }}"
+                                           class="border border-gray-300 rounded px-2 py-1 text-xs">
+                                    {% endfor %}
+                                </div>
+                            </details>
+                        </div>
+
+                        <div data-metodo="PERCENTUAL" class="campo-metodo grid grid-cols-2 gap-2 hidden">
+                            <div>
+                                <label for="f-pct" class="block text-xs text-gray-600 mb-1">Variação (%)</label>
+                                <input id="f-pct" name="percentual" type="number" step="0.01" value="{{ cfg.get('percentual', 0) }}"
+                                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                            </div>
+                            <div>
+                                <label for="f-anos" class="block text-xs text-gray-600 mb-1">Base: média de</label>
+                                <select id="f-anos" name="anos_base" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                                    {% for n in range(1, 6) %}
+                                    <option value="{{ n }}" {{ 'selected' if cfg.get('anos_base', 1) == n }}>{{ n }} ano(s) anterior(es)</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div data-metodo="MODELO" class="campo-metodo space-y-2 hidden">
+                            <label for="f-modelo" class="block text-xs text-gray-600">Modelo</label>
+                            <select id="f-modelo" name="modelo" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                                {% for cod, nome in painel.modelos %}
+                                <option value="{{ cod }}" {{ 'selected' if cfg.get('modelo') == cod }}>{{ nome }}</option>
+                                {% endfor %}
+                            </select>
+                            {% if not l.folha %}
+                            <label class="text-sm text-gray-700 inline-flex items-center gap-2">
+                                <input type="checkbox" name="por_folha" value="S" {{ 'checked' if cfg.get('por_folha') }}>
+                                Treinar um modelo por folha (em vez do total do bloco)
+                            </label>
+                            {% endif %}
+                        </div>
+
+                        <div data-metodo="SEM_PROJECAO" class="campo-metodo hidden">
+                            <label for="f-motivo" class="block text-xs text-gray-600 mb-1">Motivo (obrigatório)</label>
+                            <input id="f-motivo" name="motivo" maxlength="200" value="{{ cfg.get('motivo', '') }}"
+                                   placeholder="ex.: rubrica extinta" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                        </div>
+
+                        <div data-metodo="PROPOSTA_SETORIAL" class="campo-metodo hidden">
+                            <label for="f-proposta" class="block text-xs text-gray-600 mb-1">Versão fixada</label>
+                            {% if painel.propostas %}
+                            <select id="f-proposta" name="seq_projecao_versao" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                                {% for p in painel.propostas %}
+                                <option value="{{ p.versao.seq_projecao_versao }}"
+                                        {{ 'selected' if cfg.get('seq_projecao_versao') == p.versao.seq_projecao_versao }}>
+                                    {{ p.setor.sgl_setor }} · {{ p.cenario.nom_cenario }} · {{ p.versao.nom_versao }} ({{ p.rotulo_situacao|lower }}{{ ', mais nova' if p.e_a_mais_nova }})
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <p class="text-xs text-gray-500 mt-1">Nova versão do setor não muda este cenário até você trocar a versão fixada.</p>
+                            {% else %}
+                            <p class="text-sm text-yellow-800 bg-yellow-50 border border-yellow-200 rounded px-3 py-2">
+                                Nenhuma proposta publicada cobre este nó com o mesmo ano-base e periodicidade.</p>
+                            {% endif %}
+                        </div>
+
+                        <div data-metodo="FORMULA" class="campo-metodo hidden">
+                            <p class="text-xs text-gray-500">Cada folha usa a própria fórmula (abaixo). Folha sem fórmula vira lacuna.</p>
+                        </div>
+                        <div data-metodo="LOA" class="campo-metodo hidden">
+                            <p class="text-xs text-gray-500">Usa a LOA {{ simulador.ano_base }} de cada folha, distribuída pelo perfil do realizado.</p>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded text-sm" data-testid="salvar-metodo">Salvar marcação</button>
+                        </div>
+                    </form>
+                    {% if m %}
+                    <form method="post" action="/simulador/{{ id }}/metodos/{{ q.seq_qualificador }}/remover">
+                        <button type="submit" class="text-sm text-red-700 hover:underline" data-testid="remover-metodo">Remover marcação e herdar</button>
+                    </form>
+                    {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Fórmulas das folhas do nó -->
+            <div class="bg-white rounded-lg shadow-md border" data-testid="formulas-no">
+                <div class="px-4 py-3 border-b">
+                    <h3 class="font-semibold text-gray-800">Fórmulas das folhas</h3>
+                    <p class="text-xs text-gray-500">Editar aqui cria uma fórmula <b>própria deste cenário</b> — a biblioteca e os outros cenários não mudam.</p>
+                </div>
+                <div class="p-4 space-y-3">
+                    {% for f in painel.formulas %}
+                    <form method="post" action="/simulador/{{ id }}/formulas/{{ f.folha.seq_qualificador }}" class="space-y-1">
+                        <input type="hidden" name="no" value="{{ q.seq_qualificador }}">
+                        <label for="formula-{{ f.folha.seq_qualificador }}" class="text-xs text-gray-700 flex items-center gap-2">
+                            <span class="font-mono text-gray-500">{{ f.folha.num_qualificador }}</span> {{ f.folha.dsc_qualificador }}
+                            {% if f.origem == 'CENARIO' %}<span class="text-[10px] font-bold uppercase text-primary-700 bg-primary-50 px-1.5 rounded">própria</span>
+                            {% elif f.origem == 'BIBLIOTECA' %}<span class="text-[10px] text-gray-500">biblioteca</span>
+                            {% else %}<span class="text-[10px] text-red-700">sem fórmula</span>{% endif %}
+                        </label>
+                        <div class="flex gap-2">
+                            <input id="formula-{{ f.folha.seq_qualificador }}" name="expressao" value="{{ f.expressao or '' }}"
+                                   placeholder="ex.: base * (1 + ipca)" {{ 'disabled' if not pode_alterar }}
+                                   class="flex-1 border border-gray-300 rounded px-2 py-1 text-xs font-mono">
+                            {% if pode_alterar %}
+                            <button type="submit" class="px-2 py-1 border border-gray-300 rounded text-xs">Salvar</button>
+                            {% endif %}
+                        </div>
+                    </form>
+                    {% endfor %}
+                    {% if painel.qtd_folhas > painel.formulas|length %}
+                    <p class="text-xs text-gray-500">Mostrando {{ painel.formulas|length }} de {{ painel.qtd_folhas }} folhas — selecione um bloco menor.</p>
+                    {% endif %}
+                </div>
+            </div>
+            {% else %}
+            <div class="bg-white rounded-lg shadow-md border p-4 text-sm text-gray-600">
+                Selecione um qualificador na árvore para definir o método dele.
+            </div>
+            {% endif %}
+
+            {% if recomendacoes and pode_alterar %}
+            <form method="post" action="/simulador/{{ id }}/recomendacoes" class="bg-white rounded-lg shadow-md border" data-testid="recomendacoes">
+                <div class="px-4 py-3 border-b">
+                    <h3 class="font-semibold text-gray-800">Recomendações do backtest</h3>
+                    <p class="text-xs text-gray-500">Sugestão: só grava as marcadas, como marcação própria da folha.</p>
+                </div>
+                <div class="p-4 space-y-2 max-h-72 overflow-y-auto">
+                    {% for r in recomendacoes %}
+                    <label class="flex items-center gap-2 text-sm">
+                        <input type="checkbox" name="seq_qualificador" value="{{ r.seq_qualificador }}">
+                        <span class="font-mono text-xs text-gray-500">{{ r.num_qualificador }}</span>
+                        <span class="flex-1">{{ r.dsc_qualificador }}</span>
+                        <span class="text-xs text-sky-800">{{ r.rotulo_modelo }}</span>
+                        {% if r.erro is not none %}<span class="text-xs text-gray-500">{{ '%.1f'|format(r.erro) }}%</span>{% endif %}
+                    </label>
+                    {% endfor %}
+                </div>
+                <div class="px-4 py-3 border-t text-right">
+                    <button type="submit" class="px-3 py-1.5 bg-primary-600 text-white rounded text-sm">Aplicar selecionadas</button>
+                </div>
+            </form>
+            {% endif %}
+
+            {% if pode_alterar %}
+            <div class="bg-white rounded-lg shadow-md border p-4 space-y-4">
+                <form method="post" action="/simulador/{{ id }}/setor" class="space-y-2" data-testid="form-setor-cenario">
+                    <label for="f-setor-cenario" class="block text-sm font-medium text-gray-700">Setor deste cenário (opcional)</label>
+                    <div class="flex gap-2">
+                        <select id="f-setor-cenario" name="seq_setor_previsao" class="flex-1 border border-gray-300 rounded px-3 py-2 text-sm">
+                            <option value="">Nenhum — projeta todos os qualificadores</option>
+                            {% for s in setores %}
+                            <option value="{{ s.seq_setor_previsao }}" {{ 'selected' if simulador.seq_setor_previsao == s.seq_setor_previsao }}>{{ s.sgl_setor }} — {{ s.nom_setor }}</option>
+                            {% endfor %}
+                        </select>
+                        <button type="submit" class="px-3 py-2 border border-gray-300 rounded text-sm">Salvar</button>
+                    </div>
+                    <p class="text-xs text-gray-500">Cenário setorial só projeta o recorte do setor; ao publicar, a versão vira proposta enviada.</p>
+                </form>
+
+                <form method="post" action="/simulador/{{ id }}/metodos/importar" enctype="multipart/form-data" class="space-y-2" data-testid="form-importar-proposta">
+                    <label for="f-arquivo" class="block text-sm font-medium text-gray-700">Importar valores por planilha</label>
+                    <input id="f-arquivo" type="file" name="arquivo" accept=".csv,.xlsx" class="block w-full text-sm">
+                    <div class="flex items-center justify-between">
+                        <a href="/simulador/{{ id }}/metodos/modelo-csv" class="text-xs text-primary-700 hover:underline">Baixar planilha-modelo (codigo;descricao;mes;valor)</a>
+                        <button type="submit" class="px-3 py-1.5 border border-gray-300 rounded text-sm">Pré-visualizar</button>
+                    </div>
+                    <p class="text-xs text-gray-500">Cada rubrica vira valor fixo mensal próprio. Nada é gravado sem confirmar o preview.</p>
+                </form>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        if (window.lucide) lucide.createIcons();
+        const select = document.getElementById('f-metodo');
+        if (!select) return;
+        function mostrar() {
+            document.querySelectorAll('.campo-metodo').forEach(function (el) {
+                el.classList.toggle('hidden', el.dataset.metodo !== select.value);
+            });
+        }
+        select.addEventListener('change', mostrar);
+        mostrar();
+    });
+</script>
+{% endblock %}

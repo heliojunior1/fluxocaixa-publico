@@ -1,12 +1,10 @@
 """Resumo (Cash Flow Summary) service."""
 from datetime import date, timedelta
 
-import pandas as pd
-
 from ...repositories.lancamento_repository import LancamentoRepository
 from ...repositories.saldo_conta_repository import SaldoContaRepository
 from ...utils.constants import MONTH_NAME_PT
-from ..simulador_cenario_service import executar_simulacao
+from .dfc_projecao import resolver_projecao
 from .base import get_tipo_lancamento_ids
 
 
@@ -65,22 +63,20 @@ def get_resumo_data(
     # Calculate final bank balance
     saldo_final_conta = saldo_inicial_conta + total_entradas_periodo - total_saidas_periodo
 
-    # Load simulation results if in projection mode
+    # Projeção pela PORTA ÚNICA (previsao RN15): última versão publicada →
+    # ao vivo com aviso. Antes executava o cenário ao vivo a cada abertura e
+    # ignorava a versão publicada (o número mudava sem ninguém publicar).
     simulacao_resultado = None
-    df_receita_proj = None
-    df_despesa_proj = None
-    
+    projecao_origem = None
+    projetado_por_mes: dict = {}
     if estrategia == "projetado" and cenario_selecionado_id:
-        simulacao_resultado = executar_simulacao(cenario_selecionado_id)
-        if simulacao_resultado:
-            df_receita_proj = simulacao_resultado['projecao_receita']
-            df_despesa_proj = simulacao_resultado['projecao_despesa']
-            
-            # Ensure date column is datetime
-            if df_receita_proj is not None and not df_receita_proj.empty:
-                df_receita_proj['data'] = pd.to_datetime(df_receita_proj['data'])
-            if df_despesa_proj is not None and not df_despesa_proj.empty:
-                df_despesa_proj['data'] = pd.to_datetime(df_despesa_proj['data'])
+        mapa, projecao_origem = resolver_projecao(cenario_selecionado_id, ano_selecionado)
+        for (_seq, tipo, mes), valor in mapa.items():
+            if mes is None:
+                continue
+            chave = (tipo, mes)
+            projetado_por_mes[chave] = projetado_por_mes.get(chave, 0.0) + abs(float(valor))
+        simulacao_resultado = projetado_por_mes
 
     # Build cash flow data month by month
     cash_flow_data = {
@@ -111,17 +107,8 @@ def get_resumo_data(
         despesas_mes = 0
         
         if projetar_mes:
-            # Extract projected values from DataFrame
-            # Filter for specific year and month
-            if df_receita_proj is not None and not df_receita_proj.empty:
-                mask = (df_receita_proj['data'].dt.year == ano_selecionado) & (df_receita_proj['data'].dt.month == mes)
-                val = df_receita_proj.loc[mask, 'valor_projetado'].sum()
-                receitas_mes = float(val)
-                
-            if df_despesa_proj is not None and not df_despesa_proj.empty:
-                mask = (df_despesa_proj['data'].dt.year == ano_selecionado) & (df_despesa_proj['data'].dt.month == mes)
-                val = df_despesa_proj.loc[mask, 'valor_projetado'].sum()
-                despesas_mes = float(val)
+            receitas_mes = projetado_por_mes.get(('C', mes), 0.0)
+            despesas_mes = projetado_por_mes.get(('D', mes), 0.0)
         else:
             # Use actual data from repository
             receitas_mes = float(lancamento_repo.get_monthly_summary(
@@ -150,7 +137,7 @@ def get_resumo_data(
         cash_flow_data["saldos"].append(saldo_mes)
         cash_flow_data["saldo_final"].append(saldo_acumulado_banco)
 
-    if estrategia == "projetado" and simulacao_resultado:
+    if estrategia == "projetado" and simulacao_resultado is not None:
         total_entradas_periodo = total_entradas_recalc
         total_saidas_periodo = total_saidas_recalc
         disponibilidade_periodo = total_entradas_periodo - total_saidas_periodo
@@ -164,4 +151,5 @@ def get_resumo_data(
         "saldo_final_conta": saldo_final_conta,
         "cash_flow_data": cash_flow_data,
         "meses_nomes": meses_nomes,
+        "projecao_origem": projecao_origem,
     }

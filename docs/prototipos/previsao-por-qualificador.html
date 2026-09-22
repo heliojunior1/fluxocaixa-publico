@@ -1,0 +1,1030 @@
+<title>Previsão por Qualificador</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#eef2f6; --surface:#ffffff; --surface-2:#f6f8fb; --line:#dbe3ec; --line-strong:#c3cfdc;
+  --ink:#0f1b2d; --ink-2:#3b4a5e; --muted:#6a7a8f;
+  --primary:#0284c7; --primary-ink:#ffffff; --primary-soft:#e0f2fe; --primary-strong:#075985;
+  --ok:#15803d; --ok-soft:#dcfce7; --warn:#b45309; --warn-soft:#fef3c7; --bad:#b91c1c; --bad-soft:#fee2e2;
+  --neutral-soft:#e9edf2;
+  --m-fixo:#0e7490; --m-perc:#4d7c0f; --m-form:#7c3aed; --m-modelo:#0369a1; --m-loa:#a16207; --m-prop:#be185d; --m-sem:#64748b;
+  --shadow:0 1px 2px rgba(15,27,45,.06),0 4px 16px rgba(15,27,45,.06);
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --ground:#0b1320; --surface:#111c2c; --surface-2:#15223470; --line:#223247; --line-strong:#2f4460;
+    --ink:#e6edf6; --ink-2:#b8c6d8; --muted:#8597ad;
+    --primary:#38bdf8; --primary-ink:#04263b; --primary-soft:#0c2c44; --primary-strong:#7dd3fc;
+    --ok:#4ade80; --ok-soft:#0f2e1c; --warn:#fbbf24; --warn-soft:#33260a; --bad:#f87171; --bad-soft:#3a1414;
+    --neutral-soft:#1a2738;
+    --m-fixo:#22d3ee; --m-perc:#a3e635; --m-form:#a78bfa; --m-modelo:#38bdf8; --m-loa:#facc15; --m-prop:#f472b6; --m-sem:#94a3b8;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.3);
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --ground:#0b1320; --surface:#111c2c; --surface-2:#15223470; --line:#223247; --line-strong:#2f4460;
+  --ink:#e6edf6; --ink-2:#b8c6d8; --muted:#8597ad;
+  --primary:#38bdf8; --primary-ink:#04263b; --primary-soft:#0c2c44; --primary-strong:#7dd3fc;
+  --ok:#4ade80; --ok-soft:#0f2e1c; --warn:#fbbf24; --warn-soft:#33260a; --bad:#f87171; --bad-soft:#3a1414;
+  --neutral-soft:#1a2738;
+  --m-fixo:#22d3ee; --m-perc:#a3e635; --m-form:#a78bfa; --m-modelo:#38bdf8; --m-loa:#facc15; --m-prop:#f472b6; --m-sem:#94a3b8;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 4px 16px rgba(0,0,0,.3);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:14px/1.5 var(--sans);-webkit-font-smoothing:antialiased}
+button,select,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px}
+h1,h2,h3{text-wrap:balance;margin:0}
+.num{font-variant-numeric:tabular-nums}
+.mono{font-family:var(--mono);font-size:12.5px}
+
+/* shell */
+.topbar{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:env(safe-area-inset-top,0px);z-index:10}
+.topbar-in{max-width:1240px;margin:0 auto;padding-inline:16px;display:flex;align-items:center;gap:14px;min-height:56px;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em}
+.brand-mark{width:28px;height:28px;border-radius:7px;background:var(--primary);display:grid;place-items:center;color:var(--primary-ink)}
+.proto{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--warn);background:var(--warn-soft);padding:3px 8px;border-radius:999px}
+.ctx{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.ctx select{background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:6px 10px;color:var(--ink);max-width:260px}
+.tabs{max-width:1240px;margin:0 auto;padding-inline:16px;display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+.tab{border:0;background:none;padding:10px 14px;color:var(--muted);font-weight:500;border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--primary);border-bottom-color:var(--primary)}
+.tab .badge{margin-left:6px}
+main{max-width:1240px;margin:0 auto;padding:20px 16px 48px}
+.view{display:grid;gap:18px}
+.lead{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.lead h1{font-size:20px;letter-spacing:-.01em}
+.lead p{margin:4px 0 0;color:var(--muted);max-width:72ch}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.panel-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.panel-h h2{font-size:14px;font-weight:600}
+.panel-b{padding:16px}
+.eyebrow{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+
+.btn{border:1px solid var(--line-strong);background:var(--surface);padding:7px 12px;border-radius:8px;cursor:pointer;font-weight:500;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{border-color:var(--primary)}
+.btn.primary{background:var(--primary);border-color:var(--primary);color:var(--primary-ink)}
+.btn.ghost{border-color:transparent;background:none;color:var(--primary);padding-inline:6px}
+.btn.small{padding:4px 9px;font-size:12.5px}
+.btn[disabled]{opacity:.45;cursor:not-allowed}
+.badge{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--neutral-soft);color:var(--ink-2);white-space:nowrap}
+.badge.ok{background:var(--ok-soft);color:var(--ok)} .badge.warn{background:var(--warn-soft);color:var(--warn)} .badge.bad{background:var(--bad-soft);color:var(--bad)}
+.badge.info{background:var(--primary-soft);color:var(--primary-strong)}
+
+/* tables */
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);font-weight:600;text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+td.r,th.r{text-align:right}
+tfoot td{font-weight:600;background:var(--surface-2)}
+
+/* method chip */
+.m{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;white-space:nowrap}
+.m::before{content:"";width:8px;height:8px;border-radius:2px;background:var(--mc,var(--muted))}
+.m.inh{font-weight:500;color:var(--muted)}
+.m[data-m="VALOR_FIXO"]{--mc:var(--m-fixo)} .m[data-m="PERCENTUAL"]{--mc:var(--m-perc)} .m[data-m="FORMULA"]{--mc:var(--m-form)}
+.m[data-m="MODELO"]{--mc:var(--m-modelo)} .m[data-m="LOA"]{--mc:var(--m-loa)} .m[data-m="PROPOSTA_SETORIAL"]{--mc:var(--m-prop)} .m[data-m="SEM_PROJECAO"]{--mc:var(--m-sem)}
+.m[data-m="NONE"]{--mc:transparent;color:var(--bad)} .m[data-m="NONE"]::before{border:1.5px dashed var(--bad)}
+
+/* editor */
+.editor{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:900px){.editor{grid-template-columns:1fr}}
+.defaults{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.field{display:grid;gap:5px}
+.field label{font-size:12px;color:var(--muted);font-weight:500}
+.field select,.field input,.field textarea{background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;padding:7px 10px;width:100%}
+.field textarea{font-family:var(--mono);font-size:12.5px;min-height:62px;resize:vertical}
+.hint{font-size:12px;color:var(--muted)}
+.tree{list-style:none;margin:0;padding:6px 0}
+.tree li{list-style:none}
+.node{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center;padding:7px 14px 7px calc(14px + var(--d,0) * 20px);cursor:pointer;border-left:3px solid transparent}
+.node:hover{background:var(--surface-2)}
+.node[aria-current="true"]{background:var(--primary-soft);border-left-color:var(--primary)}
+.node .nm{display:flex;align-items:baseline;gap:8px;min-width:0}
+.node .nm .code{font-family:var(--mono);font-size:12px;color:var(--muted);flex:none}
+.node .nm .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.node.root .t{font-weight:700}
+.node.branch .t{font-weight:600}
+.node .meta{display:flex;align-items:center;gap:8px;justify-content:flex-end;flex-wrap:wrap}
+.own{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--primary-strong);background:var(--primary-soft);padding:1px 6px;border-radius:4px}
+.from{font-size:11.5px;color:var(--muted)}
+.side{position:sticky;top:calc(env(safe-area-inset-top,0px) + 110px);display:grid;gap:14px}
+@media (max-width:900px){.side{position:static}}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px}
+.kv dt{color:var(--muted)} .kv dd{margin:0}
+.strip{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.cover{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+@media (max-width:700px){.cover{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.cover div{background:var(--surface);padding:12px 14px}
+.cover b{display:block;font-size:22px;font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.cover span{font-size:12px;color:var(--muted)}
+.cover .bad b{color:var(--bad)} .cover .ok b{color:var(--ok)}
+.callout{border:1px solid var(--line);background:var(--surface-2);border-radius:8px;padding:10px 12px;font-size:13px;color:var(--ink-2)}
+.callout.warn{border-color:color-mix(in srgb,var(--warn) 35%,transparent);background:var(--warn-soft);color:var(--ink)}
+.callout.bad{border-color:color-mix(in srgb,var(--bad) 35%,transparent);background:var(--bad-soft);color:var(--ink)}
+.dist{display:grid;gap:6px;margin-top:6px}
+.dist-row{display:grid;grid-template-columns:minmax(0,1fr) 110px 64px;gap:10px;align-items:center;font-size:12.5px}
+.bar{height:6px;border-radius:3px;background:var(--neutral-soft);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--primary)}
+.inline-dialog{border:1px solid var(--primary);background:var(--surface);border-radius:10px;box-shadow:var(--shadow)}
+.checks{display:grid;gap:8px}
+.checks label{display:flex;gap:8px;align-items:flex-start;font-size:13px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+.rep{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;padding:14px 16px;border-top:1px solid var(--line)}
+.rep:first-child{border-top:0}
+.rep h3{font-size:13.5px;font-weight:600}
+.rep p{margin:2px 0 0;font-size:12.5px;color:var(--muted);grid-column:2}
+.dot{width:10px;height:10px;border-radius:50%;margin-top:5px}
+.dot.ok{background:var(--ok)} .dot.bad{background:var(--bad)} .dot.warn{background:var(--warn)}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--surface);padding:9px 16px;border-radius:8px;font-size:13px;box-shadow:var(--shadow);z-index:50}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px}
+.muted{color:var(--muted)}
+.diff-up{color:var(--ok)} .diff-dn{color:var(--bad)}
+/* assistente de novo cenário */
+.steps{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 16px;border-bottom:1px solid var(--line)}
+.step{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted);background:none;border:0;padding:0;cursor:default}
+.step b{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:var(--neutral-soft);font-size:12px}
+.step[aria-current="step"]{color:var(--ink);font-weight:600}
+.step[aria-current="step"] b{background:var(--primary);color:var(--primary-ink)}
+.step.done{cursor:pointer;color:var(--ink-2)} .step.done b{background:var(--ok-soft);color:var(--ok)}
+.step-sep{width:24px;height:1px;background:var(--line-strong)}
+.wiz-foot{display:flex;gap:8px;justify-content:space-between;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--line)}
+.wiz td select,.wiz td input{background:var(--surface);border:1px solid var(--line-strong);border-radius:6px;padding:4px 8px;max-width:100%}
+.wiz td input{width:120px}
+.wiz .ind{padding-left:calc(12px + var(--d,0) * 18px)}
+.wiz tr.branch td:first-child{font-weight:600}
+.wiz tr.locked td{background:color-mix(in srgb,var(--m-prop) 7%,transparent)}
+@media (prefers-reduced-motion:no-preference){.node,.btn,.tab{transition:background .12s,border-color .12s,color .12s}}
+</style>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg></span>
+      Fluxo de Caixa <span class="muted" style="font-weight:500">· Previsão</span>
+    </div>
+    <span class="proto">Protótipo · dados fictícios</span>
+    <div class="ctx">
+      <label for="sel-cenario">Cenário</label>
+      <select id="sel-cenario"></select>
+    </div>
+  </div>
+  <nav class="tabs" role="tablist" aria-label="Telas do protótipo">
+    <button class="tab" role="tab" data-tab="cenarios" id="tab-cenarios">Cenários</button>
+    <button class="tab" role="tab" data-tab="metodos" id="tab-metodos">Métodos por qualificador</button>
+    <button class="tab" role="tab" data-tab="cobertura" id="tab-cobertura">Cobertura e publicação<span class="badge bad" id="tab-lacunas"></span></button>
+    <button class="tab" role="tab" data-tab="propostas" id="tab-propostas">Propostas setoriais</button>
+    <button class="tab" role="tab" data-tab="resultado" id="tab-resultado">Resultado e relatórios</button>
+  </nav>
+</header>
+
+<main id="app"></main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+/* ============================ DADOS FICTÍCIOS ============================ */
+// Árvore de qualificadores (exercício 2027). hist = realizado 2026 em R$ milhões.
+const NODES = [
+  {id:'R', code:'', name:'Receitas', parent:null, perna:'C'},
+  {id:'1', code:'1', name:'Receita tributária', parent:'R'},
+  {id:'1.1', code:'1.1', name:'ICMS', parent:'1'},
+  {id:'1.1.1', code:'1.1.1', name:'ICMS — operações próprias', parent:'1.1', hist:6200},
+  {id:'1.1.2', code:'1.1.2', name:'ICMS — substituição tributária', parent:'1.1', hist:1450},
+  {id:'1.2', code:'1.2', name:'IPVA', parent:'1', hist:820},
+  {id:'1.3', code:'1.3', name:'ITCMD', parent:'1', hist:140},
+  {id:'1.4', code:'1.4', name:'Taxas', parent:'1'},
+  {id:'1.4.1', code:'1.4.1', name:'Taxa de fiscalização', parent:'1.4', hist:95},
+  {id:'1.4.2', code:'1.4.2', name:'Taxa judiciária', parent:'1.4', hist:60},
+  {id:'1.4.3', code:'1.4.3', name:'Taxa ambiental (criada em 2027)', parent:'1.4', hist:0},
+  {id:'2', code:'2', name:'Transferências', parent:'R'},
+  {id:'2.1', code:'2.1', name:'FPE', parent:'2', hist:5400},
+  {id:'2.2', code:'2.2', name:'Convênios', parent:'2', hist:180},
+  {id:'3', code:'3', name:'Outras receitas', parent:'R'},
+  {id:'3.1', code:'3.1', name:'Rendimentos de aplicação', parent:'3', hist:310},
+  {id:'3.2', code:'3.2', name:'Receita patrimonial', parent:'3', hist:45},
+  {id:'D', code:'', name:'Despesas', parent:null, perna:'D'},
+  {id:'4', code:'4', name:'Pessoal', parent:'D'},
+  {id:'4.1', code:'4.1', name:'Folha — ativos', parent:'4', hist:5200},
+  {id:'4.2', code:'4.2', name:'Inativos e pensionistas', parent:'4', hist:2100},
+  {id:'5', code:'5', name:'Custeio', parent:'D'},
+  {id:'5.1', code:'5.1', name:'Serviços de terceiros', parent:'5', hist:1300},
+  {id:'5.2', code:'5.2', name:'Material de consumo', parent:'5', hist:240},
+  {id:'6', code:'6', name:'Dívida pública', parent:'D'},
+  {id:'6.1', code:'6.1', name:'Amortização', parent:'6', hist:600},
+  {id:'6.2', code:'6.2', name:'Juros e encargos', parent:'6', hist:480},
+  {id:'7', code:'7', name:'Repasses a municípios', parent:'D'},
+  {id:'7.1', code:'7.1', name:'Cota-parte ICMS', parent:'7', hist:1910},
+  {id:'7.2', code:'7.2', name:'Cota-parte IPVA', parent:'7', hist:410},
+];
+const BY = Object.fromEntries(NODES.map(n => [n.id, n]));
+NODES.forEach(n => n.children = NODES.filter(c => c.parent === n.id).map(c => c.id));
+const isLeaf = id => BY[id].children.length === 0;
+const pernaOf = id => { let n = BY[id]; while (n.parent) n = BY[n.parent]; return n.perna; };
+const leavesUnder = id => isLeaf(id) ? [id] : BY[id].children.flatMap(leavesUnder);
+
+// LOA 2027 por folha (despesa)
+const LOA = {'4.1':5480,'4.2':2230,'5.1':1350,'5.2':255,'6.1':620,'6.2':500,'7.1':2010,'7.2':430};
+// Biblioteca de fórmulas (flc_rubrica_formula — global)
+const BIBLIOTECA = {
+  '1.3':'base * (1 + ipca) * (1 + pib * 1.2)',
+  '2.1':'base * (1 + ipca) * (1 + pib)',
+  '7.1':'base * (1 + ipca)',
+  '7.2':'base * (1 + ipca)',
+};
+const MODELOS = {
+  SARIMA:{nome:'SARIMA', fator:1.068}, HOLT_WINTERS:{nome:'Holt-Winters', fator:1.061},
+  ARIMA:{nome:'ARIMA', fator:1.055}, XGBOOST:{nome:'XGBoost', fator:1.074}, LIGHTGBM:{nome:'LightGBM', fator:1.071},
+  MEDIA_HISTORICA:{nome:'Média histórica', fator:1.018}, CRESCIMENTO:{nome:'Crescimento sobre ano anterior', fator:1.05},
+};
+const MODELOS_SO_RECEITA = ['SARIMA','HOLT_WINTERS','ARIMA','XGBOOST','LIGHTGBM'];
+// Propostas setoriais: versões publicadas dos cenários setoriais
+const SETORES = [
+  {id:'IPVA', nome:'Setor de IPVA', recorte:['1.2'], versoes:[
+    {v:2, data:'28/08/2026', situacao:'A', valores:{'1.2':851}},
+    {v:3, data:'12/09/2026', situacao:'E', valores:{'1.2':868}},
+  ]},
+  {id:'DIVIDA', nome:'Gerência da Dívida', recorte:['6'], versoes:[
+    {v:2, data:'02/09/2026', situacao:'A', valores:{'6.1':640,'6.2':505}},
+    {v:3, data:'18/09/2026', situacao:'E', valores:{'6.1':655,'6.2':498}},
+  ]},
+  {id:'ITCMD', nome:'Setor de ITCMD', recorte:['1.3'], versoes:[]},
+];
+const RECOMENDACOES = [
+  {id:'1.1.1', modelo:'SARIMA', erro:3.1}, {id:'1.1.2', modelo:'HOLT_WINTERS', erro:4.8},
+  {id:'2.1', modelo:'XGBOOST', erro:5.2}, {id:'3.1', modelo:'MEDIA_HISTORICA', erro:7.9},
+];
+
+const METODOS = {
+  VALOR_FIXO:{nome:'Valor fixo', pernas:'CD'}, PERCENTUAL:{nome:'Percentual', pernas:'CD'},
+  FORMULA:{nome:'Fórmula', pernas:'CD'}, MODELO:{nome:'Modelo', pernas:'CD'}, LOA:{nome:'LOA', pernas:'D'},
+  PROPOSTA_SETORIAL:{nome:'Proposta setorial', pernas:'CD'}, SEM_PROJECAO:{nome:'Sem projeção (declarado)', pernas:'CD'},
+};
+
+/* ============================ ESTADO ============================ */
+const clone = o => JSON.parse(JSON.stringify(o));
+let seqCenario = 4;
+const state = {
+  tab:'metodos', cenarioId:1, selecionado:'1.1', dialog:null, compararCom:null,
+  cenarios:[
+    {id:1, nome:'LOA 2027 — base', origem:null, setor:null, anoBase:2027, periodicidade:'Mensal · 12 períodos',
+     params:{ipca:0.045, pib:0.02},
+     marks:{
+       'R':{metodo:null},                                   // receita: sem padrão
+       'D':{metodo:'LOA', autor:'programação financeira'},
+       '1.1':{metodo:'MODELO', modelo:'SARIMA'},
+       '1.2':{metodo:'PROPOSTA_SETORIAL', setor:'IPVA', versao:3},
+       '1.3':{metodo:'FORMULA'},
+       '1.4':{metodo:'VALOR_FIXO', valor:170},
+       '2.1':{metodo:'FORMULA'},
+       '2.2':{metodo:'SEM_PROJECAO', motivo:'Convênio encerrado em 2026'},
+       '4':{metodo:'PERCENTUAL', pct:6},
+       '4.2':{metodo:'VALOR_FIXO', valor:2150},
+       '6':{metodo:'PROPOSTA_SETORIAL', setor:'DIVIDA', versao:2},
+       '7':{metodo:'FORMULA'},
+     },
+     formulasProprias:{}, versoes:[{v:1, data:'05/09/2026', lacunas:3}], },
+    {id:2, nome:'Setor de IPVA 2027', origem:null, setor:'IPVA', anoBase:2027, periodicidade:'Mensal · 12 períodos',
+     params:{ipca:0.045, pib:0.02}, marks:{'1.2':{metodo:'VALOR_FIXO', valor:868}}, formulasProprias:{}, versoes:[{v:2},{v:3}]},
+    {id:3, nome:'Gerência da Dívida 2027', origem:null, setor:'DIVIDA', anoBase:2027, periodicidade:'Mensal · 12 períodos',
+     params:{ipca:0.045, pib:0.02}, marks:{'6':{metodo:'VALOR_FIXO', valor:1153}}, formulasProprias:{}, versoes:[{v:2},{v:3}]},
+  ],
+};
+const cen = () => state.cenarios.find(c => c.id === state.cenarioId);
+
+/* ============================ AVALIADOR DE FÓRMULA ============================ */
+// Parser mínimo (+ − × ÷, parênteses, números, variáveis) — sem eval.
+function avaliar(expr, vars){
+  const toks = expr.match(/\d+(?:\.\d+)?|[A-Za-z_]\w*|[()+\-*/]/g) || [];
+  let i = 0;
+  const peek = () => toks[i], next = () => toks[i++];
+  function fator(){
+    const t = next();
+    if (t === '(') { const v = soma(); if (next() !== ')') throw new Error('Parêntese sem fechamento'); return v; }
+    if (t === '-') return -fator();
+    if (t === undefined) throw new Error('Expressão incompleta');
+    if (/^\d/.test(t)) return parseFloat(t);
+    if (!(t in vars)) throw new Error(`Parâmetro "${t}" sem valor neste cenário`);
+    return vars[t];
+  }
+  function termo(){ let v = fator(); while (peek()==='*'||peek()==='/'){ const op=next(); const d=fator(); v = op==='*'? v*d : v/d; } return v; }
+  function soma(){ let v = termo(); while (peek()==='+'||peek()==='-'){ const op=next(); const d=termo(); v = op==='+'? v+d : v-d; } return v; }
+  const v = soma();
+  if (i < toks.length) throw new Error('Trecho não reconhecido: ' + toks.slice(i).join(' '));
+  return v;
+}
+
+/* ============================ MOTOR (resolução + cálculo) ============================ */
+// RN03: método resolvido = marcação própria → ancestral mais próximo → padrão da perna.
+function resolver(c, id){
+  let n = BY[id];
+  while (n){
+    const mk = c.marks[n.id];
+    if (mk && mk.metodo) return {mark:mk, no:n.id, proprio:n.id===id};
+    if (mk && !n.parent) return {mark:{metodo:null}, no:n.id, proprio:false}; // raiz "sem padrão"
+    n = n.parent ? BY[n.parent] : null;
+  }
+  return {mark:{metodo:null}, no:null, proprio:false};
+}
+function formulaDe(c, id){
+  if (c.formulasProprias[id]) return {expr:c.formulasProprias[id], origem:'propria'};
+  if (BIBLIOTECA[id]) return {expr:BIBLIOTECA[id], origem:'biblioteca'};
+  return null;
+}
+function versaoSetor(setorId, v){
+  const s = SETORES.find(s => s.id === setorId); return s && s.versoes.find(x => x.v === v);
+}
+function calcular(c){
+  const folhas = NODES.filter(n => isLeaf(n.id)).map(n => n.id);
+  const res = {};
+  const grupos = {}; // nó de cálculo → folhas participantes (RN05/RN06)
+  const recorte = c.setor ? SETORES.find(s => s.id === c.setor).recorte.flatMap(leavesUnder) : null;
+  folhas.forEach(id => {
+    const r = resolver(c, id);
+    res[id] = {id, metodo:r.mark.metodo || 'NONE', mark:r.mark, no:r.no, proprio:r.proprio, valor:0, status:'ok', nota:''};
+    if (recorte && !recorte.includes(id)){ res[id].status = 'fora'; res[id].nota = 'Fora do recorte do setor'; return; }
+    const distribui = ['VALOR_FIXO','MODELO'].includes(r.mark.metodo) && !isLeaf(r.no);
+    if (distribui) (grupos[r.no] = grupos[r.no] || []).push(id);
+  });
+  folhas.forEach(id => {
+    const x = res[id], h = BY[id].hist || 0, mk = x.mark;
+    if (x.status === 'fora') return;
+    switch (x.metodo){
+      case 'NONE': x.status = 'lacuna'; x.nota = 'Sem método: nenhuma marcação e perna sem padrão'; break;
+      case 'SEM_PROJECAO': x.status = 'declarada'; x.nota = mk.motivo || 'Zero declarado'; break;
+      case 'PERCENTUAL': x.valor = h * (1 + (mk.pct||0)/100); break;
+      case 'LOA': x.valor = LOA[id] ?? 0; if (LOA[id]==null){ x.status='lacuna'; x.nota='Sem valor na LOA'; } break;
+      case 'FORMULA': {
+        const f = formulaDe(c, id);
+        if (!f){ x.status='lacuna'; x.nota='Folha sem fórmula (nem na biblioteca, nem no cenário)'; break; }
+        try { x.valor = avaliar(f.expr, {...c.params, base:h}); x.formula = f; }
+        catch(e){ x.status='erro'; x.nota = e.message; }
+        break; }
+      case 'PROPOSTA_SETORIAL': {
+        const v = versaoSetor(mk.setor, mk.versao);
+        if (!v || v.valores[id]==null){ x.status='lacuna'; x.nota='A proposta fixada não traz valor para esta folha'; }
+        else x.valor = v.valores[id];
+        break; }
+      case 'VALOR_FIXO': case 'MODELO':
+        if (isLeaf(x.no)){ x.valor = x.metodo==='VALOR_FIXO' ? (mk.valor||0) : h * MODELOS[mk.modelo].fator; }
+        break;
+    }
+  });
+  // Distribuição pela participação histórica (RN05); soma de controle (RN13)
+  Object.entries(grupos).forEach(([no, ids]) => {
+    const mk = c.marks[no] || resolver(c, no).mark;
+    const somaH = ids.reduce((s, id) => s + (BY[id].hist||0), 0);
+    const total = mk.metodo === 'VALOR_FIXO' ? (mk.valor||0) : somaH * MODELOS[mk.modelo].fator;
+    ids.forEach(id => {
+      const h = BY[id].hist || 0, x = res[id];
+      x.participacao = somaH ? h/somaH : 0;
+      x.valor = total * x.participacao;
+      if (!h){ x.status = 'sem_part'; x.nota = 'Sem histórico: participação zero no nó de cálculo'; }
+    });
+  });
+  return res;
+}
+function totais(res){
+  const t = {C:{h:0,p:0}, D:{h:0,p:0}};
+  Object.values(res).forEach(x => { const p = pernaOf(x.id); t[p].h += BY[x.id].hist||0; t[p].p += x.valor; });
+  return t;
+}
+function contagem(res){
+  const v = Object.values(res);
+  return {
+    ok:v.filter(x=>x.status==='ok').length, lacuna:v.filter(x=>x.status==='lacuna'||x.status==='erro').length,
+    declarada:v.filter(x=>x.status==='declarada').length, sem_part:v.filter(x=>x.status==='sem_part').length,
+  };
+}
+
+/* ============================ HELPERS DE UI ============================ */
+const esc = s => String(s).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+const fmt = v => v.toLocaleString('pt-BR',{minimumFractionDigits:1, maximumFractionDigits:1});
+const pct = v => (v*100).toLocaleString('pt-BR',{minimumFractionDigits:1, maximumFractionDigits:1}) + '%';
+function rotuloMetodo(mk){
+  if (!mk || !mk.metodo) return 'Sem método';
+  switch (mk.metodo){
+    case 'MODELO': return 'Modelo · ' + MODELOS[mk.modelo].nome;
+    case 'VALOR_FIXO': return 'Valor fixo · ' + fmt(mk.valor||0) + ' mi/ano';
+    case 'PERCENTUAL': return 'Percentual · ' + (mk.pct>=0?'+':'') + mk.pct + '% s/ 2026';
+    case 'PROPOSTA_SETORIAL': { const s = SETORES.find(s=>s.id===mk.setor); return 'Proposta · ' + (s?s.nome:'?') + ' v' + mk.versao; }
+    default: return METODOS[mk.metodo].nome;
+  }
+}
+const chip = (mk, herdado) => `<span class="m${herdado?' inh':''}" data-m="${mk && mk.metodo ? mk.metodo : 'NONE'}">${esc(rotuloMetodo(mk))}</span>`;
+function nomeNo(id){ const n = BY[id]; return (n.code ? n.code + ' ' : '') + n.name; }
+function toast(msg){ const t = document.getElementById('toast'); t.textContent = msg; t.hidden = false; clearTimeout(toast._t); toast._t = setTimeout(()=>t.hidden=true, 2600); }
+const statusBadge = x => ({
+  ok:'<span class="badge ok">Projetada</span>', lacuna:'<span class="badge bad">Lacuna</span>', erro:'<span class="badge bad">Erro</span>',
+  declarada:'<span class="badge">Declarada</span>', sem_part:'<span class="badge warn">Sem participação</span>',
+  fora:'<span class="badge">Fora do recorte</span>'}[x.status]);
+
+/* ============================ ASSISTENTE: NOVO CENÁRIO ============================ */
+const subarvore = id => [id, ...BY[id].children.flatMap(subarvore)];
+const PERIODICIDADES = {MENSAL:'Mensal · 12 meses', ANUAL:'Anual · 1 período', SEMANAL:'Semanal · 52 semanas'};
+function opcoesMetodo(perna, padrao){
+  const mods = perna==='C' ? ['SARIMA','HOLT_WINTERS','XGBOOST','MEDIA_HISTORICA','CRESCIMENTO'] : ['MEDIA_HISTORICA','CRESCIMENTO'];
+  let ops = [['VALOR_FIXO','Valor fixo'],['PERCENTUAL','Percentual s/ 2026'],['FORMULA','Fórmula'],
+    ...(perna==='D' ? [['LOA','LOA']] : []), ...mods.map(m => ['MODELO:'+m, 'Modelo · '+MODELOS[m].nome]),
+    ['SEM_PROJECAO','Sem projeção (declarado)']];
+  if (padrao) ops = ops.filter(([v]) => v!=='VALOR_FIXO' && v!=='SEM_PROJECAO');
+  return ops;
+}
+const codigoDe = mk => !mk || !mk.metodo ? '' : mk.metodo==='MODELO' ? 'MODELO:'+mk.modelo : mk.metodo;
+function markDe(cod, id){
+  if (!cod) return null;
+  if (cod.startsWith('MODELO:')) return {metodo:'MODELO', modelo:cod.slice(7)};
+  if (cod==='VALOR_FIXO') return {metodo:cod, valor:Math.round(leavesUnder(id).reduce((s,f)=>s+(BY[f].hist||0),0)*1.05)};
+  if (cod==='PERCENTUAL') return {metodo:cod, pct:5};
+  if (cod==='SEM_PROJECAO') return {metodo:cod, motivo:''};
+  return {metodo:cod};
+}
+const homogeneo = d => d.anoBase===2027 && d.periodicidade==='MENSAL';
+function travadoPor(d, id){
+  for (let n = BY[id]; n; n = n.parent ? BY[n.parent] : null){
+    const sid = Object.keys(d.propostas).find(s => SETORES.find(x=>x.id===s).recorte.includes(n.id));
+    if (sid) return {setor:sid, versao:d.propostas[sid]};
+  }
+  return null;
+}
+function cenarioDoRascunho(d){
+  const marks = {R: markDe(d.padrao.C,'R') || {metodo:null}, D: markDe(d.padrao.D,'D') || {metodo:null}};
+  Object.entries(d.marks).forEach(([id,m]) => { marks[id] = clone(m); });
+  if (homogeneo(d)) Object.entries(d.propostas).forEach(([sid,v]) =>
+    SETORES.find(s=>s.id===sid).recorte.forEach(r => { marks[r] = {metodo:'PROPOSTA_SETORIAL', setor:sid, versao:v}; }));
+  return {id:0, nome:d.nome, origem:null, setor:null, anoBase:d.anoBase, periodicidade:PERIODICIDADES[d.periodicidade],
+    params:{ipca:0.045, pib:0.02}, marks, formulasProprias:{}, versoes:[]};
+}
+function novoRascunho(){
+  return {tipo:'novo', passo:1, erro:'', d:{nome:'', anoBase:2027, periodicidade:'MENSAL', padrao:{C:'', D:'LOA'}, propostas:{}, marks:{}}};
+}
+
+function viewNovo(){
+  const w = state.dialog, d = w.d;
+  const PASSOS = ['Cabeçalho','Propostas de setor','Métodos por qualificador'];
+  const steps = PASSOS.map((p,i) => {
+    const n = i+1, cur = n===w.passo, done = n<w.passo;
+    return (i?'<span class="step-sep" aria-hidden="true"></span>':'') +
+      `<button class="step${done?' done':''}" ${cur?'aria-current="step"':''} ${done?`data-act="wiz-ir" data-p="${n}"`:'disabled'}><b>${done?'✓':n}</b>${p}</button>`;
+  }).join('');
+  const corpo = w.passo===1 ? novoPasso1(d) : w.passo===2 ? novoPasso2(d) : novoPasso3(d);
+  return `<section class="view">
+    <div class="lead"><div><h1>Novo cenário</h1>
+      <p>Monte o cenário combinando propostas dos setores, métodos por qualificador e um método padrão para o que sobrar.</p></div></div>
+    <div class="panel wiz"><div class="steps">${steps}</div>
+      ${w.erro?`<div class="panel-b" style="padding-bottom:0"><div class="callout bad">${esc(w.erro)}</div></div>`:''}
+      ${corpo}
+      <div class="wiz-foot">
+        <button class="btn" data-act="${w.passo===1?'fechar':'wiz-voltar'}">${w.passo===1?'Cancelar':'Voltar'}</button>
+        ${w.passo<3?`<button class="btn primary" data-act="wiz-prox">Próximo: ${PASSOS[w.passo]}</button>`:'<button class="btn primary" data-act="wiz-criar">Criar cenário</button>'}
+      </div></div></section>`;
+}
+function novoPasso1(d){
+  const sel = (id, w, ops, val) => `<select id="${id}" data-w="${w}">${ops.map(([v,l]) => `<option value="${v}" ${v===val?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+  return `<div class="panel-b" style="display:grid;gap:16px">
+    <div class="grid2">
+      <div class="field"><label for="w-nome">Nome do cenário</label><input id="w-nome" data-w="nome" value="${esc(d.nome)}" placeholder="ex.: LOA 2027 — consolidado setembro"></div>
+      <div class="field"><label for="w-ano">Ano-base</label>${sel('w-ano','anoBase',[['2027','2027'],['2028','2028']],String(d.anoBase))}</div>
+      <div class="field"><label for="w-per">Periodicidade</label>${sel('w-per','periodicidade',Object.entries(PERIODICIDADES),d.periodicidade)}</div>
+    </div>
+    <div><span class="eyebrow">Método padrão de cada perna</span>
+      <p class="hint" style="margin:4px 0 10px">Vale para toda rubrica que não receber proposta nem método próprio. “Sem padrão” obriga uma escolha explícita: o que faltar vira lacuna.</p>
+      <div class="grid2">
+        <div class="field"><label for="w-padC">Receitas</label>${sel('w-padC','padC',[['','Sem padrão'],...opcoesMetodo('C',true)],d.padrao.C)}</div>
+        <div class="field"><label for="w-padD">Despesas</label>${sel('w-padD','padD',[['','Sem padrão'],...opcoesMetodo('D',true)],d.padrao.D)}</div>
+      </div></div>
+    ${!homogeneo(d)?'<div class="callout warn">As propostas enviadas pelos setores são de 2027, mensais. Com este ano-base ou periodicidade elas ficam indisponíveis no próximo passo.</div>':''}
+  </div>`;
+}
+function novoPasso2(d){
+  const ok = homogeneo(d);
+  const linhas = SETORES.map(s => {
+    const marcado = s.id in d.propostas, ult = s.versoes.at(-1);
+    const motivo = !ult ? 'Setor ainda não enviou proposta' : !ok ? 'Ano-base ou periodicidade diferente do cenário' : '';
+    const vs = s.versoes.map(v => `<option value="${v.v}" ${d.propostas[s.id]===v.v?'selected':''}>v${v.v} · ${v.data} · ${v.situacao==='A'?'aceita':v.situacao==='D'?'devolvida':'enviada'}</option>`).join('');
+    const v = marcado ? s.versoes.find(x => x.v===d.propostas[s.id]) : ult;
+    return `<tr><td><label style="display:flex;gap:10px;align-items:flex-start">
+        <input type="checkbox" id="w-prop-${s.id}" data-wprop="${s.id}" ${marcado?'checked':''} ${motivo?'disabled':''}>
+        <span><b>${esc(s.nome)}</b><span class="hint" style="display:block">recorte: ${s.recorte.map(r=>esc(nomeNo(r))).join(', ')}</span></span></label></td>
+      <td>${motivo?`<span class="muted">${motivo}</span>`:`<select id="w-pv-${s.id}" data-wpv="${s.id}" ${marcado?'':'disabled'}>${vs}</select>`}</td>
+      <td class="r num">${v?fmt(Object.values(v.valores).reduce((a,b)=>a+b,0)):'—'}</td></tr>`;
+  }).join('');
+  return `<div class="tbl-wrap"><table><thead><tr><th>Usar proposta do setor</th><th>Versão fixada</th><th class="r">Total da versão (R$ mi)</th></tr></thead><tbody>${linhas}</tbody></table></div>
+    <div class="panel-b grid2">
+      <div class="callout">Cada proposta entra só no <b>recorte do setor</b> e trava esses qualificadores no próximo passo. Nenhuma proposta é obrigatória: sem elas, você projeta tudo.</div>
+      <div class="callout">A versão fica <b>fixada</b>. Se o setor enviar uma versão nova, este cenário só muda quando você trocar.</div>
+    </div>`;
+}
+function novoPasso3(d){
+  const tmp = cenarioDoRascunho(d), res = calcular(tmp), k = contagem(res);
+  const linha = (id, prof) => {
+    const n = BY[id], leaf = isLeaf(id), perna = pernaOf(id);
+    let metodo, param = '<span class="muted">—</span>', trClass = leaf ? '' : 'branch';
+    if (!n.parent){
+      metodo = `${chip(tmp.marks[id].metodo ? tmp.marks[id] : {metodo:null})} <span class="from">padrão (passo 1)</span>`;
+    } else {
+      const trava = travadoPor(d, id);
+      if (trava && homogeneo(d)){
+        trClass += ' locked';
+        metodo = BY[id].parent && SETORES.find(s=>s.id===trava.setor).recorte.includes(id)
+          ? chip({metodo:'PROPOSTA_SETORIAL', setor:trava.setor, versao:trava.versao}) : '<span class="from">da proposta</span>';
+      } else {
+        const atual = codigoDe(d.marks[id]);
+        metodo = `<select id="w-m-${id.replace(/\./g,'_')}" data-wnode="${id}" aria-label="Método de ${esc(nomeNo(id))}">
+          <option value="">— herdar —</option>${opcoesMetodo(perna,false).map(([v,l]) => `<option value="${v}" ${v===atual?'selected':''}>${esc(l)}</option>`).join('')}</select>`;
+        const m = d.marks[id], pid = 'w-v-' + id.replace(/\./g,'_');
+        if (m && m.metodo==='VALOR_FIXO') param = `<input id="${pid}" data-wval="${id}" type="number" step="0.1" min="0" value="${m.valor}" aria-label="Valor anual"> <span class="hint">mi/ano</span>`;
+        if (m && m.metodo==='PERCENTUAL') param = `<input id="${pid}" data-wval="${id}" type="number" step="0.1" value="${m.pct}" aria-label="Percentual"> <span class="hint">%</span>`;
+        if (m && m.metodo==='SEM_PROJECAO') param = `<input id="${pid}" data-wval="${id}" value="${esc(m.motivo)}" placeholder="motivo (obrigatório)" aria-label="Motivo">`;
+      }
+    }
+    let resolve = '';
+    if (leaf){ const x = res[id]; resolve = (x.status!=='ok' ? statusBadge(x)+' ' : '') + chip(x.mark, !x.proprio); }
+    else if (n.parent) resolve = `<span class="hint">${leavesUnder(id).length} folhas</span>`;
+    return `<tr class="${trClass}"><td class="ind" style="--d:${prof}"><span class="mono muted">${esc(n.code)}</span> ${esc(n.name)}</td>
+      <td>${metodo}</td><td style="white-space:nowrap">${param}</td><td>${resolve}</td></tr>` + n.children.map(c => linha(c, prof+1)).join('');
+  };
+  const t = totais(res);
+  return `<div class="panel-b" style="display:grid;gap:12px">
+    <div class="cover">
+      <div class="ok"><b>${k.ok}</b><span>folhas projetadas</span></div>
+      <div class="${k.lacuna?'bad':''}"><b>${k.lacuna}</b><span>lacunas</span></div>
+      <div><b class="num">${fmt(t.C.p)}</b><span>receita 2027 (R$ mi)</span></div>
+      <div><b class="num">${fmt(t.D.p)}</b><span>despesa 2027 (R$ mi)</span></div>
+    </div>
+    <p class="hint" style="margin:0">Escolha o método no bloco para as folhas herdarem; escolha na folha para abrir uma exceção. Qualificadores de proposta ficam travados.</p></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Qualificador</th><th>Método</th><th>Parâmetro</th><th>Folha resolve para</th></tr></thead>
+      <tbody>${linha('R',0)}${linha('D',0)}</tbody></table></div>`;
+}
+function avancarNovo(){
+  const w = state.dialog, d = w.d;
+  w.erro = '';
+  if (w.passo===1){
+    if (!d.nome){ w.erro = 'Informe o nome do cenário.'; return render(); }
+    if (state.cenarios.some(c => c.nome.toLowerCase()===d.nome.toLowerCase())){ w.erro = 'Já existe um cenário ativo com esse nome.'; return render(); }
+    if (!homogeneo(d)) d.propostas = {};
+  }
+  w.passo++; render(); window.scrollTo({top:0});
+}
+function criarNovo(){
+  const w = state.dialog, d = w.d;
+  const semMotivo = Object.entries(d.marks).filter(([id,m]) => m.metodo==='SEM_PROJECAO' && !m.motivo && !travadoPor(d,id));
+  if (semMotivo.length){ w.erro = 'Informe o motivo da projeção zero em: ' + semMotivo.map(([id]) => nomeNo(id)).join(', ') + '.'; return render(); }
+  const novo = cenarioDoRascunho(d);
+  novo.id = seqCenario++;
+  state.cenarios.push(novo);
+  state.cenarioId = novo.id; state.selecionado = 'R'; state.editando = null;
+  const lac = contagem(calcular(novo)).lacuna;
+  irPara('metodos');
+  toast(`Cenário “${novo.nome}” criado` + (lac ? ` — ${lac} lacuna(s) para resolver` : ' com cobertura completa'));
+}
+
+/* ============================ TELAS ============================ */
+function viewCenarios(){
+  if (state.dialog && state.dialog.tipo==='novo') return viewNovo();
+  const linhas = state.cenarios.map(c => {
+    const res = calcular(c), k = contagem(res), t = totais(res);
+    const origem = c.origem ? `<span class="badge info">Cópia de ${esc(state.cenarios.find(o=>o.id===c.origem)?.nome||'?')}</span>` : '<span class="muted">—</span>';
+    const setor = c.setor ? `<span class="badge">${esc(SETORES.find(s=>s.id===c.setor).nome)}</span>` : '<span class="muted">Todos os qualificadores</span>';
+    const ult = c.versoes.length ? 'v' + c.versoes[c.versoes.length-1].v : '<span class="muted">nenhuma</span>';
+    return `<tr>
+      <td><b>${esc(c.nome)}</b>${c.id===state.cenarioId?' <span class="badge ok">aberto</span>':''}</td>
+      <td>${setor}</td><td>${origem}</td><td class="num">${ult}</td>
+      <td class="r num">${fmt(t.C.p)}</td><td class="r num">${fmt(t.D.p)}</td>
+      <td>${k.lacuna?`<span class="badge bad">${k.lacuna} lacuna${k.lacuna>1?'s':''}</span>`:'<span class="badge ok">completa</span>'}</td>
+      <td style="white-space:nowrap">
+        <button class="btn small" data-act="abrir" data-id="${c.id}">Abrir</button>
+        <button class="btn small" data-act="duplicar" data-id="${c.id}">Duplicar</button>
+        ${c.origem?`<button class="btn small ghost" data-act="comparar" data-id="${c.id}">Comparar com origem</button>`:''}
+      </td></tr>`;
+  }).join('');
+  return `<section class="view">
+    <div class="lead"><div><h1>Cenários de previsão</h1>
+      <p>Um cenário pode projetar <b>todos</b> os qualificadores sozinho ou receber propostas de setores. Duplicar cria um cenário independente: editar a cópia nunca altera o original.</p></div>
+      <button class="btn primary" data-act="novo">Novo cenário</button></div>
+    ${state.dialog && state.dialog.tipo==='duplicar' ? dialogDuplicar() : ''}
+    <div class="panel"><div class="tbl-wrap"><table>
+      <thead><tr><th>Cenário</th><th>Abrangência</th><th>Origem</th><th>Última versão</th><th class="r">Receita 2027 (R$ mi)</th><th class="r">Despesa 2027 (R$ mi)</th><th>Cobertura</th><th></th></tr></thead>
+      <tbody>${linhas}</tbody></table></div></div>
+    ${state.compararCom ? painelComparacao() : ''}
+  </section>`;
+}
+function dialogDuplicar(){
+  const o = state.cenarios.find(c => c.id === state.dialog.id);
+  const temRef = Object.keys(BIBLIOTECA).length;
+  return `<div class="inline-dialog"><div class="panel-h"><h2>Duplicar “${esc(o.nome)}”</h2><button class="btn small ghost" data-act="fechar">Cancelar</button></div>
+  <form class="panel-b" id="form-dup" style="display:grid;gap:14px">
+    <div class="field"><label for="dup-nome">Nome da cópia</label><input id="dup-nome" required value="${esc(o.nome.replace(/ — .*$/,''))} — pessimista"></div>
+    <div class="grid2">
+      <div class="checks"><span class="eyebrow">Vai junto (sempre)</span>
+        <label><input type="checkbox" checked disabled id="dup-c1"> Método padrão das pernas e marcações por qualificador</label>
+        <label><input type="checkbox" checked disabled id="dup-c2"> Valores de parâmetro (IPCA, PIB…) e ajustes mensais</label>
+        <label><input type="checkbox" checked disabled id="dup-c3"> Fórmulas próprias do cenário</label>
+      </div>
+      <div class="checks"><span class="eyebrow">Opcional</span>
+        <label><input type="checkbox" id="dup-congelar"> <span>Congelar fórmulas da biblioteca <span class="hint">(${temRef} rubricas usam fórmula por referência; congeladas, mudanças futuras na biblioteca não afetam a cópia)</span></span></label>
+      </div>
+    </div>
+    <div class="callout">Versões publicadas <b>não</b> são copiadas: a cópia nasce sem histórico e registra de qual cenário veio.</div>
+    <div><button class="btn primary" type="submit">Criar cópia</button></div>
+  </form></div>`;
+}
+function painelComparacao(){
+  const b = state.cenarios.find(c => c.id === state.compararCom), a = state.cenarios.find(c => c.id === b.origem);
+  const ra = calcular(a), rb = calcular(b);
+  const linhas = Object.keys(ra).map(id => ({id, a:ra[id].valor, b:rb[id].valor, ma:ra[id], mb:rb[id]}))
+    .filter(l => Math.abs(l.a-l.b) > 0.05 || l.ma.metodo !== l.mb.metodo);
+  const corpo = linhas.length ? linhas.map(l => {
+    const d = l.b - l.a;
+    return `<tr><td>${esc(nomeNo(l.id))}</td><td>${chip(l.ma.mark,!l.ma.proprio)}</td><td>${chip(l.mb.mark,!l.mb.proprio)}</td>
+      <td class="r num">${fmt(l.a)}</td><td class="r num">${fmt(l.b)}</td><td class="r num ${d>=0?'diff-up':'diff-dn'}">${d>=0?'+':''}${fmt(d)}</td></tr>`;
+  }).join('') : `<tr><td colspan="6" class="muted">Nenhuma diferença: a cópia ainda está igual à origem. Abra a cópia e altere um método ou parâmetro.</td></tr>`;
+  return `<div class="panel"><div class="panel-h"><h2>${esc(a.nome)} × ${esc(b.nome)}</h2><button class="btn small ghost" data-act="fechar-comp">Fechar</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Rubrica</th><th>Método na origem</th><th>Método na cópia</th><th class="r">Origem</th><th class="r">Cópia</th><th class="r">Diferença</th></tr></thead><tbody>${corpo}</tbody></table></div></div>`;
+}
+
+function linhaArvore(c, res, id, d){
+  const n = BY[id], leaf = isLeaf(id), own = c.marks[id] && (c.marks[id].metodo || !n.parent) ? c.marks[id] : null;
+  const r = resolver(c, id);
+  let meta;
+  if (!n.parent){
+    meta = `<span class="from">padrão da perna</span>${chip(own && own.metodo ? own : {metodo:null})}`;
+  } else if (own){
+    meta = `<span class="own">próprio</span>${chip(own)}`;
+  } else {
+    const de = r.no ? (BY[r.no].parent ? 'herdado de ' + BY[r.no].code : 'padrão da perna') : '';
+    meta = `<span class="from">${esc(de)}</span>${chip(r.mark, true)}`;
+  }
+  if (leaf){
+    const x = res[id];
+    if (x.status !== 'ok') meta = statusBadge(x) + meta;
+  }
+  const cls = !n.parent ? 'root' : (leaf ? '' : 'branch');
+  const self = `<li><div class="node ${cls}" style="--d:${d}" tabindex="0" role="treeitem" data-node="${id}" aria-current="${state.selecionado===id}">
+      <div class="nm"><span class="code">${esc(n.code)}</span><span class="t">${esc(n.name)}</span></div>
+      <div class="meta">${meta}</div></div></li>`;
+  return self + n.children.map(ch => linhaArvore(c, res, ch, d+1)).join('');
+}
+
+function painelNo(c, res){
+  const id = state.selecionado, n = BY[id], leaf = isLeaf(id), perna = pernaOf(id);
+  const own = c.marks[id] || null, r = resolver(c, id);
+  const mk = own && (own.metodo || !n.parent) ? own : null;
+  const editando = state.editando && state.editando.id === id ? state.editando.mark : (mk ? clone(mk) : {metodo:''});
+  const opcoes = Object.entries(METODOS).filter(([k,m]) => m.pernas.includes(perna))
+    .map(([k,m]) => `<option value="${k}" ${editando.metodo===k?'selected':''}>${m.nome}</option>`).join('');
+  const titulo = n.parent ? nomeNo(id) : `${n.name} — método padrão da perna`;
+  let herda = '';
+  if (!mk && n.parent){
+    herda = `<div class="callout">Sem marcação própria. ${r.no ? `Usa <b>${esc(rotuloMetodo(r.mark))}</b>, ${BY[r.no].parent ? 'herdado de <b>' + esc(nomeNo(r.no)) + '</b>' : 'padrão da perna'}.` : 'Nenhum ancestral define método e a perna está sem padrão: '+(leaf?'esta folha é lacuna.':'as folhas abaixo são lacunas.')}</div>`;
+  }
+  const campos = camposMetodo(c, editando, id, perna);
+  const podeRemover = mk && n.parent;
+  // distribuição (nó de cálculo)
+  let dist = '';
+  const participantes = Object.values(res).filter(x => x.no === id && ['VALOR_FIXO','MODELO'].includes(x.metodo) && !isLeaf(id));
+  if (participantes.length){
+    const total = participantes.reduce((s,x)=>s+x.valor,0);
+    const excluidas = leavesUnder(id).filter(f => res[f].no !== id);
+    dist = `<div class="panel"><div class="panel-h"><h2>Distribuição às folhas</h2><span class="hint">participação no realizado 2026</span></div><div class="panel-b">
+      <div class="dist">${participantes.map(x => `<div class="dist-row"><span>${esc(nomeNo(x.id))}</span><div class="bar"><i style="width:${(x.participacao*100).toFixed(1)}%"></i></div><span class="num r" style="text-align:right">${pct(x.participacao)}</span></div>`).join('')}</div>
+      <p class="hint" style="margin:10px 0 0">Total do nó: <b class="num">${fmt(total)}</b> mi, somado exatamente pelas folhas (soma de controle).${excluidas.length ? ` Fora do cálculo por terem marcação própria: ${excluidas.map(e=>esc(BY[e].code)).join(', ')}.`:''}</p>
+    </div></div>`;
+  }
+  return `<div class="panel"><div class="panel-h"><h2>${esc(titulo)}</h2>${leaf?'<span class="badge">folha</span>':'<span class="badge info">bloco · '+leavesUnder(id).length+' folhas</span>'}</div>
+    <form class="panel-b" id="form-no" style="display:grid;gap:12px">
+      ${herda}
+      <div class="field"><label for="f-metodo">${n.parent ? (mk ? 'Método deste nó' : 'Definir método próprio') : 'Método padrão'}</label>
+        <select id="f-metodo"><option value="">${n.parent ? '— herdar —' : 'Sem padrão (toda folha precisa de marcação)'}</option>${opcoes}</select></div>
+      ${campos}
+      <div class="strip"><button class="btn primary" type="submit">Salvar marcação</button>
+        ${podeRemover?'<button class="btn" type="button" data-act="remover-marca">Remover e herdar</button>':''}</div>
+    </form></div>${dist}`;
+}
+function camposMetodo(c, mk, id, perna){
+  switch (mk.metodo){
+    case 'VALOR_FIXO': return `<div class="field"><label for="f-valor">Valor anual 2027 (R$ mi)</label><input id="f-valor" type="number" step="0.1" min="0" value="${mk.valor ?? ''}">
+      <span class="hint">${isLeaf(id)?'Distribuído nos meses pelo perfil sazonal do realizado.':'Distribuído às folhas pela participação histórica e nos meses pelo perfil sazonal.'}</span></div>`;
+    case 'PERCENTUAL': return `<div class="field"><label for="f-pct">Variação sobre o realizado 2026 (%)</label><input id="f-pct" type="number" step="0.1" value="${mk.pct ?? 0}"></div>`;
+    case 'MODELO': {
+      const ops = Object.entries(MODELOS).filter(([k]) => perna==='C' || !MODELOS_SO_RECEITA.includes(k))
+        .map(([k,m]) => `<option value="${k}" ${mk.modelo===k?'selected':''}>${m.nome}</option>`).join('');
+      return `<div class="field"><label for="f-modelo">Modelo</label><select id="f-modelo">${ops}</select>
+        <span class="hint">${isLeaf(id)?'Treina na série desta folha (mínimo 12 pontos).':'Treina na série do bloco (costurada por raiz) e distribui às folhas.'}</span></div>`; }
+    case 'FORMULA': {
+      const folhas = leavesUnder(id);
+      return `<div class="field"><span class="eyebrow">Fórmulas das folhas</span>${folhas.map(f => {
+        const fo = formulaDe(c, f);
+        return `<div class="field" style="margin-top:6px"><label for="f-form-${f.replace(/\./g,'_')}">${esc(nomeNo(f))} · ${fo ? (fo.origem==='propria'?'<span class="own">própria do cenário</span>':'<span class="from">da biblioteca</span>') : '<span class="badge bad">sem fórmula</span>'}</label>
+          <textarea id="f-form-${f.replace(/\./g,'_')}" data-formula="${f}" placeholder="ex.: base * (1 + ipca)">${esc(fo?fo.expr:'')}</textarea></div>`;
+      }).join('')}
+      <span class="hint">Editar aqui cria uma fórmula <b>própria deste cenário</b>. A biblioteca e os outros cenários não mudam.</span></div>
+      <div class="field"><span class="eyebrow">Parâmetros deste cenário</span>
+        <div class="grid2" style="gap:8px">${Object.entries(c.params).map(([k,v]) => `<div class="field"><label for="p-${k}">${k}</label><input id="p-${k}" data-param="${k}" type="number" step="0.001" value="${v}"></div>`).join('')}</div></div>`; }
+    case 'LOA': return `<div class="callout">Usa a LOA 2027 de cada folha (despesa), distribuída pelo perfil do realizado.</div>`;
+    case 'PROPOSTA_SETORIAL': {
+      const ops = SETORES.map(s => `<option value="${s.id}" ${mk.setor===s.id?'selected':''}>${esc(s.nome)}</option>`).join('');
+      const s = SETORES.find(s => s.id === (mk.setor || SETORES[0].id));
+      const vs = s.versoes.map(v => `<option value="${v.v}" ${mk.versao===v.v?'selected':''}>v${v.v} · ${v.data} · ${v.situacao==='A'?'aceita':'enviada'}</option>`).join('');
+      return `<div class="field"><label for="f-setor">Setor</label><select id="f-setor">${ops}</select></div>
+        <div class="field"><label for="f-versao">Versão fixada</label>${s.versoes.length?`<select id="f-versao">${vs}</select>`:'<div class="callout warn">Este setor ainda não enviou proposta.</div>'}
+        <span class="hint">Nova versão do setor não muda este cenário até você trocar a versão fixada.</span></div>`; }
+    case 'SEM_PROJECAO': return `<div class="field"><label for="f-motivo">Motivo (obrigatório)</label><input id="f-motivo" value="${esc(mk.motivo||'')}" placeholder="ex.: rubrica extinta"></div>`;
+    default: return '';
+  }
+}
+
+function viewMetodos(){
+  const c = cen(), res = calcular(c), k = contagem(res);
+  const recAplicaveis = RECOMENDACOES.filter(r => !(c.marks[r.id] && c.marks[r.id].metodo==='MODELO' && c.marks[r.id].modelo===r.modelo));
+  return `<section class="view">
+    <div class="lead"><div><h1>Métodos por qualificador</h1>
+      <p>Marque o método num bloco e as folhas herdam; a marcação mais próxima vence. Cada folha termina com exatamente um método.</p></div>
+      <div class="strip"><button class="btn" data-act="recomendar">Aplicar recomendações do backtest${recAplicaveis.length?` (${recAplicaveis.length})`:''}</button></div></div>
+    ${state.dialog && state.dialog.tipo==='recomendar' ? dialogRecomendar(c) : ''}
+    <div class="cover">
+      <div class="ok"><b>${k.ok}</b><span>folhas projetadas</span></div>
+      <div class="${k.lacuna?'bad':''}"><b>${k.lacuna}</b><span>lacunas (sem projeção)</span></div>
+      <div><b>${k.declarada}</b><span>sem projeção declarada</span></div>
+      <div><b>${k.sem_part}</b><span>sem participação histórica</span></div>
+    </div>
+    <div class="editor">
+      <div class="panel"><div class="panel-h"><h2>Árvore de qualificadores · exercício 2027</h2>
+        <div class="legend">${Object.entries(METODOS).map(([k,m]) => `<span class="m" data-m="${k}" style="font-weight:500">${m.nome.replace(' (declarado)','')}</span>`).join('')}</div></div>
+        <ul class="tree" role="tree">${['R','D'].map(r => linhaArvore(c, res, r, 0)).join('')}</ul></div>
+      <aside class="side">${painelNo(c, res)}</aside>
+    </div></section>`;
+}
+function dialogRecomendar(c){
+  const linhas = RECOMENDACOES.map(r => {
+    const atual = resolver(c, r.id);
+    return `<tr><td><label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="rec-${r.id.replace(/\./g,'_')}" data-rec="${r.id}" checked> ${esc(nomeNo(r.id))}</label></td>
+      <td>${chip(atual.mark, !atual.proprio)}</td><td><span class="m" data-m="MODELO">${MODELOS[r.modelo].nome}</span></td><td class="r num">${r.erro.toLocaleString('pt-BR')}%</td></tr>`;
+  }).join('');
+  return `<div class="inline-dialog"><div class="panel-h"><h2>Recomendações do último backtest</h2><button class="btn small ghost" data-act="fechar">Cancelar</button></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Folha</th><th>Método atual</th><th>Recomendado</th><th class="r">Erro médio</th></tr></thead><tbody>${linhas}</tbody></table></div>
+    <div class="panel-b strip" style="border-top:1px solid var(--line)"><span class="hint">É sugestão: só grava as marcadas, como marcação própria da folha.</span><button class="btn primary" data-act="aplicar-rec" style="margin-left:auto">Aplicar selecionadas</button></div></div>`;
+}
+
+function viewCobertura(){
+  const c = cen(), res = calcular(c), k = contagem(res);
+  const grupo = (st, titulo, vazio, tom) => {
+    const itens = Object.values(res).filter(x => st.includes(x.status));
+    return `<div class="panel"><div class="panel-h"><h2>${titulo}</h2><span class="badge ${tom}">${itens.length}</span></div>
+      ${itens.length ? `<div class="tbl-wrap"><table><tbody>${itens.map(x => `<tr><td>${esc(nomeNo(x.id))}</td><td>${chip(x.mark,!x.proprio)}</td><td class="muted">${esc(x.nota)}</td>
+        <td class="r num">${BY[x.id].hist?fmt(BY[x.id].hist)+' mi em 2026':'sem histórico'}</td><td><button class="btn small ghost" data-act="ir-no" data-id="${x.id}">Resolver</button></td></tr>`).join('')}</tbody></table></div>`
+      : `<div class="panel-b muted">${vazio}</div>`}</div>`;
+  };
+  const conf = state.dialog && state.dialog.tipo==='publicar';
+  return `<section class="view">
+    <div class="lead"><div><h1>Cobertura e publicação</h1>
+      <p>Lacuna não é zero: rubrica com histórico e sem método precisa ser resolvida ou aceita conscientemente antes de publicar.</p></div>
+      <button class="btn primary" data-act="publicar">Publicar versão v${(c.versoes.at(-1)?.v||0)+1}</button></div>
+    ${conf ? `<div class="inline-dialog"><div class="panel-b" style="display:grid;gap:12px">
+      ${k.lacuna ? `<div class="callout bad"><b>${k.lacuna} rubrica${k.lacuna>1?'s':''} sem projeção.</b> Os relatórios vão mostrar o aviso “${k.lacuna} rubricas sem projeção” enquanto esta versão estiver publicada.</div>
+        <label class="checks"><span style="display:flex;gap:8px"><input type="checkbox" id="conf-lacuna"> Entendo e quero publicar com as lacunas registradas na versão</span></label>`
+        : '<div class="callout">Cobertura completa. A versão congela métodos, fórmulas e parâmetros usados.</div>'}
+      <div class="field"><label for="pub-motivo">Motivo da versão</label><input id="pub-motivo" value="Revisão de setembro"></div>
+      <div class="strip"><button class="btn primary" data-act="confirmar-pub">Publicar</button><button class="btn" data-act="fechar">Cancelar</button></div></div></div>` : ''}
+    ${grupo(['lacuna','erro'], 'Lacunas', 'Nenhuma lacuna.', 'bad')}
+    ${grupo(['sem_part'], 'Sem participação histórica', 'Todas as folhas dos blocos distribuídos têm histórico.', 'warn')}
+    ${grupo(['declarada'], 'Sem projeção declarada', 'Nenhuma.', '')}
+    <div class="panel"><div class="panel-h"><h2>Versões deste cenário</h2></div><div class="tbl-wrap"><table>
+      <thead><tr><th>Versão</th><th>Data</th><th>Lacunas registradas</th><th>Situação</th></tr></thead>
+      <tbody>${c.versoes.length ? c.versoes.slice().reverse().map((v,i) => `<tr><td class="num">v${v.v}</td><td>${v.data||'—'}</td><td class="num">${v.lacunas ?? 0}</td><td>${i===0?'<span class="badge ok">publicada · em uso nos relatórios</span>':'<span class="badge">histórico</span>'}</td></tr>`).join('')
+        : '<tr><td colspan="4" class="muted">Nenhuma versão publicada: os relatórios usam a execução ao vivo, com aviso.</td></tr>'}</tbody></table></div></div>
+  </section>`;
+}
+
+function viewPropostas(){
+  const c = cen();
+  const pins = Object.entries(c.marks).filter(([,m]) => m.metodo==='PROPOSTA_SETORIAL');
+  const linhas = SETORES.map(s => {
+    const pin = pins.find(([,m]) => m.setor === s.id);
+    const ultima = s.versoes.at(-1);
+    const fixada = pin ? s.versoes.find(v => v.v === pin[1].versao) : null;
+    const maisNova = pin && ultima && ultima.v > pin[1].versao;
+    const sit = !ultima ? '<span class="badge">Rascunho · não enviada</span>'
+      : ultima.situacao==='E' ? `<span class="badge warn">v${ultima.v} enviada · aguarda avaliação</span>`
+      : ultima.situacao==='D' ? `<span class="badge bad">v${ultima.v} devolvida</span>` : `<span class="badge ok">v${ultima.v} aceita</span>`;
+    const acoes = ultima && ultima.situacao==='E' ? `<button class="btn small" data-act="aceitar" data-setor="${s.id}">Aceitar v${ultima.v}</button> <button class="btn small ghost" data-act="devolver" data-setor="${s.id}">Devolver</button>` : '';
+    return `<tr><td><b>${esc(s.nome)}</b><div class="hint">recorte: ${s.recorte.map(r=>esc(nomeNo(r))).join(', ')}</div></td><td>${sit}</td>
+      <td>${pin ? `v${pin[1].versao} em <b>${esc(nomeNo(pin[0]))}</b>${maisNova?` <span class="badge warn">há v${ultima.v}</span>`:''}` : '<span class="muted">não usada neste cenário</span>'}</td>
+      <td class="r num">${fixada ? fmt(Object.values(fixada.valores).reduce((a,b)=>a+b,0)) : '—'}</td>
+      <td style="white-space:nowrap">${acoes} ${maisNova?`<button class="btn small primary" data-act="trocar-pin" data-setor="${s.id}">Usar v${ultima.v}</button>`:''}</td></tr>`;
+  }).join('');
+  const dev = state.dialog && state.dialog.tipo==='devolver';
+  return `<section class="view">
+    <div class="lead"><div><h1>Propostas setoriais</h1>
+      <p>Opcional. Setores projetam o próprio recorte (no simulador ou por planilha) e enviam uma versão. Aqui você avalia e escolhe qual versão entra no cenário “${esc(c.nome)}”. Tudo o que não vier de setor continua projetado por você.</p></div>
+      <button class="btn" data-act="noop">Baixar modelo de planilha do setor</button></div>
+    ${dev ? `<div class="inline-dialog"><form class="panel-b" id="form-dev" style="display:grid;gap:10px">
+      <div class="field"><label for="dev-motivo">Motivo da devolução (obrigatório)</label><input id="dev-motivo" required placeholder="ex.: crescimento acima da frota projetada"></div>
+      <div class="strip"><button class="btn primary" type="submit">Devolver ao setor</button><button class="btn" type="button" data-act="fechar">Cancelar</button></div></form></div>` : ''}
+    <div class="panel"><div class="tbl-wrap"><table>
+      <thead><tr><th>Setor</th><th>Situação da proposta</th><th>Versão fixada neste cenário</th><th class="r">Total fixado (R$ mi)</th><th></th></tr></thead>
+      <tbody>${linhas}</tbody></table></div></div>
+    <div class="grid2">
+      <div class="callout"><b>Conflito é erro.</b> A mesma folha não pode vir de duas propostas. Linhas da proposta fora do nó marcado são ignoradas e listadas como aviso.</div>
+      <div class="callout"><b>Versão fixada.</b> Quando o setor envia uma versão nova, este cenário não muda sozinho: aparece “há v3” e você decide trocar.</div>
+    </div></section>`;
+}
+
+function viewResultado(){
+  const c = cen(), res = calcular(c), t = totais(res), k = contagem(res);
+  const pub = c.versoes.at(-1);
+  const linhas = perna => Object.values(res).filter(x => pernaOf(x.id)===perna && x.status!=='fora').map(x => {
+    const h = BY[x.id].hist||0, d = h ? x.valor/h - 1 : null;
+    return `<tr><td>${esc(nomeNo(x.id))}</td><td>${chip(x.mark, !x.proprio)}</td>
+      <td class="mono muted">${x.no && !isLeaf(x.no) ? esc(BY[x.no].code || (BY[x.no].perna==='C'?'Receitas':'Despesas')) : '—'}</td>
+      <td class="r num">${h?fmt(h):'—'}</td><td class="r num">${x.status==='lacuna'||x.status==='erro'?'<span class="badge bad">lacuna</span>':fmt(x.valor)}</td>
+      <td class="r num ${d==null?'':d>=0?'diff-up':'diff-dn'}">${d==null?'—':(d>=0?'+':'')+pct(d)}</td></tr>`;
+  }).join('');
+  const tabela = (perna, nome) => `<div class="panel"><div class="panel-h"><h2>${nome}</h2><span class="hint">R$ milhões · por folha</span></div><div class="tbl-wrap"><table>
+    <thead><tr><th>Rubrica (folha)</th><th>Método resolvido</th><th>Nó de cálculo</th><th class="r">Realizado 2026</th><th class="r">Projetado 2027</th><th class="r">Var.</th></tr></thead>
+    <tbody>${linhas(perna)}</tbody><tfoot><tr><td colspan="3">Total</td><td class="r num">${fmt(t[perna].h)}</td><td class="r num">${fmt(t[perna].p)}</td><td class="r num">${pct(t[perna].p/t[perna].h-1)}</td></tr></tfoot></table></div></div>`;
+  const origem = pub ? `versão v${pub.v} publicada` : 'execução ao vivo (não publicada)';
+  const aviso = k.lacuna ? ` · aviso: ${k.lacuna} rubrica${k.lacuna>1?'s':''} sem projeção` : '';
+  const REL = [
+    ['DFC projetado','Árvore com projeção em cada folha; drill-down mostra o método. Some a linha “não distribuída” dos modelos agregados.'],
+    ['Simulação de disponibilidade','Receita por folha é repartida por fonte e entra no veredicto prudente. Antes, projeção agregada caía no grupo “não classificado”, fora do veredicto.'],
+    ['Previsão de receita','Passa a ler pela porta única. Antes, cenário com modelo econométrico mostrava previsão zero.'],
+    ['Controle de despesa','Idem: média histórica e LOA deixavam a previsão zerada.'],
+    ['Resumo do fluxo de caixa','Deixa de executar ao vivo em silêncio; usa a versão publicada.'],
+    ['Previsão × realizado','Lê os valores das versões, não só os ajustes manuais do snapshot.'],
+  ];
+  return `<section class="view">
+    <div class="lead"><div><h1>Resultado e relatórios</h1>
+      <p>Todo método entrega valor por folha. Os relatórios leem a projeção por uma única porta e mostram a origem.</p></div>
+      <span class="badge ${pub?'ok':'warn'}">${origem}</span></div>
+    <div class="cover">
+      <div><b class="num">${fmt(t.C.p)}</b><span>receita projetada 2027 (R$ mi)</span></div>
+      <div><b class="num">${fmt(t.D.p)}</b><span>despesa projetada 2027 (R$ mi)</span></div>
+      <div class="${t.C.p-t.D.p>=0?'ok':'bad'}"><b class="num">${fmt(t.C.p-t.D.p)}</b><span>resultado (R$ mi)</span></div>
+      <div class="${k.lacuna?'bad':''}"><b>${k.lacuna}</b><span>rubricas sem projeção</span></div>
+    </div>
+    <div class="panel"><div class="panel-h"><h2>Relatórios que usam esta projeção</h2><span class="hint">todos exibem: cenário “${esc(c.nome)}” · ${esc(origem)}${esc(aviso)}</span></div>
+      <div>${REL.map(([n,d]) => `<div class="rep"><span class="dot ok"></span><h3>${n}</h3><p>${d}</p></div>`).join('')}</div></div>
+    ${tabela('C','Receitas')}
+    ${tabela('D','Despesas')}
+  </section>`;
+}
+
+/* ============================ RENDER & EVENTOS ============================ */
+const VIEWS = {cenarios:viewCenarios, metodos:viewMetodos, cobertura:viewCobertura, propostas:viewPropostas, resultado:viewResultado};
+function render(){
+  document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', t.dataset.tab === state.tab));
+  const sel = document.getElementById('sel-cenario');
+  sel.innerHTML = state.cenarios.map(c => `<option value="${c.id}" ${c.id===state.cenarioId?'selected':''}>${esc(c.nome)}</option>`).join('');
+  const k = contagem(calcular(cen()));
+  const b = document.getElementById('tab-lacunas'); b.textContent = k.lacuna || ''; b.hidden = !k.lacuna;
+  document.getElementById('app').innerHTML = VIEWS[state.tab]();
+}
+function irPara(tab){ state.tab = tab; state.dialog = null; try{ history.replaceState(null,'','#'+tab); }catch(e){} render(); window.scrollTo({top:0}); }
+
+document.querySelector('.tabs').addEventListener('click', e => { const t = e.target.closest('.tab'); if (t) irPara(t.dataset.tab); });
+document.getElementById('sel-cenario').addEventListener('change', e => {
+  state.cenarioId = +e.target.value; state.editando = null; state.compararCom = null; render();
+});
+
+const app = document.getElementById('app');
+app.addEventListener('click', e => {
+  const no = e.target.closest('[data-node]');
+  if (no){ state.selecionado = no.dataset.node; state.editando = null; render(); return; }
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const c = cen(), act = b.dataset.act;
+  if (act==='abrir'){ state.cenarioId = +b.dataset.id; irPara('metodos'); }
+  else if (act==='duplicar'){ state.dialog = {tipo:'duplicar', id:+b.dataset.id}; render(); document.getElementById('dup-nome')?.focus(); }
+  else if (act==='comparar'){ state.compararCom = +b.dataset.id; render(); }
+  else if (act==='fechar-comp'){ state.compararCom = null; render(); }
+  else if (act==='fechar'){ state.dialog = null; render(); }
+  else if (act==='novo'){ state.dialog = novoRascunho(); state.compararCom = null; render(); document.getElementById('w-nome')?.focus(); }
+  else if (act==='wiz-prox'){ avancarNovo(); }
+  else if (act==='wiz-voltar'){ state.dialog.erro = ''; state.dialog.passo--; render(); }
+  else if (act==='wiz-ir'){ state.dialog.erro = ''; state.dialog.passo = +b.dataset.p; render(); }
+  else if (act==='wiz-criar'){ criarNovo(); }
+  else if (act==='noop'){ toast('Fora do escopo deste protótipo'); }
+  else if (act==='remover-marca'){ delete c.marks[state.selecionado]; state.editando = null; render(); toast('Marcação removida — o nó volta a herdar'); }
+  else if (act==='recomendar'){ state.dialog = {tipo:'recomendar'}; render(); }
+  else if (act==='aplicar-rec'){
+    let n = 0;
+    document.querySelectorAll('[data-rec]').forEach(cb => { if (cb.checked){ const r = RECOMENDACOES.find(x=>x.id===cb.dataset.rec); c.marks[r.id] = {metodo:'MODELO', modelo:r.modelo}; n++; } });
+    state.dialog = null; render(); toast(`${n} marcação(ões) gravada(s) nas folhas`);
+  }
+  else if (act==='ir-no'){ state.selecionado = b.dataset.id; irPara('metodos'); }
+  else if (act==='publicar'){ state.dialog = {tipo:'publicar'}; render(); }
+  else if (act==='confirmar-pub'){
+    const k = contagem(calcular(c));
+    const cb = document.getElementById('conf-lacuna');
+    if (k.lacuna && !(cb && cb.checked)){ toast('Marque a confirmação das lacunas para publicar'); return; }
+    const hoje = new Date().toLocaleDateString('pt-BR');
+    c.versoes.push({v:(c.versoes.at(-1)?.v||0)+1, data:hoje, lacunas:k.lacuna});
+    state.dialog = null; render(); toast(`Versão v${c.versoes.at(-1).v} publicada — os relatórios passam a usá-la`);
+  }
+  else if (act==='aceitar'){ const s = SETORES.find(s=>s.id===b.dataset.setor); s.versoes.at(-1).situacao = 'A'; render(); toast(`${s.nome}: v${s.versoes.at(-1).v} aceita`); }
+  else if (act==='devolver'){ state.dialog = {tipo:'devolver', setor:b.dataset.setor}; render(); document.getElementById('dev-motivo')?.focus(); }
+  else if (act==='trocar-pin'){
+    const s = SETORES.find(s=>s.id===b.dataset.setor), ultima = s.versoes.at(-1);
+    Object.values(c.marks).forEach(m => { if (m.metodo==='PROPOSTA_SETORIAL' && m.setor===s.id) m.versao = ultima.v; });
+    render(); toast(`Cenário agora usa ${s.nome} v${ultima.v}`);
+  }
+});
+app.addEventListener('keydown', e => { const no = e.target.closest('[data-node]'); if (no && (e.key==='Enter'||e.key===' ')){ e.preventDefault(); no.click(); } });
+
+// Assistente: campos de texto/número só atualizam o rascunho (sem re-render,
+// para não roubar o clique no botão seguinte); selects e checkboxes re-renderizam.
+app.addEventListener('input', e => {
+  if (!(state.dialog && state.dialog.tipo==='novo')) return;
+  const el = e.target, ds = el.dataset, d = state.dialog.d;
+  if (ds.w==='nome') d.nome = el.value.trim();
+  if (ds.wval){ const m = d.marks[ds.wval];
+    if (m.metodo==='VALOR_FIXO') m.valor = parseFloat(el.value) || 0;
+    else if (m.metodo==='PERCENTUAL') m.pct = parseFloat(el.value) || 0;
+    else if (m.metodo==='SEM_PROJECAO') m.motivo = el.value.trim(); }
+});
+app.addEventListener('change', e => {
+  if (state.dialog && state.dialog.tipo==='novo'){
+    const el = e.target, ds = el.dataset, d = state.dialog.d;
+    if (ds.w==='nome' || ds.wval) return;
+    if (ds.w==='anoBase') d.anoBase = +el.value;
+    if (ds.w==='periodicidade') d.periodicidade = el.value;
+    if (ds.w==='padC') d.padrao.C = el.value;
+    if (ds.w==='padD') d.padrao.D = el.value;
+    if (ds.wprop){
+      const s = SETORES.find(x => x.id===ds.wprop);
+      if (el.checked){ d.propostas[s.id] = s.versoes.at(-1).v; s.recorte.flatMap(subarvore).forEach(id => delete d.marks[id]); }
+      else delete d.propostas[s.id];
+    }
+    if (ds.wpv) d.propostas[ds.wpv] = +el.value;
+    if (ds.wnode){ const m = markDe(el.value, ds.wnode); if (m) d.marks[ds.wnode] = m; else delete d.marks[ds.wnode]; }
+    const id = el.id; render(); document.getElementById(id)?.focus();
+    return;
+  }
+  if (e.target.id === 'f-metodo' || e.target.id === 'f-setor'){
+    const id = state.selecionado, marca = cen().marks[id];
+    const cur = state.editando && state.editando.id===id ? state.editando.mark : (marca ? clone(marca) : {});
+    const mk = e.target.id === 'f-metodo' ? {metodo:e.target.value} : {...cur, setor:e.target.value, versao:undefined};
+    if (mk.metodo==='MODELO') mk.modelo = pernaOf(id)==='C' ? 'SARIMA' : 'MEDIA_HISTORICA';
+    if (mk.metodo==='PERCENTUAL') mk.pct = 5;
+    if (mk.metodo==='PROPOSTA_SETORIAL' && !mk.setor) mk.setor = SETORES[0].id;
+    state.editando = {id, mark:mk}; render();
+    const foco = document.getElementById(e.target.id); foco && foco.focus();
+  }
+});
+
+app.addEventListener('submit', e => {
+  e.preventDefault();
+  const c = cen();
+  if (e.target.id === 'form-no'){
+    const id = state.selecionado, metodo = document.getElementById('f-metodo').value;
+    const n = BY[id];
+    if (!metodo){
+      if (n.parent) delete c.marks[id]; else c.marks[id] = {metodo:null};
+      state.editando = null; render(); toast(n.parent ? 'Nó volta a herdar' : 'Perna sem método padrão'); return;
+    }
+    const mk = {metodo};
+    const v = sel => document.getElementById(sel);
+    if (metodo==='VALOR_FIXO') mk.valor = parseFloat(v('f-valor').value) || 0;
+    if (metodo==='PERCENTUAL') mk.pct = parseFloat(v('f-pct').value) || 0;
+    if (metodo==='MODELO') mk.modelo = v('f-modelo').value;
+    if (metodo==='PROPOSTA_SETORIAL'){ mk.setor = v('f-setor').value; const vv = v('f-versao'); if (!vv){ toast('Setor sem proposta enviada'); return; } mk.versao = +vv.value; }
+    if (metodo==='SEM_PROJECAO'){ mk.motivo = v('f-motivo').value.trim(); if (!mk.motivo){ toast('Informe o motivo da projeção zero'); v('f-motivo').focus(); return; } }
+    if (metodo==='FORMULA'){
+      document.querySelectorAll('[data-formula]').forEach(t => {
+        const f = t.dataset.formula, txt = t.value.trim();
+        if (txt && txt !== BIBLIOTECA[f]) c.formulasProprias[f] = txt;
+        else if (txt === BIBLIOTECA[f]) delete c.formulasProprias[f];
+      });
+      document.querySelectorAll('[data-param]').forEach(p => { c.params[p.dataset.param] = parseFloat(p.value) || 0; });
+    }
+    c.marks[id] = mk; state.editando = null; render(); toast('Marcação salva em ' + (n.parent ? nomeNo(id) : n.name));
+  }
+  if (e.target.id === 'form-dup'){
+    const o = state.cenarios.find(x => x.id === state.dialog.id);
+    const nome = document.getElementById('dup-nome').value.trim();
+    if (state.cenarios.some(x => x.nome.toLowerCase() === nome.toLowerCase())){ toast('Já existe um cenário ativo com esse nome'); return; }
+    const novo = clone(o);
+    Object.assign(novo, {id:seqCenario++, nome, origem:o.id, versoes:[]});
+    if (document.getElementById('dup-congelar').checked) Object.keys(BIBLIOTECA).forEach(f => { novo.formulasProprias[f] = novo.formulasProprias[f] || BIBLIOTECA[f]; });
+    state.cenarios.push(novo); state.dialog = null; render(); toast(`Cópia “${nome}” criada — independente da origem`);
+  }
+  if (e.target.id === 'form-dev'){
+    const motivo = document.getElementById('dev-motivo').value.trim(); if (!motivo) return;
+    const s = SETORES.find(s => s.id === state.dialog.setor); s.versoes.at(-1).situacao = 'D';
+    state.dialog = null; render(); toast(`${s.nome}: v${s.versoes.at(-1).v} devolvida com motivo`);
+  }
+});
+
+const hash = (location.hash||'').slice(1);
+if (VIEWS[hash]) state.tab = hash;
+render();
+</script>

@@ -678,3 +678,89 @@ class _AdapterDisponibilidadeContabil:
 registrar_adapter("disponibilidade_contabil", _AdapterDisponibilidadeContabil())
 
 
+
+
+class _AdapterPrevisaoSetorial:
+    """Proposta de previsão enviada em planilha (previsao RN25).
+
+    Layout: codigo;mes;valor (coluna `descricao` opcional, ignorada) — valor
+    MENSAL em magnitude (o sinal vem da receita/despesa). O cenário vem do
+    contexto da rota. Cada folha vira marcação PRÓPRIA `VALOR_FIXO` mensal:
+    não é um caminho paralelo de dados — o número segue o mesmo fluxo até a
+    versão publicada. Mês ausente de uma rubrica vale zero (aviso no preview).
+    """
+
+    tipo = "previsao_setorial"
+
+    def parse_validar(self, content: bytes, filename: str, contexto: dict | None = None) -> Preview:
+        from ..models import Qualificador, SimuladorCenario
+        from .metodo_qualificador_service import exercicio_do_cenario
+
+        cenario = SimuladorCenario.query.get(int((contexto or {})["seq_cenario"]))
+        exercicio = exercicio_do_cenario(cenario)
+        setor = cenario.seq_setor_previsao
+        memo_setor: dict = {}
+        if setor is not None:
+            from .setor_previsao_service import no_no_recorte
+
+        cabecalho, linhas = _ler_csv(content)
+        idx = {i: _norm(c) for i, c in enumerate(cabecalho)}
+        colunas = ["Código", "Mês", "Valor", "Status"]
+        vistos: set = set()
+        meses_por_codigo: dict = {}
+        preview_linhas = []
+        for n, row in enumerate(linhas, start=1):
+            campos = {idx.get(i, str(i)): (row[i] if i < len(row) else "") for i in range(len(cabecalho))}
+            codigo = (campos.get("codigo") or "").strip()
+            mes_raw = (campos.get("mes") or "").strip()
+            valor_raw = (campos.get("valor") or "").strip()
+            dados = {"codigo": codigo, "mes": mes_raw, "valor": valor_raw,
+                     "_exibe": {"Código": codigo, "Mês": mes_raw, "Valor": valor_raw}}
+            q = (Qualificador.query.filter_by(num_qualificador=codigo, ind_status='A',
+                                              num_ano_exercicio=exercicio).first()
+                 if exercicio is not None else
+                 Qualificador.query.filter_by(num_qualificador=codigo, ind_status='A').first())
+            if q is None:
+                preview_linhas.append(LinhaPreview(n, "erro", f"Qualificador '{codigo}' não existe no plano de {exercicio}", dados)); continue
+            if not q.is_folha():
+                preview_linhas.append(LinhaPreview(n, "erro", f"{codigo} não é folha — informe as rubricas de lançamento", dados)); continue
+            if setor is not None and not no_no_recorte(q, setor, memo_setor):
+                preview_linhas.append(LinhaPreview(n, "erro", f"{codigo} está fora do recorte do setor do cenário", dados)); continue
+            if not mes_raw.isdigit() or not (1 <= int(mes_raw) <= 12):
+                preview_linhas.append(LinhaPreview(n, "erro", f"Mês inválido '{mes_raw}'", dados)); continue
+            if not valor_raw:
+                preview_linhas.append(LinhaPreview(n, "erro", "Valor em branco — linha ignorada", dados)); continue
+            try:
+                valor = _dec(valor_raw)
+            except (InvalidOperation, ValueError, AttributeError):
+                preview_linhas.append(LinhaPreview(n, "erro", f"Valor inválido '{valor_raw}'", dados)); continue
+            if valor < 0:
+                preview_linhas.append(LinhaPreview(n, "erro", "Valor negativo — informe a magnitude (o sinal vem da receita/despesa)", dados)); continue
+            chave = (codigo, int(mes_raw))
+            if chave in vistos:
+                preview_linhas.append(LinhaPreview(n, "erro", f"Mês {mes_raw} de {codigo} repetido no arquivo", dados)); continue
+            vistos.add(chave)
+            meses_por_codigo.setdefault(codigo, set()).add(int(mes_raw))
+            dados["seq_qualificador"] = q.seq_qualificador
+            preview_linhas.append(LinhaPreview(n, "ok", None, dados))
+        for linha in preview_linhas:
+            meses = meses_por_codigo.get(linha.dados.get("codigo"))
+            if linha.status == "ok" and meses is not None and len(meses) < 12:
+                linha.status = "aviso"
+                linha.mensagem = f"{12 - len(meses)} mês(es) de {linha.dados['codigo']} ausente(s) — valem zero"
+        return Preview(tipo=self.tipo, arquivo=filename, colunas=colunas, linhas=preview_linhas)
+
+    def gravar(self, linhas_graváveis, contexto: dict | None = None):
+        from .metodo_qualificador_service import VALOR_FIXO, definir_marcacao
+
+        seq_cenario = int((contexto or {})["seq_cenario"])
+        por_folha: dict = {}
+        for l in linhas_graváveis:
+            por_folha.setdefault(int(l.dados["seq_qualificador"]), {})[l.dados["mes"]] = str(_dec(l.dados["valor"]))
+        for seq_qualificador, valores in por_folha.items():
+            definir_marcacao(seq_cenario, seq_qualificador, VALOR_FIXO,
+                             {"valores_mensais": valores})
+        return {"sucesso": len(por_folha), "erros": []}
+
+
+registrar_adapter("previsao_setorial", _AdapterPrevisaoSetorial())

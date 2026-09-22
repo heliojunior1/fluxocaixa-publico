@@ -43,8 +43,15 @@ class ProjecaoVersao(Base):
     ind_publicado = Column(String(1), default='N', nullable=False)
     # Inputs (config + ajustes serializados) — auditoria, não consultado em queries
     json_inputs = Column(Text)
-    # Resumo agregado para listagem rápida (total_receita, total_despesa, saldo_final)
+    # Resumo agregado para listagem rápida (total_receita, total_despesa,
+    # saldo_final) + a cobertura da execução (lacunas — previsao R12)
     json_resumo = Column(Text)
+    # Proposta setorial (previsao R26) — só em versão de cenário SETORIAL:
+    # 'E' enviada, 'A' aceita, 'D' devolvida. Nula nas demais versões.
+    cod_situacao_proposta = Column(String(1))
+    dsc_motivo_devolucao = Column(String(255))
+    dat_avaliacao = Column(DateTime)
+    cod_pessoa_avaliacao = Column(Integer)
 
     valores = relationship(
         'ProjecaoValor',
@@ -90,5 +97,13 @@ class ProjecaoValor(Base):
     val_projetado = Column(Numeric(18, 2), nullable=False, default=0)
     # Realizado é preenchido posteriormente (job/rotina) para meses já fechados.
     val_realizado = Column(Numeric(18, 2))
+    # Rastro do número (previsao R14): o método que o produziu e o nó onde foi
+    # calculado (bloco treinado e distribuído às folhas). Nulos em versões
+    # anteriores à mudança.
+    cod_metodo = Column(String(40))
+    seq_qualificador_calculo = Column(
+        Integer, ForeignKey('flc_qualificador.seq_qualificador'), nullable=True)
 
-    qualificador = relationship('Qualificador')
+    # foreign_keys explícito: há duas FKs para flc_qualificador (a folha e o
+    # nó de cálculo) e a relação é a da folha.
+    qualificador = relationship('Qualificador', foreign_keys=[seq_qualificador])

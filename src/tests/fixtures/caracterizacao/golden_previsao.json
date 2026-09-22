@@ -318,51 +318,123 @@
    "despesa_detalhada": [
     {
      "data": "2017-01-01",
-     "valor_projetado": "450.00"
+     "qualificador": "2.97.1",
+     "valor_projetado": "307.71"
+    },
+    {
+     "data": "2017-01-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "142.29"
     },
     {
      "data": "2017-02-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-02-01",
+     "qualificador": "2.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-03-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-03-01",
+     "qualificador": "2.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-04-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-04-01",
+     "qualificador": "2.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-05-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-05-01",
+     "qualificador": "2.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-06-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-06-01",
+     "qualificador": "2.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-07-01",
-     "valor_projetado": "77.13"
+     "qualificador": "2.97.1",
+     "valor_projetado": "52.74"
+    },
+    {
+     "data": "2017-07-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "24.39"
     },
     {
      "data": "2017-08-01",
-     "valor_projetado": "77.73"
+     "qualificador": "2.97.1",
+     "valor_projetado": "53.15"
+    },
+    {
+     "data": "2017-08-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "24.58"
     },
     {
      "data": "2017-09-01",
-     "valor_projetado": "78.34"
+     "qualificador": "2.97.1",
+     "valor_projetado": "53.57"
+    },
+    {
+     "data": "2017-09-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "24.77"
     },
     {
      "data": "2017-10-01",
-     "valor_projetado": "78.95"
+     "qualificador": "2.97.1",
+     "valor_projetado": "53.99"
+    },
+    {
+     "data": "2017-10-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "24.96"
     },
     {
      "data": "2017-11-01",
-     "valor_projetado": "79.55"
+     "qualificador": "2.97.1",
+     "valor_projetado": "54.40"
+    },
+    {
+     "data": "2017-11-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "25.15"
     },
     {
      "data": "2017-12-01",
-     "valor_projetado": "80.16"
+     "qualificador": "2.97.1",
+     "valor_projetado": "54.81"
+    },
+    {
+     "data": "2017-12-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "25.35"
     }
    ],
    "receita": [
@@ -418,51 +490,123 @@
    "receita_detalhada": [
     {
      "data": "2017-01-01",
-     "valor_projetado": "1100.00"
+     "qualificador": "1.97.1",
+     "valor_projetado": "748.56"
+    },
+    {
+     "data": "2017-01-01",
+     "qualificador": "1.97.2",
+     "valor_projetado": "351.44"
     },
     {
      "data": "2017-02-01",
+     "qualificador": "1.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-02-01",
+     "qualificador": "1.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-03-01",
+     "qualificador": "1.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-03-01",
+     "qualificador": "1.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-04-01",
+     "qualificador": "1.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-04-01",
+     "qualificador": "1.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-05-01",
+     "qualificador": "1.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-05-01",
+     "qualificador": "1.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-06-01",
+     "qualificador": "1.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-06-01",
+     "qualificador": "1.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-07-01",
-     "valor_projetado": "187.51"
+     "qualificador": "1.97.1",
+     "valor_projetado": "127.60"
+    },
+    {
+     "data": "2017-07-01",
+     "qualificador": "1.97.2",
+     "valor_projetado": "59.91"
     },
     {
      "data": "2017-08-01",
-     "valor_projetado": "188.71"
+     "qualificador": "1.97.1",
+     "valor_projetado": "128.42"
+    },
+    {
+     "data": "2017-08-01",
+     "qualificador": "1.97.2",
+     "valor_projetado": "60.29"
     },
     {
      "data": "2017-09-01",
-     "valor_projetado": "189.90"
+     "qualificador": "1.97.1",
+     "valor_projetado": "129.23"
+    },
+    {
+     "data": "2017-09-01",
+     "qualificador": "1.97.2",
+     "valor_projetado": "60.67"
     },
     {
      "data": "2017-10-01",
-     "valor_projetado": "191.10"
+     "qualificador": "1.97.1",
+     "valor_projetado": "130.05"
+    },
+    {
+     "data": "2017-10-01",
+     "qualificador": "1.97.2",
+     "valor_projetado": "61.05"
     },
     {
      "data": "2017-11-01",
-     "valor_projetado": "192.29"
+     "qualificador": "1.97.1",
+     "valor_projetado": "130.86"
+    },
+    {
+     "data": "2017-11-01",
+     "qualificador": "1.97.2",
+     "valor_projetado": "61.43"
     },
     {
      "data": "2017-12-01",
-     "valor_projetado": "193.49"
+     "qualificador": "1.97.1",
+     "valor_projetado": "131.67"
+    },
+    {
+     "data": "2017-12-01",
+     "qualificador": "1.97.2",
+     "valor_projetado": "61.82"
     }
    ],
    "resumo": {
@@ -2409,51 +2553,51 @@
   "LOA": {
    "despesa": [
     {
-     "data": "2026-08-01",
+     "data": "2017-01-01",
      "valor_projetado": "750.00"
     },
     {
-     "data": "2026-09-01",
+     "data": "2017-02-01",
      "valor_projetado": "750.00"
     },
     {
-     "data": "2026-10-01",
+     "data": "2017-03-01",
      "valor_projetado": "750.00"
     },
     {
-     "data": "2026-11-01",
+     "data": "2017-04-01",
      "valor_projetado": "750.00"
     },
     {
-     "data": "2026-12-01",
+     "data": "2017-05-01",
      "valor_projetado": "750.00"
     },
     {
-     "data": "2027-01-01",
+     "data": "2017-06-01",
      "valor_projetado": "750.00"
     },
     {
-     "data": "2027-02-01",
+     "data": "2017-07-01",
      "valor_projetado": "750.00"
     },
     {
-     "data": "2027-03-01",
+     "data": "2017-08-01",
      "valor_projetado": "750.00"
     },
     {
-     "data": "2027-04-01",
+     "data": "2017-09-01",
      "valor_projetado": "750.00"
     },
     {
-     "data": "2027-05-01",
+     "data": "2017-10-01",
      "valor_projetado": "750.00"
     },
     {
-     "data": "2027-06-01",
+     "data": "2017-11-01",
      "valor_projetado": "750.00"
     },
     {
-     "data": "2027-07-01",
+     "data": "2017-12-01",
      "valor_projetado": "750.00"
     }
    ],
@@ -3257,51 +3401,123 @@
    "despesa_detalhada": [
     {
      "data": "2017-01-01",
-     "valor_projetado": "450.00"
+     "qualificador": "2.97.1",
+     "valor_projetado": "307.71"
+    },
+    {
+     "data": "2017-01-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "142.29"
     },
     {
      "data": "2017-02-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-02-01",
+     "qualificador": "2.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-03-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-03-01",
+     "qualificador": "2.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-04-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-04-01",
+     "qualificador": "2.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-05-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-05-01",
+     "qualificador": "2.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-06-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-06-01",
+     "qualificador": "2.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-07-01",
-     "valor_projetado": "77.13"
+     "qualificador": "2.97.1",
+     "valor_projetado": "52.74"
+    },
+    {
+     "data": "2017-07-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "24.39"
     },
     {
      "data": "2017-08-01",
-     "valor_projetado": "77.73"
+     "qualificador": "2.97.1",
+     "valor_projetado": "53.15"
+    },
+    {
+     "data": "2017-08-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "24.58"
     },
     {
      "data": "2017-09-01",
-     "valor_projetado": "78.34"
+     "qualificador": "2.97.1",
+     "valor_projetado": "53.57"
+    },
+    {
+     "data": "2017-09-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "24.77"
     },
     {
      "data": "2017-10-01",
-     "valor_projetado": "78.95"
+     "qualificador": "2.97.1",
+     "valor_projetado": "53.99"
+    },
+    {
+     "data": "2017-10-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "24.96"
     },
     {
      "data": "2017-11-01",
-     "valor_projetado": "79.55"
+     "qualificador": "2.97.1",
+     "valor_projetado": "54.40"
+    },
+    {
+     "data": "2017-11-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "25.15"
     },
     {
      "data": "2017-12-01",
-     "valor_projetado": "80.16"
+     "qualificador": "2.97.1",
+     "valor_projetado": "54.81"
+    },
+    {
+     "data": "2017-12-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "25.35"
     }
    ],
    "receita": [
@@ -3357,51 +3573,123 @@
    "receita_detalhada": [
     {
      "data": "2017-01-01",
-     "valor_projetado": "1100.00"
+     "qualificador": "1.97.1",
+     "valor_projetado": "748.56"
+    },
+    {
+     "data": "2017-01-01",
+     "qualificador": "1.97.2",
+     "valor_projetado": "351.44"
     },
     {
      "data": "2017-02-01",
+     "qualificador": "1.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-02-01",
+     "qualificador": "1.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-03-01",
+     "qualificador": "1.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-03-01",
+     "qualificador": "1.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-04-01",
+     "qualificador": "1.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-04-01",
+     "qualificador": "1.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-05-01",
+     "qualificador": "1.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-05-01",
+     "qualificador": "1.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-06-01",
+     "qualificador": "1.97.1",
+     "valor_projetado": "0.00"
+    },
+    {
+     "data": "2017-06-01",
+     "qualificador": "1.97.2",
      "valor_projetado": "0.00"
     },
     {
      "data": "2017-07-01",
-     "valor_projetado": "187.51"
+     "qualificador": "1.97.1",
+     "valor_projetado": "127.60"
+    },
+    {
+     "data": "2017-07-01",
+     "qualificador": "1.97.2",
+     "valor_projetado": "59.91"
     },
     {
      "data": "2017-08-01",
-     "valor_projetado": "188.71"
+     "qualificador": "1.97.1",
+     "valor_projetado": "128.42"
+    },
+    {
+     "data": "2017-08-01",
+     "qualificador": "1.97.2",
+     "valor_projetado": "60.29"
     },
     {
      "data": "2017-09-01",
-     "valor_projetado": "189.90"
+     "qualificador": "1.97.1",
+     "valor_projetado": "129.23"
+    },
+    {
+     "data": "2017-09-01",
+     "qualificador": "1.97.2",
+     "valor_projetado": "60.67"
     },
     {
      "data": "2017-10-01",
-     "valor_projetado": "191.10"
+     "qualificador": "1.97.1",
+     "valor_projetado": "130.05"
+    },
+    {
+     "data": "2017-10-01",
+     "qualificador": "1.97.2",
+     "valor_projetado": "61.05"
     },
     {
      "data": "2017-11-01",
-     "valor_projetado": "192.29"
+     "qualificador": "1.97.1",
+     "valor_projetado": "130.86"
+    },
+    {
+     "data": "2017-11-01",
+     "qualificador": "1.97.2",
+     "valor_projetado": "61.43"
     },
     {
      "data": "2017-12-01",
-     "valor_projetado": "193.49"
+     "qualificador": "1.97.1",
+     "valor_projetado": "131.67"
+    },
+    {
+     "data": "2017-12-01",
+     "qualificador": "1.97.2",
+     "valor_projetado": "61.82"
     }
    ],
    "resumo": {
@@ -3461,7 +3749,128 @@
      "valor_projetado": "660.00"
     }
    ],
-   "despesa_detalhada": [],
+   "despesa_detalhada": [
+    {
+     "data": "2017-01-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "413.70"
+    },
+    {
+     "data": "2017-01-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "191.30"
+    },
+    {
+     "data": "2017-02-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "417.11"
+    },
+    {
+     "data": "2017-02-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "192.89"
+    },
+    {
+     "data": "2017-03-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "420.53"
+    },
+    {
+     "data": "2017-03-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "194.47"
+    },
+    {
+     "data": "2017-04-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "423.95"
+    },
+    {
+     "data": "2017-04-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "196.05"
+    },
+    {
+     "data": "2017-05-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "427.37"
+    },
+    {
+     "data": "2017-05-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "197.63"
+    },
+    {
+     "data": "2017-06-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "430.79"
+    },
+    {
+     "data": "2017-06-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "199.21"
+    },
+    {
+     "data": "2017-07-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "434.21"
+    },
+    {
+     "data": "2017-07-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "200.79"
+    },
+    {
+     "data": "2017-08-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "437.63"
+    },
+    {
+     "data": "2017-08-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "202.37"
+    },
+    {
+     "data": "2017-09-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "441.05"
+    },
+    {
+     "data": "2017-09-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "203.95"
+    },
+    {
+     "data": "2017-10-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "444.47"
+    },
+    {
+     "data": "2017-10-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "205.53"
+    },
+    {
+     "data": "2017-11-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "447.89"
+    },
+    {
+     "data": "2017-11-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "207.11"
+    },
+    {
+     "data": "2017-12-01",
+     "qualificador": "2.97.1",
+     "valor_projetado": "451.30"
+    },
+    {
+     "data": "2017-12-01",
+     "qualificador": "2.97.2",
+     "valor_projetado": "208.70"
+    }
+   ],
    "receita": [
     {
      "data": "2017-01-01",

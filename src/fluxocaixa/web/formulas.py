@@ -34,6 +34,8 @@ def _exercicio_combo():
 @handle_exceptions
 async def formulas_list(request: Request):
     """Lista todas as fórmulas cadastradas."""
+    from ..services.formula_cenario_service import cenarios_afetados_pela_biblioteca
+
     formulas = formula_repo.get_all_formulas()
 
     # Enriquecer com dados do qualificador
@@ -51,6 +53,8 @@ async def formulas_list(request: Request):
             'formula': f,
             'variaveis': variaveis,
             'config_base': config_base,
+            # RN18: quem usa esta fórmula por referência muda junto com ela
+            'cenarios_afetados': cenarios_afetados_pela_biblioteca(f.seq_qualificador),
             'formula_json': {
                 'seq_rubrica_formula': f.seq_rubrica_formula,
                 'seq_qualificador': f.seq_qualificador,

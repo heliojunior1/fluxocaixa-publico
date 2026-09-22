@@ -410,6 +410,31 @@ def listar_formulas_aplicaveis(tipo_fluxo: str | None = None):
             and f.qualificador.is_folha()]
 
 
+def expressoes_do_cenario(seq_simulador_cenario: int | None,
+                          tipo_fluxo: str | None = None) -> list:
+    """[(folha, expressão)] que o cenário projeta por fórmula (RN18).
+
+    A biblioteca (`flc_rubrica_formula`) vale por referência; a fórmula
+    PRÓPRIA do cenário (`flc_cenario_formula`) vence a da biblioteca e também
+    cobre folha que a biblioteca não tem. Mesmos critérios de folha ativa de
+    `listar_formulas_aplicaveis`.
+    """
+    from ..models import CenarioFormula
+
+    por_folha = {f.qualificador.seq_qualificador: (f.qualificador, f.dsc_formula_expressao)
+                 for f in listar_formulas_aplicaveis(tipo_fluxo)}
+    if seq_simulador_cenario:
+        for propria in CenarioFormula.query.filter_by(
+                seq_simulador_cenario=seq_simulador_cenario).all():
+            folha = propria.qualificador
+            if (folha is None or folha.ind_status != 'A' or not folha.is_folha()
+                    or folha.tipo_fluxo not in ('receita', 'despesa')
+                    or (tipo_fluxo is not None and folha.tipo_fluxo != tipo_fluxo)):
+                continue
+            por_folha[folha.seq_qualificador] = (folha, propria.dsc_formula_expressao)
+    return [por_folha[seq] for seq in sorted(por_folha)]
+
+
 def projetar_cenario_formula(
     seq_simulador_cenario: int,
     ano_base: int,
@@ -445,14 +470,13 @@ def projetar_cenario_formula(
     parametros = {v.nom_parametro: float(v.val_parametro) for v in valores_cenario}
 
     all_records = []
-    for formula in listar_formulas_aplicaveis(tipo_fluxo):
-        folha = formula.qualificador
+    for folha, expressao in expressoes_do_cenario(seq_simulador_cenario, tipo_fluxo):
         if periodicidade == 'ANUAL':
             df = projetar_com_formula_anual(
                 seq_qualificador=folha.seq_qualificador,
                 ano_base=ano_base,
                 periodos=periodos,
-                expressao=formula.dsc_formula_expressao,
+                expressao=expressao,
                 metodo_base=metodo_base,
                 config_base=config_base,
                 parametros=parametros,
@@ -462,7 +486,7 @@ def projetar_cenario_formula(
                 seq_qualificador=folha.seq_qualificador,
                 ano_base=ano_base,
                 meses=periodos,
-                expressao=formula.dsc_formula_expressao,
+                expressao=expressao,
                 metodo_base=metodo_base,
                 config_base=config_base,
                 parametros=parametros,

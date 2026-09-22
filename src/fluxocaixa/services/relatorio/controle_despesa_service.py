@@ -1,12 +1,10 @@
 """Controle de Despesa service - Seguindo Repository Pattern."""
 from datetime import date
 
-import pandas as pd
-
 from ...models import Qualificador
 from ...repositories.lancamento_repository import LancamentoRepository
 from ...utils.constants import MONTH_NAME_PT
-from ..simulador_cenario_service import executar_simulacao
+from .dfc_projecao import projecao_por_qualificador
 from .base import get_tipo_lancamento_ids
 
 
@@ -69,15 +67,16 @@ def get_controle_despesa_data(
     lancamento_repo = LancamentoRepository()
     
     # Carregar simulação se cenário fornecido
-    simulacao_resultado = None
-    df_detalhado = None
-    
+    # Porta única (previsao RN15): versão publicada → ao vivo com aviso
+    projecao: dict = {}
+    projecao_origem = None
     if cenario_id:
-        simulacao_resultado = executar_simulacao(cenario_id)
-        if simulacao_resultado and 'projecao_despesa_detalhada' in simulacao_resultado:
-            df_detalhado = simulacao_resultado['projecao_despesa_detalhada']
-            if df_detalhado is not None and not df_detalhado.empty:
-                df_detalhado['data'] = pd.to_datetime(df_detalhado['data'])
+        projecao, projecao_origem = projecao_por_qualificador(cenario_id, ano, 'D')
+    ids_selecionados = set(qualificadores_ids)
+
+    def _previsto(meses_alvo, ids):
+        return float(sum(v for (seq, mes), v in projecao.items()
+                         if seq in ids and mes in meses_alvo))
     
     # --- 1. EVOLUÇÃO MENSAL ---
     evolucao_mensal = []
@@ -105,14 +104,7 @@ def get_controle_despesa_data(
         if cenario_id and (is_futuro or mes >= mes_atual):
             previsao_mes = 0
             
-            if df_detalhado is not None and not df_detalhado.empty:
-                # Filtrar por ano, mês e qualificadores selecionados
-                mask = (
-                    (df_detalhado['data'].dt.year == ano) & 
-                    (df_detalhado['data'].dt.month == mes) &
-                    (df_detalhado['seq_qualificador'].isin(qualificadores_ids))
-                )
-                previsao_mes = float(df_detalhado.loc[mask, 'valor_projetado'].sum())
+            previsao_mes = _previsto({mes}, ids_selecionados)
             
             total_previsao += previsao_mes
         
@@ -143,13 +135,8 @@ def get_controle_despesa_data(
         
         # Total previsto no cenário (todos os 12 meses)
         previsao_total = 0
-        if cenario_id and df_detalhado is not None and not df_detalhado.empty:
-            # Filtrar por ano e qualificador específico
-            mask = (
-                (df_detalhado['data'].dt.year == ano) & 
-                (df_detalhado['seq_qualificador'] == qual_id)
-            )
-            previsao_total = float(df_detalhado.loc[mask, 'valor_projetado'].sum())
+        if cenario_id:
+            previsao_total = _previsto(set(range(1, 13)), {qual_id})
         
         # Percentual de execução
         percentual_execucao = 0
@@ -167,13 +154,8 @@ def get_controle_despesa_data(
     # --- 3. KPIs ---
     # Calcular totais completos se cenário estiver selecionado
     previsao_total_anual = 0
-    if cenario_id and df_detalhado is not None and not df_detalhado.empty:
-        # Filtrar por ano e qualificadores selecionados
-        mask = (
-            (df_detalhado['data'].dt.year == ano) & 
-            (df_detalhado['seq_qualificador'].isin(qualificadores_ids))
-        )
-        previsao_total_anual = float(df_detalhado.loc[mask, 'valor_projetado'].sum())
+    if cenario_id:
+        previsao_total_anual = _previsto(set(range(1, 13)), ids_selecionados)
     
     # Total executado até agora
     executado_total_anual = float(lancamento_repo.get_sum_by_qualificadores_and_year(
@@ -195,5 +177,6 @@ def get_controle_despesa_data(
         'kpis': kpis,
         'evolucao_mensal': evolucao_mensal,
         'execucao_por_grupo': execucao_por_grupo,
+        'projecao_origem': projecao_origem,
         'mes_atual': mes_atual
     }
