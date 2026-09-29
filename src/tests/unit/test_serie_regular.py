@@ -62,3 +62,22 @@ def test_janela_do_ano_base_comeca_em_primeiro_de_janeiro():
     from fluxocaixa.services.modelos_economicos_service import janela_do_ano_base
 
     assert janela_do_ano_base(2085, 3) == (date(2082, 1, 1), date(2084, 12, 31))
+
+
+def test_serie_de_treino_da_origem_unica_e_magnitude_e_a_leitura_crua_tem_sinal(monkeypatch):
+    """R20: `obter_serie_do_ano_base` (origem única das três portas) entrega
+    magnitude; `obter_dados_historicos` continua COM sinal — caracterização,
+    backtest e fórmulas fazem a própria conversão."""
+    from fluxocaixa.services import modelos_economicos_service as modelos
+
+    saidas = _lancamentos((date(2083, 1, 10), -300.0), (date(2083, 2, 10), -200.0),
+                          (date(2083, 2, 20), 50.0))  # estorno reduz o mês
+    monkeypatch.setattr(modelos, "_lancamentos_da_serie", lambda *a, **k: saidas)
+
+    crua = modelos.obter_dados_historicos(1, date(2083, 1, 1), date(2083, 12, 31),
+                                          hoje=date(2090, 1, 1))
+    treino = modelos.obter_serie_do_ano_base([1], 2084, 1, hoje=date(2090, 1, 1))
+
+    assert [round(float(v), 2) for v in crua["valor"][:2]] == [-300.0, -150.0]
+    assert [round(float(v), 2) for v in treino["valor"][:2]] == [300.0, 150.0]
+    assert len(treino) == 12

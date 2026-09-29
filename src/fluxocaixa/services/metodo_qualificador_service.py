@@ -37,6 +37,7 @@ from datetime import date
 
 from ..auth.contexto import cod_pessoa_atual
 from . import periodo_resolver
+from .modelos_economicos_service import JANELA_EM_ANOS, MINIMO_DE_MESES
 from .validacao import RegraNegocioError
 
 VALOR_FIXO = 'VALOR_FIXO'
@@ -58,16 +59,13 @@ METODOS = {
 }
 
 # Modelos oferecidos na marcação → (janela de treino em anos, mínimo de
-# pontos). Os dois de crescimento não treinam série: leem acumulados.
-# (janela em anos, mínimo de meses) — o mínimo vem da origem única
-# `modelos_economicos_service.MINIMO_DE_MESES` (previsao R19).
+# pontos). Os dois de crescimento não treinam série: leem acumulados. Janela e
+# mínimo vêm das origens únicas `JANELA_EM_ANOS` (R26) e `MINIMO_DE_MESES`
+# (R19) do serviço de modelos — nunca copiados aqui.
 MODELOS_DE_SERIE = {
-    'HOLT_WINTERS': (3, 12),
-    'ARIMA': (3, 12),
-    'SARIMA': (4, 12),
-    'XGBOOST': (3, 14),
-    'LIGHTGBM': (3, 14),
-    'MEDIA_HISTORICA': (3, 1),
+    **{modelo: (JANELA_EM_ANOS[modelo], MINIMO_DE_MESES[modelo])
+       for modelo in ('HOLT_WINTERS', 'ARIMA', 'SARIMA', 'XGBOOST', 'LIGHTGBM',
+                      'MEDIA_HISTORICA')},
     'CRESCIMENTO_ANO': None,
     'MEDIA_CRESCIMENTO': None,
 }
@@ -277,6 +275,91 @@ def exercicio_do_cenario(simulador) -> int | None:
     from .qualificador_service import resolver_exercicio_do_plano
 
     return resolver_exercicio_do_plano(simulador.ano_base)
+
+
+# ---------------------------------------------------------------------------
+# Abertura de exercício (previsao R21)
+# ---------------------------------------------------------------------------
+
+def planos_dos_cenarios() -> dict[int, int | None]:
+    """Plano resolvido de cada cenário ATIVO — a fotografia que a abertura de
+    exercício tira ANTES da cópia, para saber quem mudou de plano."""
+    from ..models import SimuladorCenario
+
+    return {c.seq_simulador_cenario: exercicio_do_cenario(c)
+            for c in SimuladorCenario.query.filter_by(ind_status='A').all()}
+
+
+def reapontar_cenarios_para_exercicio(ano_novo: int,
+                                      planos_antes: dict[int, int | None]) -> int:
+    """Re-aponta para o plano de `ano_novo` a configuração dos cenários cujo
+    plano resolvido PASSOU a ser ele (R21, design D4): marcações, fórmulas
+    próprias, ajustes e `seq_qualificador(es)` do JSON da perna.
+
+    O casamento é pela `cod_rubrica_raiz` (única entre ativos do exercício —
+    R30), não pelo mapa origem → espelho: o plano antigo do cenário pode não
+    ser o de origem da cópia. Referência sem correspondente (qualificador
+    inativo na origem, que já não é projetado) fica como está — nada é
+    apagado. Sem commit: roda na transação da abertura, e falha aqui desfaz a
+    abertura inteira. Devolve o número de cenários re-apontados.
+    """
+    from ..models import (
+        CenarioConfig,
+        CenarioFormula,
+        CenarioMetodo,
+        Qualificador,
+        SimuladorCenario,
+    )
+    from ..models.base import db
+
+    afetados = [
+        c.seq_simulador_cenario
+        for c in SimuladorCenario.query.filter(
+            SimuladorCenario.seq_simulador_cenario.in_(list(planos_antes))).all()
+        if planos_antes[c.seq_simulador_cenario] != ano_novo
+        and exercicio_do_cenario(c) == ano_novo
+    ]
+    if not afetados:
+        return 0
+
+    por_raiz = {
+        q.cod_rubrica_raiz: q.seq_qualificador
+        for q in Qualificador.query.filter_by(
+            num_ano_exercicio=ano_novo, ind_status='A').all()
+        if q.cod_rubrica_raiz is not None
+    }
+    traduzidos: dict[int, int] = {}
+
+    def _no_plano_novo(seq):
+        seq = int(seq)
+        if seq not in traduzidos:
+            q = Qualificador.query.get(seq)
+            if q is None or q.num_ano_exercicio == ano_novo:
+                traduzidos[seq] = seq
+            else:
+                traduzidos[seq] = por_raiz.get(q.cod_rubrica_raiz, seq)
+        return traduzidos[seq]
+
+    for modelo in (CenarioMetodo, CenarioFormula):
+        for linha in modelo.query.filter(
+                modelo.seq_simulador_cenario.in_(afetados)).all():
+            linha.seq_qualificador = _no_plano_novo(linha.seq_qualificador)
+
+    for config in CenarioConfig.query.filter(
+            CenarioConfig.seq_simulador_cenario.in_(afetados)).all():
+        for ajuste in config.ajustes:
+            ajuste.seq_qualificador = _no_plano_novo(ajuste.seq_qualificador)
+        cfg = json.loads(config.json_configuracao or '{}')
+        if not (cfg.get('seq_qualificador') or cfg.get('seq_qualificadores')):
+            continue
+        if cfg.get('seq_qualificador'):
+            cfg['seq_qualificador'] = _no_plano_novo(cfg['seq_qualificador'])
+        if cfg.get('seq_qualificadores'):
+            cfg['seq_qualificadores'] = [_no_plano_novo(s)
+                                         for s in cfg['seq_qualificadores']]
+        config.json_configuracao = json.dumps(cfg)
+    db.session.flush()
+    return len(afetados)
 
 
 def folhas_da_perna(perna: str, exercicio: int | None) -> list:
@@ -931,8 +1014,6 @@ def _treinar(ex, perna, config, folhas, seq_no) -> dict[int, float] | None:
         return _lacuna(
             f"Histórico insuficiente para {ROTULO_MODELO[modelo]}: "
             f"{len(historico)} meses, mínimo {minimo}")
-    historico = historico.copy()
-    historico['valor'] = historico['valor'].abs()
     motor = {
         'HOLT_WINTERS': modelos.projetar_holt_winters,
         'ARIMA': modelos.projetar_arima,
@@ -1341,19 +1422,30 @@ def recomendacoes_aplicaveis(simulador) -> list[dict]:
 
     Só entram modelos do catálogo de marcação e aplicáveis à perna da folha.
     É SUGESTÃO — gravar é ação explícita do usuário (padrão da repartição).
+
+    Ordem e erro pelo WMAPE, o critério de seleção do backtest (R28). A folha
+    recomendada (do exercício mais recente — `_uma_por_raiz`) é traduzida
+    pela RAIZ para o plano do cenário: antes, cenário de outro exercício
+    simplesmente não via recomendação nenhuma.
     """
     from ..models import BacktestRecomendacao, Qualificador
 
     exercicio = exercicio_do_cenario(simulador)
+    recomendacoes = sorted(
+        BacktestRecomendacao.query.all(),
+        key=lambda r: (r.val_wmape is None,
+                       float(r.val_wmape) if r.val_wmape is not None else 0.0))
     saida = []
-    for rec in BacktestRecomendacao.query.order_by(BacktestRecomendacao.val_mape).all():
+    for rec in recomendacoes:
         modelo = (rec.cod_modelo or '').upper()
         if modelo not in MODELOS_DE_SERIE:
             continue
         q = Qualificador.query.get(rec.seq_qualificador)
+        if q is not None and exercicio is not None and q.num_ano_exercicio != exercicio:
+            q = Qualificador.query.filter_by(
+                cod_rubrica_raiz=q.cod_rubrica_raiz, num_ano_exercicio=exercicio,
+                ind_status='A').first() if q.cod_rubrica_raiz is not None else None
         if q is None or q.ind_status != 'A':
-            continue
-        if exercicio is not None and q.num_ano_exercicio != exercicio:
             continue
         perna = perna_do_qualificador(q)
         if perna not in pernas_do_metodo(MODELO, {'modelo': modelo}):
@@ -1366,7 +1458,7 @@ def recomendacoes_aplicaveis(simulador) -> list[dict]:
             'dsc_qualificador': q.dsc_qualificador,
             'modelo': modelo,
             'rotulo_modelo': ROTULO_MODELO[modelo],
-            'erro': float(rec.val_mape) if rec.val_mape is not None else None,
+            'erro': float(rec.val_wmape) if rec.val_wmape is not None else None,
         })
     return saida
 

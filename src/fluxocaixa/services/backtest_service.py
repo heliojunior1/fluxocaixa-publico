@@ -54,22 +54,43 @@ def _obter_dados_treino(seq_qualificador: int, ano_inicio: int, ano_fim: int):
     return serie
 
 
-def _obter_real(seq_qualificador: int, ano: int) -> dict[int, float]:
-    """Realizado do ano de teste em MAGNITUDE, os 12 meses (mês sem movimento
-    = 0.0). Vazio quando o ano não tem movimento nenhum."""
+def _ultimo_mes_encerrado(ano: int, hoje: date) -> int:
+    """Último mês ENCERRADO do ano na data de corte (R27): ano passado → 12;
+    ano corrente → mês anterior ao corte; ano futuro → 12 (só massa de teste,
+    mesmo caso da "janela inteira no futuro" do R18)."""
+    if ano == hoje.year:
+        return hoje.month - 1
+    return 12
+
+
+def _obter_real(seq_qualificador: int, ano: int, hoje: date) -> dict[int, float]:
+    """Realizado do ano de teste em MAGNITUDE, só dos meses ENCERRADOS na data
+    de corte (R27); mês encerrado sem movimento = 0.0. Vazio quando o ano não
+    tem movimento ou mês encerrado nenhum.
+
+    ⚠️ Antes preenchia os 12 meses: com o ano corrente como ano de teste, os
+    meses em curso e futuros entravam como realizado ZERO — previsão exata
+    nos meses observados saía com WMAPE e viés de 50%.
+    """
     from . import modelos_economicos_service as modelos
 
+    ultimo = _ultimo_mes_encerrado(ano, hoje)
+    if ultimo < 1:
+        return {}
     serie = modelos.obter_dados_historicos(
-        seq_qualificador, date(ano, 1, 1), date(ano, 12, 31))
+        seq_qualificador, date(ano, 1, 1), date(ano, 12, 31), hoje=hoje)
     if not len(serie):
         return {}
     por_mes = {d.month: abs(float(v)) for d, v in zip(serie['data'], serie['valor'])}
-    return {mes: por_mes.get(mes, 0.0) for mes in range(1, 13)}
+    return {mes: por_mes.get(mes, 0.0) for mes in range(1, ultimo + 1)}
 
 
-def _executar_modelo(modelo: str, dados_treino, ano_teste: int) -> dict[int, float] | None:
-    """Projeção mensal do ano de teste por um modelo do ano inteiro, ou None
-    quando o modelo não se aplica (série curta, lib ausente, falha)."""
+def _executar_modelo(modelo: str, dados_treino, ano_teste: int):
+    """`(projeção mensal do ano de teste, degradação)` de um modelo do ano
+    inteiro, ou `(None, None)` quando o modelo não se aplica (série curta, lib
+    ausente, falha). A degradação (fallback, sazonalidade removida, LightGBM
+    sem divisões) VIAJA no resultado: antes era descartada e um ARIMA de
+    fallback concorria rotulado SARIMA."""
     from . import modelos_economicos_service as modelos
 
     motor = {
@@ -81,17 +102,18 @@ def _executar_modelo(modelo: str, dados_treino, ano_teste: int) -> dict[int, flo
         'MEDIA_HISTORICA': modelos.projetar_media_historica,
     }[modelo]
     if len(dados_treino) < modelos.MINIMO_DE_MESES[modelo]:
-        return None
+        return None, None
     try:
         resultado = motor(dados_treino, 12, {}, ano_teste)
     except Exception as e:  # modelo inaplicável não derruba o backtest
         logger.warning("Backtest: %s falhou: %s", modelo, e)
-        return None
-    return {
+        return None, None
+    projecao = {
         (row['data'] if isinstance(row['data'], date) else row['data'].date()).month:
             float(row['valor_projetado'])
         for _, row in resultado.iterrows()
     }
+    return projecao, getattr(resultado, 'attrs', {}).get('degradacao')
 
 
 def _executar_intra_ano(seq_qualificador: int, ano_teste: int,
@@ -120,51 +142,91 @@ def _calcular_metricas(
     projecao: dict[int, float],
     real: dict[int, float],
 ) -> dict[str, float]:
-    """Calcula métricas de acurácia entre projeção e valores reais.
+    """Métricas de acurácia sobre TODOS os meses medidos (R28).
 
-    Returns:
-        Dict com 'mape', 'wmape', 'bias', 'mae'
+    WMAPE (Σ|erro| / Σ|real|), MAE e viés usam todos os meses — inclusive os
+    de realizado zero, onde errar custa dinheiro. O MAPE continua informativo,
+    só sobre meses de realizado não nulo. Realizado todo zero: WMAPE, viés e
+    MAPE indefinidos (`None`), MAE definido.
+
+    ⚠️ Antes os meses de realizado zero saíam de TODAS as métricas e o melhor
+    modelo era escolhido pelo MAPE: realizado `[100, 0]`, previsão
+    `[100, 1000]` vencia `[110, 0]` com erro monetário cem vezes maior.
     """
     meses_comuns = sorted(set(projecao.keys()) & set(real.keys()))
-
+    vazio = {'mape': None, 'wmape': None, 'bias': None, 'mae': None}
     if not meses_comuns:
-        return {'mape': None, 'wmape': None, 'bias': None, 'mae': None}
+        return vazio
 
-    proj_vals = np.array([projecao[m] for m in meses_comuns])
-    real_vals = np.array([real[m] for m in meses_comuns])
-
-    # Filtrar zeros nos reais (evitar divisão por zero no MAPE)
+    proj_vals = np.array([projecao[m] for m in meses_comuns], dtype=float)
+    real_vals = np.array([real[m] for m in meses_comuns], dtype=float)
+    erros = proj_vals - real_vals
+    volume = float(np.sum(np.abs(real_vals)))
     mask = real_vals != 0
-    if not mask.any():
-        return {'mape': None, 'wmape': None, 'bias': None, 'mae': None}
 
-    proj_nz = proj_vals[mask]
-    real_nz = real_vals[mask]
-
-    # MAPE: Mean Absolute Percentage Error
-    ape = np.abs(proj_nz - real_nz) / np.abs(real_nz) * 100
-    mape = float(np.mean(ape))
-
-    # WMAPE: Weighted MAPE (pondera por volume)
-    wmape = float(np.sum(np.abs(proj_vals - real_vals)) / np.sum(np.abs(real_vals)) * 100)
-
+    mape = (float(np.mean(np.abs(erros[mask]) / np.abs(real_vals[mask]) * 100))
+            if mask.any() else None)
+    wmape = float(np.sum(np.abs(erros)) / volume * 100) if volume else None
     # Viés: positivo = superestima
-    bias = float(np.mean(proj_vals - real_vals) / np.mean(np.abs(real_vals)) * 100)
+    bias = float(np.mean(erros) / np.mean(np.abs(real_vals)) * 100) if volume else None
+    mae = float(np.mean(np.abs(erros)))
 
-    # MAE: Mean Absolute Error (em R$)
-    mae = float(np.mean(np.abs(proj_vals - real_vals)))
+    def _r(valor):
+        return round(valor, 2) if valor is not None else None
 
     return {
         'meses_avaliados': [int(m) for m in meses_comuns],
-        'mape': round(mape, 2),
-        'wmape': round(wmape, 2),
-        'bias': round(bias, 2),
-        'mae': round(mae, 2),
+        'mape': _r(mape),
+        'wmape': _r(wmape),
+        'bias': _r(bias),
+        'mae': _r(mae),
     }
 
 
+def _escolher_melhor(candidatos: dict[str, dict]) -> str | None:
+    """Melhor modelo (R28): menor WMAPE; sem WMAPE (realizado todo zero),
+    menor MAE. Só concorrem candidatos SEM degradação e com a MAIOR cobertura
+    de anos entre eles — média de erros sobre anos diferentes não é
+    comparável, e um modelo que degradou não foi o modelo medido.
+
+    `candidatos`: {código: {'wmape', 'mae', 'anos_medidos', 'degradacoes'}}.
+    """
+    elegiveis = {cod: c for cod, c in candidatos.items()
+                 if not c.get('degradacoes')
+                 and (c.get('wmape') is not None or c.get('mae') is not None)}
+    if not elegiveis:
+        return None
+    cobertura = max(c.get('anos_medidos', 1) for c in elegiveis.values())
+    elegiveis = {cod: c for cod, c in elegiveis.items()
+                 if c.get('anos_medidos', 1) == cobertura}
+
+    def _chave(cod):
+        c = elegiveis[cod]
+        wmape = c.get('wmape')
+        mae = c.get('mae')
+        return (wmape is None, wmape if wmape is not None else 0.0,
+                mae if mae is not None else float('inf'))
+
+    return min(elegiveis, key=_chave)
+
+
+def _metricas_da_soma(pares: list[tuple[dict, dict]]) -> dict:
+    """Métricas da série SOMADA (R28): `pares` = [(projeção, realizado)] por
+    folha, mês → valor. O erro de um pai é o erro do seu total mensal — a
+    média das métricas das folhas dá o mesmo peso a rubrica de R$ 100 e de
+    R$ 1 milhão e não mede o agregado."""
+    projecao: dict[int, float] = {}
+    real: dict[int, float] = {}
+    for proj, rea in pares:
+        for mes in set(proj) & set(rea):
+            projecao[mes] = projecao.get(mes, 0.0) + float(proj[mes])
+            real[mes] = real.get(mes, 0.0) + float(rea[mes])
+    return _calcular_metricas(projecao, real)
+
+
 def _determinar_semaforo(mape: float | None) -> str:
-    """Determina o semáforo de acurácia.
+    """Determina o semáforo de acurácia pelo erro do critério de seleção
+    (WMAPE desde o R28).
 
     Returns:
         'verde' (≤5%), 'amarelo' (5-15%), 'vermelho' (>15%), 'cinza' (sem dados)
@@ -246,8 +308,12 @@ def executar_backtest(
     modelos: list[str],
     qualificadores_ids: list[int] | None = None,
     mes_referencia: int = MES_REFERENCIA_PADRAO,
+    hoje: date | None = None,
 ) -> dict:
-    """Backtest por folha (previsao R16).
+    """Backtest por folha (previsao R16, R27, R28).
+
+    `hoje` é a DATA DE CORTE (injetável; default o relógio): só meses
+    encerrados nela são medidos, e ela volta no resultado (`data_corte`).
 
     Origem móvel: cada ano de teste T é previsto com a série CONTÍGUA de
     `min(anos_treino)` até T−1 — antes a mesma projeção (treinada até o último
@@ -264,6 +330,7 @@ def executar_backtest(
     if not 1 <= int(mes_referencia) <= 11:
         raise ValueError('O mês de referência da reprojeção intra-ano deve estar entre 1 e 11')
 
+    hoje = hoje or date.today()
     hierarquia = _obter_hierarquia_qualificadores()
 
     filhos_validos = []
@@ -303,27 +370,34 @@ def executar_backtest(
             'modelos': {},
             'intra_ano': {},
         }
-        reais = {ano: _obter_real(seq_q, ano) for ano in anos_teste}
+        reais = {ano: _obter_real(seq_q, ano, hoje) for ano in anos_teste}
         treinos = {ano: _obter_dados_treino(seq_q, inicio_treino, ano - 1)
                    for ano in anos_teste}
 
         for modelo in modelos_validos:
             metricas_por_ano = []
+            degradacoes = []
             for ano_teste in anos_teste:
                 if not reais[ano_teste]:
                     continue
-                projecao = _executar_modelo(modelo, treinos[ano_teste], ano_teste)
+                projecao, degradacao = _executar_modelo(
+                    modelo, treinos[ano_teste], ano_teste)
                 if projecao is None:
                     continue
                 metricas = _calcular_metricas(projecao, reais[ano_teste])
                 metricas['ano_teste'] = ano_teste
                 metricas['projecao'] = {str(k): v for k, v in projecao.items()}
                 metricas['real'] = {str(k): v for k, v in reais[ano_teste].items()}
+                metricas['degradacao'] = degradacao
+                if degradacao:
+                    degradacoes.append(f"{ano_teste}: {degradacao}")
                 metricas_por_ano.append(metricas)
             if metricas_por_ano:
                 resultado_qualificador['modelos'][modelo] = {
                     'nome': MODELOS_DISPONIVEIS[modelo]['nome'],
                     **_medias(metricas_por_ano),
+                    'anos_medidos': len(metricas_por_ano),
+                    'degradacoes': degradacoes,
                     'detalhes_por_ano': metricas_por_ano,
                 }
 
@@ -349,25 +423,15 @@ def executar_backtest(
                     'detalhes_por_ano': metricas_por_ano,
                 }
 
-        # Melhor modelo (menor MAPE) — só entre os que preveem o ano inteiro
-        melhor = None
-        melhor_mape = float('inf')
-        for cod_modelo, dados_modelo in resultado_qualificador['modelos'].items():
-            if dados_modelo['mape'] is not None and dados_modelo['mape'] < melhor_mape:
-                melhor_mape = dados_modelo['mape']
-                melhor = cod_modelo
-
-        resultado_qualificador['melhor_modelo'] = melhor
-        resultado_qualificador['melhor_mape'] = melhor_mape if melhor else None
-        resultado_qualificador['semaforo'] = _determinar_semaforo(
-            melhor_mape if melhor else None
-        )
+        # Melhor modelo (R28) — só entre os que preveem o ano inteiro
+        _definir_melhor(resultado_qualificador)
         resultados_filho.append(resultado_qualificador)
 
     resultados_pai = _agregar_pais(resultados_filho, hierarquia, modelos_validos)
     ranking_geral = _rankear_modelos(resultados_filho, modelos_validos)
 
     return {
+        'data_corte': hoje.isoformat(),
         'resultados_filho': resultados_filho,
         'resultados_pai': resultados_pai,
         'ranking_geral': ranking_geral,
@@ -385,12 +449,32 @@ def executar_backtest(
     }
 
 
+def _definir_melhor(resultado: dict) -> None:
+    """Grava melhor modelo, erro e semáforo de uma folha ou pai (R28)."""
+    melhor = _escolher_melhor(resultado['modelos'])
+    dados = resultado['modelos'].get(melhor, {}) if melhor else {}
+    resultado['melhor_modelo'] = melhor
+    resultado['melhor_wmape'] = dados.get('wmape')
+    resultado['melhor_mape'] = dados.get('mape')
+    resultado['semaforo'] = _determinar_semaforo(dados.get('wmape'))
+
+
+def _por_mes(mapa: dict) -> dict[int, float]:
+    return {int(mes): float(valor) for mes, valor in (mapa or {}).items()}
+
+
 def _agregar_pais(
     resultados_filho: list[dict],
     hierarquia: dict,
     modelos_validos: list[str],
 ) -> list[dict]:
-    """Agrega resultados dos filhos para calcular métricas dos pais."""
+    """Métricas do pai sobre a série SOMADA das folhas (R28).
+
+    Por modelo e ano de teste, soma mês a mês o previsto e o realizado das
+    folhas — só quando TODAS as folhas com resultado têm aquele modelo naquele
+    ano (senão o total seria parcial). Antes era a média das métricas das
+    folhas, que não mede o erro do total financeiro do pai.
+    """
     resultados_pai = []
 
     for pai_seq, pai_data in hierarquia.items():
@@ -415,46 +499,31 @@ def _agregar_pais(
         }
 
         for modelo in modelos_validos:
-            mapes = []
-            wmapes = []
-            maes = []
-            biases = []
-
+            detalhes_por_folha = []
             for filho_r in filhos_com_resultado:
-                if modelo in filho_r['modelos']:
-                    m_data = filho_r['modelos'][modelo]
-                    if m_data['mape'] is not None:
-                        mapes.append(m_data['mape'])
-                    if m_data['wmape'] is not None:
-                        wmapes.append(m_data['wmape'])
-                    if m_data['mae'] is not None:
-                        maes.append(m_data['mae'])
-                    if m_data['bias'] is not None:
-                        biases.append(m_data['bias'])
-
-            if mapes:
+                dados = filho_r['modelos'].get(modelo)
+                detalhes_por_folha.append(
+                    {d['ano_teste']: d for d in dados['detalhes_por_ano']} if dados else {})
+            anos = set.intersection(*(set(d) for d in detalhes_por_folha))
+            metricas_por_ano = []
+            degradacoes = []
+            for ano in sorted(anos):
+                pares = [(_por_mes(d[ano]['projecao']), _por_mes(d[ano]['real']))
+                         for d in detalhes_por_folha]
+                metricas = _metricas_da_soma(pares)
+                metricas['ano_teste'] = ano
+                metricas_por_ano.append(metricas)
+                degradacoes += [f"{ano}: {d[ano]['degradacao']}"
+                                for d in detalhes_por_folha if d[ano].get('degradacao')]
+            if metricas_por_ano:
                 resultado_pai['modelos'][modelo] = {
                     'nome': MODELOS_DISPONIVEIS[modelo]['nome'],
-                    'mape': round(np.mean(mapes), 2),
-                    'wmape': round(np.mean(wmapes), 2) if wmapes else None,
-                    'bias': round(np.mean(biases), 2) if biases else None,
-                    'mae': round(np.mean(maes), 2) if maes else None,
+                    **_medias(metricas_por_ano),
+                    'anos_medidos': len(metricas_por_ano),
+                    'degradacoes': degradacoes,
                 }
 
-        # Melhor modelo do pai
-        melhor = None
-        melhor_mape = float('inf')
-        for cod_modelo, dados_modelo in resultado_pai['modelos'].items():
-            if dados_modelo['mape'] is not None and dados_modelo['mape'] < melhor_mape:
-                melhor_mape = dados_modelo['mape']
-                melhor = cod_modelo
-
-        resultado_pai['melhor_modelo'] = melhor
-        resultado_pai['melhor_mape'] = melhor_mape if melhor else None
-        resultado_pai['semaforo'] = _determinar_semaforo(
-            melhor_mape if melhor else None
-        )
-
+        _definir_melhor(resultado_pai)
         resultados_pai.append(resultado_pai)
 
     return resultados_pai
@@ -464,32 +533,33 @@ def _rankear_modelos(
     resultados_filho: list[dict],
     modelos_validos: list[str],
 ) -> dict:
-    """Gera ranking geral: melhor modelo globalmente."""
+    """Ranking geral pelo WMAPE AGREGADO por volume (R28): Σ|erro| / Σ|real|
+    sobre folhas × anos. A média simples dos WMAPEs dava a uma rubrica de
+    R$ 100 o mesmo peso de uma de R$ 1 milhão."""
     ranking = []
 
     for modelo in modelos_validos:
-        wmapes = []
-        vitorias = 0
+        erro = volume = 0.0
+        vitorias = testados = 0
 
         for filho_r in resultados_filho:
-            if modelo in filho_r['modelos']:
-                m_data = filho_r['modelos'][modelo]
-                if m_data['wmape'] is not None:
-                    wmapes.append(m_data['wmape'])
-
-            # Contar vitórias
+            dados = filho_r['modelos'].get(modelo)
+            if dados:
+                testados += 1
+                for detalhe in dados['detalhes_por_ano']:
+                    proj, real = _por_mes(detalhe['projecao']), _por_mes(detalhe['real'])
+                    for mes in set(proj) & set(real):
+                        erro += abs(proj[mes] - real[mes])
+                        volume += abs(real[mes])
             if filho_r.get('melhor_modelo') == modelo:
                 vitorias += 1
 
         ranking.append({
             'modelo': modelo,
             'nome': MODELOS_DISPONIVEIS[modelo]['nome'],
-            'wmape_medio': round(np.mean(wmapes), 2) if wmapes else None,
+            'wmape_medio': round(erro / volume * 100, 2) if volume else None,
             'qualificadores_vencidos': vitorias,
-            'total_testados': len([
-                r for r in resultados_filho
-                if modelo in r['modelos'] and r['modelos'][modelo]['mape'] is not None
-            ]),
+            'total_testados': testados,
         })
 
     # Ordenar por WMAPE (menor = melhor)

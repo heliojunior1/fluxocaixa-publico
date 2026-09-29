@@ -313,6 +313,9 @@ def create_qualificador(num_qualificador: str, dsc_qualificador: str,
     # estar em uso por ativo do mesmo exercício.
     if cod_rubrica_raiz is not None:
         _validar_raiz_herdada(cod_rubrica_raiz, num_ano_exercicio)
+        _validar_natureza_da_raiz(
+            cod_rubrica_raiz, _natureza_nova(num_qualificador, cod_qualificador_pai),
+            num_qualificador)
     _confirmar_folha_vira_pai(cod_qualificador_pai, confirmado)
     qualificador = Qualificador(
         num_qualificador=num_qualificador,
@@ -335,6 +338,60 @@ def _autor() -> int:
     from ..auth.contexto import cod_pessoa_atual
 
     return cod_pessoa_atual()
+
+
+def _natureza_nova(num_qualificador: str, cod_qualificador_pai: int | None) -> str:
+    """Natureza (receita/despesa) que o nó TERÁ: a da árvore do pai, ou a do
+    próprio código quando for raiz de árvore — a mesma regra de
+    `Qualificador.tipo_fluxo` (prefixo `1`/`2` da raiz da árvore)."""
+    if cod_qualificador_pai is not None:
+        pai = qualificador_repository.get_qualificador_by_id(cod_qualificador_pai)
+        if pai is not None:
+            return pai.tipo_fluxo
+    if num_qualificador.startswith('1'):
+        return 'receita'
+    if num_qualificador.startswith('2'):
+        return 'despesa'
+    return 'indefinido'
+
+
+def _validar_natureza_da_raiz(cod_rubrica_raiz: int, natureza: str, rotulo: str,
+                              excluir: set[int] | None = None) -> None:
+    """A identidade estável não atravessa naturezas (R30, auditoria A9).
+
+    A série por raiz soma TODAS as linhas da raiz: uma despesa herdando a raiz
+    de uma receita unia as duas naturezas na mesma série — e a conversão para
+    magnitude escondia o erro. Mudança de natureza pede raiz nova.
+    """
+    if natureza == 'indefinido':
+        return
+    for linha in Qualificador.query.filter_by(cod_rubrica_raiz=cod_rubrica_raiz).all():
+        if excluir and linha.seq_qualificador in excluir:
+            continue
+        outra = linha.tipo_fluxo
+        if outra != 'indefinido' and outra != natureza:
+            raise RegraNegocioError(
+                f"Natureza incompatível: {rotulo} seria de {natureza}, mas a "
+                f"rubrica de mesma raiz {linha.num_qualificador} "
+                f"({linha.num_ano_exercicio}) é de {outra} — a série histórica "
+                "misturaria receita e despesa; use uma raiz nova"
+            )
+
+
+def _validar_natureza_na_mudanca(qualificador, num_qualificador: str,
+                                 cod_qualificador_pai: int | None) -> None:
+    """Reapontar para árvore de outra natureza não pode deixar o nó (nem um
+    descendente) com natureza diferente das linhas de mesma raiz nos outros
+    exercícios (R30)."""
+    natureza = _natureza_nova(num_qualificador, cod_qualificador_pai)
+    if natureza == qualificador.tipo_fluxo:
+        return
+    movidos = [qualificador, *qualificador.get_todos_filhos()]
+    excluir = {q.seq_qualificador for q in movidos}
+    for q in movidos:
+        if q.cod_rubrica_raiz is not None:
+            _validar_natureza_da_raiz(q.cod_rubrica_raiz, natureza,
+                                      q.num_qualificador, excluir)
 
 
 def _validar_raiz_herdada(cod_rubrica_raiz: int, num_ano_exercicio: int) -> None:
@@ -401,10 +458,21 @@ def abrir_exercicio(ano_origem: int, ano_novo: int,
     recusado (A.5 — abertura, não sincronização: uma "segunda cópia"
     sobrescreveria meses de edição do ciclo do PLOA).
 
+    ⚠️ O que a PREVISÃO prende ao `seq` acompanha a cópia (R29 + previsao
+    R21): setor PRÓPRIO (como a categoria), fórmula ativa da biblioteca por
+    valor, e a configuração dos cenários cujo plano resolvido passa a ser o
+    ano aberto é re-apontada pela raiz. Sem isso a abertura desligava a
+    previsão em silêncio — fórmula virava lacuna, setor sumia, marcações
+    ficavam no plano antigo e o cenário perdia o método por qualificador.
+
     Transação ÚNICA: falha no meio não deixa exercício pela metade (padrão
     `confirmar_lote` da F7.2). Devolve o número de qualificadores criados.
     """
     from ..models import db
+    from .metodo_qualificador_service import (
+        planos_dos_cenarios,
+        reapontar_cenarios_para_exercicio,
+    )
 
     origem = Qualificador.query.filter_by(
         num_ano_exercicio=ano_origem, ind_status='A'
@@ -427,6 +495,9 @@ def abrir_exercicio(ano_origem: int, ano_novo: int,
         )
 
     autor = _autor()
+    # Fotografia ANTES da cópia: depois dela o plano resolvido já é o novo e
+    # não haveria como saber quais cenários mudaram de plano
+    planos_antes = planos_dos_cenarios()
     try:
         # Passada 1: cria as linhas SEM pai, montando o mapa origem → espelho.
         # O remapeamento por mapa (e não por código) resiste a dado legado cujo
@@ -439,6 +510,8 @@ def abrir_exercicio(ano_origem: int, ano_novo: int,
                 cod_categoria_fiscal=q.cod_categoria_fiscal,
                 num_ano_exercicio=ano_novo,
                 cod_rubrica_raiz=q.cod_rubrica_raiz,
+                # setor PRÓPRIO, nunca o resolvido (mesma regra da categoria)
+                seq_setor_previsao=q.seq_setor_previsao,
                 cod_pessoa_inclusao=autor,
                 ind_status='A',
             )
@@ -454,11 +527,38 @@ def abrir_exercicio(ano_origem: int, ano_novo: int,
                 if espelho_pai is not None:
                     espelhos[q.seq_qualificador].cod_qualificador_pai = (
                         espelho_pai.seq_qualificador)
+
+        _copiar_formulas_da_biblioteca(espelhos)
+        db.session.flush()
+        reapontar_cenarios_para_exercicio(ano_novo, planos_antes)
         db.session.commit()
     except Exception:
         db.session.rollback()
         raise
     return len(espelhos)
+
+
+def _copiar_formulas_da_biblioteca(espelhos: dict) -> None:
+    """Fórmula ATIVA da biblioteca de cada qualificador copiado vai por VALOR
+    para o espelho (R29). Por valor, não por raiz na leitura: editar a fórmula
+    do ano novo no ciclo do PLOA não pode alterar o que o ano antigo projeta.
+    Sem commit — roda dentro da transação da abertura."""
+    from ..models import RubricaFormula, db
+
+    formulas = RubricaFormula.query.filter(
+        RubricaFormula.seq_qualificador.in_(list(espelhos)),
+        RubricaFormula.ind_status == 'A',
+    ).all()
+    for formula in formulas:
+        db.session.add(RubricaFormula(
+            seq_qualificador=espelhos[formula.seq_qualificador].seq_qualificador,
+            nom_formula=formula.nom_formula,
+            dsc_formula_expressao=formula.dsc_formula_expressao,
+            cod_metodo_base=formula.cod_metodo_base,
+            json_config_base=formula.json_config_base,
+            ind_status='A',
+        ))
+
 
 def update_qualificador(seq_qualificador: int, num_qualificador: str,
                         dsc_qualificador: str, cod_qualificador_pai: int = None,
@@ -483,6 +583,7 @@ def update_qualificador(seq_qualificador: int, num_qualificador: str,
     cascata = _planejar_cascata(qualificador, num_qualificador)
     _confirmar_cascata(cascata, confirmado)
     _validar_cascata(cascata, seq_qualificador, num_qualificador)
+    _validar_natureza_na_mudanca(qualificador, num_qualificador, cod_qualificador_pai)
     # `seq_movido` fora da contagem: se o nó JÁ era filho deste pai, ele não
     # está transformando folha em pai — está só sendo editado no lugar.
     if cod_qualificador_pai != qualificador.cod_qualificador_pai:

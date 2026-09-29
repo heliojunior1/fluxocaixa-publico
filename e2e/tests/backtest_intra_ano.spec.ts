@@ -33,6 +33,9 @@ test.describe('Backtest — reprojeção intra-ano fora do ranking', () => {
     await expect(intra).toContainText('Folha backtest E2E');
     await expect(intra).toContainText('7–12');
 
+    // R27: a tela declara a data de corte — só meses encerrados são medidos
+    await expect(page.getByTestId('backtest-data-corte')).toContainText(/\d{4}-\d{2}-\d{2}/);
+
     const ranking = page.locator('#ranking-tabela');
     await expect(ranking).toContainText('Média Histórica');
     await expect(ranking).not.toContainText('Crescimento');

@@ -81,6 +81,23 @@ MINIMO_DE_MESES = {
     'MEDIA_HISTORICA': 1,
 }
 
+# Janela de treino (anos antes do ano-base) por modelo — ORIGEM ÚNICA das três
+# portas (rota avulsa, cenário por perna, método por qualificador). A perna
+# usava 3 anos para todo modelo e o SARIMA divergia das outras portas (4).
+JANELA_EM_ANOS = {
+    'HOLT_WINTERS': 3,
+    'ARIMA': 3,
+    'SARIMA': 4,
+    'XGBOOST': 3,
+    'LIGHTGBM': 3,
+    'MEDIA_HISTORICA': 3,
+}
+
+
+def janela_do_modelo(modelo: str) -> int:
+    """Anos de treino do modelo (default 3 para quem não está na tabela)."""
+    return JANELA_EM_ANOS.get(modelo, 3)
+
 
 # ==================== Helper Functions ====================
 
@@ -530,12 +547,15 @@ def projetar_regressao_multipla(
 
 
 def _projetar_ml(chave: str, nome: str, fabricar, dados_historicos: pd.DataFrame,
-                 num_periodos: int, ano_base: int | None) -> pd.DataFrame:
+                 num_periodos: int, ano_base: int | None,
+                 diagnosticar=None) -> pd.DataFrame:
     """Treino + previsão recursiva comuns a XGBoost e LightGBM (R19).
 
     Atributos pela origem única `feature_engineering.atributos_do_mes`: o
     treino nunca vê o próprio alvo e a defasagem k do mês previsto é o valor
-    (observado ou previsto) de k meses antes dele.
+    (observado ou previsto) de k meses antes dele. `fabricar(n_treino)` recebe
+    o número de linhas de treino (complexidade proporcional à amostra — R25);
+    `diagnosticar(modelo)` devolve um aviso de degradação ou `None`.
     """
     from .feature_engineering import atributos_do_mes, get_feature_columns, montar_treino
     from .validacao import RegraNegocioError
@@ -548,8 +568,13 @@ def _projetar_ml(chave: str, nome: str, fabricar, dados_historicos: pd.DataFrame
             f"(12 defasagens + 2 meses de treino); encontrados {n}")
 
     X_train, y_train = montar_treino(dados_historicos)
-    model = fabricar()
+    model = fabricar(len(y_train))
     model.fit(X_train, y_train)
+    avisos = []
+    aviso = diagnosticar(model) if diagnosticar else None
+    if aviso:
+        logger.warning("%s", aviso)
+        avisos.append(aviso)
 
     serie = dados_historicos.sort_values('data')
     ultima = pd.Timestamp(pd.to_datetime(serie['data']).max())
@@ -564,7 +589,7 @@ def _projetar_ml(chave: str, nome: str, fabricar, dados_historicos: pd.DataFrame
         X_pred = pd.DataFrame([linha])[colunas].replace([np.inf, -np.inf], 0).fillna(0)
         previstos.append(max(float(model.predict(X_pred)[0]), 0.0))
 
-    return _resultado(datas, previstos[descarte:], [])
+    return _resultado(datas, previstos[descarte:], avisos)
 
 
 def projetar_xgboost(
@@ -580,7 +605,7 @@ def projetar_xgboost(
     if not HAS_XGBOOST:
         raise ValueError("Biblioteca xgboost não está instalada. Execute: pip install xgboost")
 
-    def _fabricar():
+    def _fabricar(_n_treino):
         return XGBRegressor(
             n_estimators=int(config.get('n_estimators', 100)),
             max_depth=int(config.get('max_depth', 6)),
@@ -602,23 +627,39 @@ def projetar_lightgbm(
     """LightGBM com previsão recursiva mês a mês.
 
     config: n_estimators (100), max_depth (-1), learning_rate (0.1),
-    num_leaves (31).
+    num_leaves (31), min_child_samples (default proporcional à amostra).
+
+    ⚠️ Mínimo por folha proporcional às linhas de treino (R25): com o default
+    da biblioteca (20) e a janela de 3 anos (24 linhas), nenhuma divisão era
+    possível — o modelo era uma árvore de UMA folha e previa a média do treino
+    em todos os meses (medido: 217,50 constante numa série com tendência e
+    sazonalidade). `max(3, n // 5)` levou o WMAPE da sonda de ~28% para ~12%;
+    modelo que ainda assim não divide declara a degradação.
     """
     if not HAS_LIGHTGBM:
         raise ValueError("Biblioteca lightgbm não está instalada. Execute: pip install lightgbm")
 
-    def _fabricar():
+    def _fabricar(n_treino):
         return LGBMRegressor(
             n_estimators=int(config.get('n_estimators', 100)),
             max_depth=int(config.get('max_depth', -1)),
             learning_rate=float(config.get('learning_rate', 0.1)),
             num_leaves=int(config.get('num_leaves', 31)),
+            min_child_samples=int(config.get('min_child_samples',
+                                             max(3, n_treino // 5))),
             random_state=42,
             verbosity=-1,
         )
 
+    def _sem_divisoes(modelo):
+        arvores = modelo.booster_.dump_model().get('tree_info', [])
+        if all(arvore.get('num_leaves', 1) <= 1 for arvore in arvores):
+            return ("LightGBM sem divisões (amostra pequena demais para o mínimo "
+                    "por folha): a previsão é a média do treino")
+        return None
+
     return _projetar_ml('LIGHTGBM', 'LightGBM', _fabricar, dados_historicos,
-                        num_periodos, ano_base)
+                        num_periodos, ano_base, diagnosticar=_sem_divisoes)
 
 
 # ==================== Expense Forecast Models ====================
@@ -685,13 +726,18 @@ def projetar_media_historica(
 ) -> pd.DataFrame:
     """Média histórica, com ou sem perfil por mês do ano.
 
-    config: periodo_meses (12), fator_ajuste (1.0),
-    considerar_sazonalidade (True). Datas pelo horizonte ancorado (R18).
+    config: periodo_meses (sem valor = a janela de treino inteira),
+    fator_ajuste (1.0), considerar_sazonalidade (True). Datas pelo horizonte
+    ancorado (R18).
     """
+    # Período-base INFORMADO recorta nível e sazonalidade (R24 — a tela sempre
+    # envia, default 12). Sem ele (backtest, marcação sem parâmetro) vale a
+    # janela de treino inteira: a média de vários anos que esses chamadores
+    # sempre usaram — o default 12 só afetava o nível sem sazonalidade.
     try:
-        periodo_meses = int(config.get('periodo_meses', 12) or 12)
+        periodo_meses = int(config.get('periodo_meses') or len(dados_historicos) or 12)
     except (ValueError, TypeError):
-        periodo_meses = 12
+        periodo_meses = len(dados_historicos) or 12
 
     try:
         fator_ajuste = float(config.get('fator_ajuste', 1.0) or 1.0)
@@ -704,14 +750,18 @@ def projetar_media_historica(
         raise ValueError("Não há dados históricos disponíveis")
 
     df = dados_historicos.sort_values('data').copy()
-    df_recente = df.tail(periodo_meses)
+    df_recente = df.tail(periodo_meses).copy()
     _, _, datas = _horizonte(df, ano_base, num_periodos)
 
-    if considerar_sazonalidade and len(df) >= 12:
+    # ⚠️ O período-base vale para a sazonalidade também (R24): a média por mês
+    # do ano era calculada sobre a série INTEIRA e `periodo_meses` só afetava o
+    # nível sem sazonalidade — 24 meses de 100 + 12 de 300 com período-base 12
+    # projetavam 166,67. Janela menor que 12 meses não tem sazonalidade.
+    if considerar_sazonalidade and len(df_recente) >= 12:
         # Média por mês do ano (sazonalidade) — série regular: mês sem
         # movimento entra como zero na média (R18)
-        df['mes'] = pd.to_datetime(df['data']).dt.month
-        media_por_mes = df.groupby('mes')['valor'].mean().to_dict()
+        df_recente['mes'] = pd.to_datetime(df_recente['data']).dt.month
+        media_por_mes = df_recente.groupby('mes')['valor'].mean().to_dict()
         media_recente = df_recente['valor'].mean()
         projecoes = [media_por_mes.get(d.month, media_recente) * fator_ajuste
                      for d in datas]
@@ -750,11 +800,21 @@ def obter_dados_historicos_agregados(
 def obter_serie_do_ano_base(seq_qualificadores: list[int], ano_base: int,
                             janela_anos: int, hoje: date | None = None) -> pd.DataFrame:
     """ORIGEM ÚNICA da série de treino das três portas (rota avulsa, cenário
-    por perna, método por qualificador): janela de 1º de janeiro (R18) e
-    série regular costurada pela raiz."""
+    por perna, método por qualificador): janela de 1º de janeiro (R18),
+    série regular costurada pela raiz e em MAGNITUDE (R20).
+
+    ⚠️ A magnitude é daqui, não das portas: os motores assumem série positiva
+    (piso de não-negatividade em `_resultado`) e cada porta aplicava o próprio
+    `abs()` — a rota avulsa não aplicava e projetava despesa ZERO. O valor do
+    mês é o absoluto da SOMA com sinal (estorno reduz o mês).
+    """
     inicio, fim = janela_do_ano_base(ano_base, janela_anos)
-    return obter_dados_historicos_agregados(
+    serie = obter_dados_historicos_agregados(
         list(seq_qualificadores), inicio, fim, 'mensal', hoje)
+    if len(serie):
+        serie = serie.copy()
+        serie['valor'] = serie['valor'].abs()
+    return serie
 
 
 def obter_dados_historicos_por_qualificador(
@@ -793,18 +853,18 @@ def calcular_projecao(tipo_modelo: str, seq_qualificadores: list[int],
 
     config = config or {}
 
-    # modelo -> (janela em anos, motor); mínimo em MINIMO_DE_MESES
+    # modelo -> motor; janela em JANELA_EM_ANOS, mínimo em MINIMO_DE_MESES
     tabela = {
-        'HOLT_WINTERS': (3, projetar_holt_winters),
-        'ARIMA': (3, projetar_arima),
-        'SARIMA': (4, projetar_sarima),
-        'MEDIA_HISTORICA': (3, projetar_media_historica),
-        'XGBOOST': (3, projetar_xgboost),
-        'LIGHTGBM': (3, projetar_lightgbm),
+        'HOLT_WINTERS': projetar_holt_winters,
+        'ARIMA': projetar_arima,
+        'SARIMA': projetar_sarima,
+        'MEDIA_HISTORICA': projetar_media_historica,
+        'XGBOOST': projetar_xgboost,
+        'LIGHTGBM': projetar_lightgbm,
     }
 
     if tipo_modelo in tabela:
-        janela, motor = tabela[tipo_modelo]
+        janela, motor = JANELA_EM_ANOS[tipo_modelo], tabela[tipo_modelo]
         minimo = MINIMO_DE_MESES[tipo_modelo]
         dados_hist = obter_serie_do_ano_base(seq_qualificadores, ano_base, janela)
         if len(dados_hist) < minimo:

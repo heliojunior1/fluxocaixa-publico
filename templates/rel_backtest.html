@@ -141,6 +141,10 @@
                     </button>
                 </div>
             </div>
+            <p class="text-xs text-slate-400 mb-3" data-testid="backtest-data-corte">
+                Critério: WMAPE sobre todos os meses medidos (MAE quando o realizado é todo zero), entre modelos com a mesma cobertura de anos e sem degradação.
+                Só meses encerrados até <span id="data-corte-valor" class="font-mono"></span> são medidos.
+            </p>
             <div id="ranking-tabela"></div>
         </div>
 
@@ -252,6 +256,8 @@ async function executarBacktest() {
 
 // ==================== RENDERIZAR RESULTADOS ====================
 function renderResultados(data) {
+    const corte = document.getElementById('data-corte-valor');
+    if (corte) corte.textContent = data.data_corte || '-';
     renderRanking(data.ranking_geral);
     renderIntraAno(data);
     renderGrupos(data);
@@ -300,7 +306,7 @@ function renderRanking(ranking) {
             <tr class="border-b border-slate-200">
                 <th class="text-left py-2 px-3 text-slate-500 font-medium">#</th>
                 <th class="text-left py-2 px-3 text-slate-500 font-medium">Modelo</th>
-                <th class="text-right py-2 px-3 text-slate-500 font-medium">WMAPE Médio</th>
+                <th class="text-right py-2 px-3 text-slate-500 font-medium">WMAPE agregado</th>
                 <th class="text-right py-2 px-3 text-slate-500 font-medium">Qualif. Vencidos</th>
                 <th class="text-right py-2 px-3 text-slate-500 font-medium">Total Testados</th>
             </tr>
@@ -377,10 +383,11 @@ function renderGrupos(data) {
 
             for (const m of modelos) {
                 const mData = filho.modelos[m.codigo];
-                if (mData && mData.mape !== null) {
+                if (mData && mData.wmape !== null) {
                     const isMelhor = filho.melhor_modelo === m.codigo;
                     const cls = isMelhor ? 'font-bold text-emerald-700' : 'text-slate-600';
-                    html += `<td class="py-2 px-3 text-center font-mono text-xs ${cls}">${mData.mape.toFixed(1)}%</td>`;
+                    const aviso = (mData.degradacoes || []).length ? ' title="Degradado: ' + escHtml(mData.degradacoes.join('; ')) + '"' : '';
+                    html += `<td class="py-2 px-3 text-center font-mono text-xs ${cls}"${aviso}>${mData.wmape.toFixed(1)}%${aviso ? ' ⚠' : ''}</td>`;
                 } else {
                     html += `<td class="py-2 px-3 text-center text-slate-300">-</td>`;
                 }
@@ -393,13 +400,13 @@ function renderGrupos(data) {
 
         // Linha do pai (total)
         html += `<tr class="bg-slate-50 font-semibold">
-            <td class="py-2 px-3 text-slate-700">${escHtml(pai.dsc_qualificador)} (média)</td>`;
+            <td class="py-2 px-3 text-slate-700">${escHtml(pai.dsc_qualificador)} (agregado)</td>`;
         for (const m of modelos) {
             const mData = pai.modelos[m.codigo];
-            if (mData && mData.mape !== null) {
+            if (mData && mData.wmape !== null) {
                 const isMelhor = pai.melhor_modelo === m.codigo;
                 const cls = isMelhor ? 'font-bold text-emerald-700' : 'text-slate-600';
-                html += `<td class="py-2 px-3 text-center font-mono text-xs ${cls}">${mData.mape.toFixed(1)}%</td>`;
+                html += `<td class="py-2 px-3 text-center font-mono text-xs ${cls}">${mData.wmape.toFixed(1)}%</td>`;
             } else {
                 html += `<td class="py-2 px-3 text-center text-slate-300">-</td>`;
             }
@@ -545,13 +552,13 @@ function exportarCSV() {
     if (!backtestResultado) return;
 
     const modelos = backtestResultado.modelos_testados;
-    let csv = 'Qualificador,' + modelos.map(m => `MAPE ${escHtml(m.nome)}`).join(',') + ',Melhor Modelo\n';
+    let csv = 'Qualificador,' + modelos.map(m => `WMAPE ${escHtml(m.nome)}`).join(',') + ',Melhor Modelo\n';
 
     for (const f of backtestResultado.resultados_filho) {
         let row = `"${escHtml(f.dsc_qualificador)}"`;
         for (const m of modelos) {
             const mData = f.modelos[m.codigo];
-            row += `,${mData?.mape !== null && mData?.mape !== undefined ? mData.mape.toFixed(2) : ''}`;
+            row += `,${mData?.wmape !== null && mData?.wmape !== undefined ? mData.wmape.toFixed(2) : ''}`;
         }
         const melhorNome = modelos.find(m => m.codigo === f.melhor_modelo)?.nome || '';
         row += `,"${escHtml(melhorNome)}"`;

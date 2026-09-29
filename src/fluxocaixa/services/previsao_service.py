@@ -35,22 +35,24 @@ def get_previsao_realizado_data(
     anos_base = {a - 1 for a in anos_range}
     anos_needed = set(anos_range) | anos_base
     
+    # ⚠️ Costura pela RAIZ (R29): a base do ano anterior e o realizado de
+    # anos passados vivem nos IDs dos exercícios anteriores. Consultar os IDs
+    # selecionados crus devolvia ZERO para a rubrica do plano novo; os IDs
+    # expandidos voltam re-chaveados para a rubrica SELECIONADA.
+    expansao = _expansao_pela_raiz(qualificadores_ids)
+
     lancamento_repo = LancamentoRepository()
     lanc_rows = lancamento_repo.get_grouped_by_qualificador_year_month(
-        qualificador_ids=qualificadores_ids,
+        qualificador_ids=list(expansao),
         anos=list(anos_needed),
         meses=list(range(1, 13))
     )
-    
-    lanc_map = {
-        (
-            row.seq_qualificador,
-            int(row.ano),
-            int(row.mes),
-            row.cod_tipo_lancamento,
-        ): float(row.total or 0)
-        for row in lanc_rows
-    }
+
+    lanc_map: dict = {}
+    for row in lanc_rows:
+        for selecionado in expansao.get(row.seq_qualificador, []):
+            chave = (selecionado, int(row.ano), int(row.mes), row.cod_tipo_lancamento)
+            lanc_map[chave] = lanc_map.get(chave, 0.0) + float(row.total or 0)
 
     def lanc_val(q_id, ano_ref, mes, cod_tipo):
         return lanc_map.get((q_id, ano_ref, mes, cod_tipo), 0.0)
@@ -211,6 +213,18 @@ def get_previsao_realizado_data(
     }
 
 
+def _expansao_pela_raiz(qualificadores_ids: list[int]) -> dict[int, list[int]]:
+    """{seq de qualquer exercício com a mesma raiz: [seqs selecionados]} —
+    origem única da costura: `serie_historica.seqs_da_rubrica`."""
+    from .serie_historica import seqs_da_rubrica
+
+    expansao: dict[int, list[int]] = {}
+    for selecionado in qualificadores_ids:
+        for seq in seqs_da_rubrica(selecionado):
+            expansao.setdefault(seq, []).append(selecionado)
+    return expansao
+
+
 def _versoes_publicadas(cenario_id: int) -> list:
     """Versões publicadas do cenário, da mais antiga à mais recente."""
     from ..models import ProjecaoVersao
@@ -230,16 +244,20 @@ def _valores_da_versao(versao, tipo_por_qual: dict) -> dict:
     cenario = SimuladorCenario.query.get(versao.seq_simulador_cenario)
     periodicidade = periodo_resolver.normalizar(
         getattr(cenario, 'cod_periodicidade', None) or periodo_resolver.MENSAL)
+    # Versão gravada em qualificador de OUTRO exercício entra pela raiz (R29)
+    # — a versão é registro histórico e não é alterada.
+    expansao = _expansao_pela_raiz(list(tipo_por_qual))
     saida: dict = {}
     for linha in ProjecaoValor.query.filter(
             ProjecaoValor.seq_projecao_versao == versao.seq_projecao_versao,
-            ProjecaoValor.seq_qualificador.in_(list(tipo_por_qual))).all():
+            ProjecaoValor.seq_qualificador.in_(list(expansao))).all():
         mes = periodo_resolver.mes_do_periodo(periodicidade, linha.ano, linha.num_periodo)
         if mes is None:
             continue  # ANUAL: sem mês — o relatório é mensal
-        valor = abs(float(linha.val_projetado or 0))
-        if tipo_por_qual.get(linha.seq_qualificador) == 'despesa':
-            valor = -valor
-        chave = (linha.seq_qualificador, linha.ano, mes)
-        saida[chave] = saida.get(chave, 0.0) + valor
+        for selecionado in expansao[linha.seq_qualificador]:
+            valor = abs(float(linha.val_projetado or 0))
+            if tipo_por_qual.get(selecionado) == 'despesa':
+                valor = -valor
+            chave = (selecionado, linha.ano, mes)
+            saida[chave] = saida.get(chave, 0.0) + valor
     return saida

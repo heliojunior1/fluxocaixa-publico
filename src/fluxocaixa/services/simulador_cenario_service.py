@@ -1,5 +1,6 @@
 """Service layer for Simulador de Cenários."""
 import json
+from collections import Counter
 from datetime import date
 
 from ..auth.contexto import cod_pessoa_atual
@@ -674,11 +675,18 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
     modelo = config.cod_tipo_modelo
     periodicidade = periodo_resolver.normalizar(simulador.cod_periodicidade or 'MENSAL')
     ano_base = simulador.ano_base
-    meses = simulador.num_periodos
+    periodos = simulador.num_periodos
+    # ⚠️ Motores mensais recebem MESES, nunca a quantidade de períodos (R22):
+    # 24 quinzenas viravam 24 meses (dois anos, total dobrado), 52 semanas 52
+    # meses e o ANUAL (1 período) projetava UM mês — 1/12 do ano.
+    meses = _meses_do_horizonte(periodicidade, ano_base, periodos)
     cfg = json.loads(config.json_configuracao or '{}')
     tipo_fluxo = 'receita' if perna == TIPO_CREDITO else 'despesa'
 
-    def _historico(anos_atras: int = 3):
+    def _na_periodicidade(projecao):
+        return _converter_para_periodicidade(projecao, periodicidade, ano_base, periodos)
+
+    def _historico(anos_atras: int):
         """Série histórica da perna EM MAGNITUDE, no recorte do modelo.
 
         ⚠️ A magnitude vale para a entrada, não só para a saída (R6). Os
@@ -696,12 +704,9 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
         seqs = quals if quals and len(quals) > 1 else ([um] if um else [])
         if not seqs:
             return pd.DataFrame(columns=['data', 'valor'])
-        # janela de 1º de janeiro e série regular (previsao R18)
-        historico = modelos.obter_serie_do_ano_base(seqs, ano_base, anos_atras)
-        if len(historico) > 0:
-            historico = historico.copy()
-            historico['valor'] = historico['valor'].abs()
-        return historico
+        # janela de 1º de janeiro, série regular (previsao R18) e magnitude
+        # (R20) — as três vêm da origem única
+        return modelos.obter_serie_do_ano_base(seqs, ano_base, anos_atras)
 
     def _com_serie_info(projecao, historico):
         """F10.2 (previsao R17): a projeção declara com quanto treinou —
@@ -716,7 +721,7 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
         return projecao
 
     if modelo == 'MANUAL':
-        projecao = _executar_cenario_manual(ajustes, ano_base, meses, periodicidade)
+        projecao = _executar_cenario_manual(ajustes, ano_base, periodos, periodicidade)
         return projecao, projecao.copy()
 
     if modelo in ('HOLT_WINTERS', 'ARIMA', 'SARIMA', 'XGBOOST', 'LIGHTGBM'):
@@ -727,25 +732,28 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
             'XGBOOST': modelos.projetar_xgboost,
             'LIGHTGBM': modelos.projetar_lightgbm,
         }[modelo]
-        historico = _historico()
+        # janela da origem única (R26) — a perna usava 3 anos para todo modelo
+        historico = _historico(modelos.JANELA_EM_ANOS[modelo])
         projecao = (motor(historico, meses, cfg, ano_base)
                     if len(historico) >= modelos.MINIMO_DE_MESES[modelo] else vazio)
-        projecao = _com_serie_info(_magnitude(projecao), historico)
+        projecao = _com_serie_info(_magnitude(_na_periodicidade(projecao)), historico)
         return projecao, _por_folha(projecao)
 
     if modelo == 'REGRESSAO':
-        return _magnitude(modelos.projetar_regressao_multipla(meses, cfg, ano_base)), None
+        return _magnitude(_na_periodicidade(
+            modelos.projetar_regressao_multipla(meses, cfg, ano_base))), None
 
     if modelo == 'LOA':
         # Datado pelo ANO-BASE, não pelo relógio: `date.today()` deslocava a
         # projeção um mês a cada mês que passava (e quebrava a golden).
-        return _magnitude(modelos.projetar_loa(meses, cfg, ano_base=ano_base)), None
+        return _magnitude(_na_periodicidade(
+            modelos.projetar_loa(meses, cfg, ano_base=ano_base))), None
 
     if modelo == 'MEDIA_HISTORICA':
-        historico = _historico()
+        historico = _historico(modelos.JANELA_EM_ANOS[modelo])
         projecao = (modelos.projetar_media_historica(historico, meses, cfg, ano_base)
                     if len(historico) > 0 else vazio)
-        projecao = _com_serie_info(_magnitude(projecao), historico)
+        projecao = _com_serie_info(_magnitude(_na_periodicidade(projecao)), historico)
         return projecao, _por_folha(projecao)
 
     if modelo == 'FORMULA':
@@ -757,7 +765,7 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
                 pass
         projecao = projetar_cenario_formula(
             seq_simulador_cenario=simulador.seq_simulador_cenario,
-            ano_base=ano_base, periodos=meses, tipo_fluxo=tipo_fluxo,
+            ano_base=ano_base, periodos=periodos, tipo_fluxo=tipo_fluxo,
             periodicidade=simulador.cod_periodicidade or 'ANUAL',
             metodo_base=simulador.cod_metodo_base or 'MEDIA_SIMPLES',
             config_base=config_base,
@@ -779,10 +787,60 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
             projecao = projetar_media_crescimento_anos(
                 seq_qualificadores=quals, ano_projecao=ano_base,
                 anos_referencia=anos, mes_referencia=mes_ref, num_periodos=meses)
-        projecao = _magnitude(projecao)
+        projecao = _magnitude(_na_periodicidade(projecao))
         return projecao, _por_folha(projecao)
 
     return vazio, None
+
+
+def _meses_do_horizonte(periodicidade: str, ano_base: int, periodos: int) -> int:
+    """Meses de jan/ano-base até o mês da última data do cenário (R22) —
+    o horizonte dos motores MENSAIS. ANUAL cobre até dezembro do último ano."""
+    datas = periodo_resolver.serie_de_datas(periodicidade, ano_base, periodos or 1)
+    ultima = max(datas)
+    mes_final = 12 if periodicidade == periodo_resolver.ANUAL else ultima.month
+    return max(1, (ultima.year - ano_base) * 12 + mes_final)
+
+
+def _converter_para_periodicidade(projecao, periodicidade: str, ano_base: int,
+                                  periodos: int):
+    """Projeção MENSAL → periodicidade do cenário, preservando o total (R22).
+
+    ANUAL soma os meses do ano na data do período; QUINZENAL/SEMANAL rateiam o
+    mês pela quota de períodos que ele tem NESTA série — a mesma regra do
+    MANUAL e do `emitir_mensal` (R15). MENSAL volta inalterado. Coluna
+    `seq_qualificador` (quando existe) e `attrs` são preservados.
+    """
+    import pandas as pd
+
+    if (projecao is None or len(projecao) == 0
+            or periodicidade == periodo_resolver.MENSAL):
+        return projecao
+    datas = periodo_resolver.serie_de_datas(periodicidade, ano_base, periodos or 1)
+    tem_seq = 'seq_qualificador' in projecao.columns
+    por_mes: dict = {}
+    for _, linha in projecao.iterrows():
+        dia = pd.Timestamp(linha['data'])
+        seq = linha['seq_qualificador'] if tem_seq else None
+        chave = (seq, dia.year, dia.month)
+        por_mes[chave] = por_mes.get(chave, 0.0) + float(linha['valor_projetado'] or 0)
+    seqs = sorted({seq for seq, _a, _m in por_mes}, key=lambda s: (s is None, s))
+    quota = Counter((d.year, d.month) for d in datas)
+    linhas = []
+    for seq in seqs:
+        for dia in datas:
+            if periodicidade == periodo_resolver.ANUAL:
+                valor = sum(por_mes.get((seq, dia.year, m), 0.0) for m in range(1, 13))
+            else:
+                valor = (por_mes.get((seq, dia.year, dia.month), 0.0)
+                         / (quota[(dia.year, dia.month)] or 1))
+            linha = {'data': dia, 'valor_projetado': valor}
+            if tem_seq:
+                linha['seq_qualificador'] = seq
+            linhas.append(linha)
+    convertida = pd.DataFrame(linhas)
+    convertida.attrs = dict(getattr(projecao, 'attrs', {}))
+    return convertida
 
 
 def _magnitude(projecao):

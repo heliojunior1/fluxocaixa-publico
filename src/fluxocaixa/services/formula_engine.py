@@ -649,24 +649,10 @@ def projetar_crescimento_ultimo_ano(
     # 3. Projeção total do ano
     projecao_total = taxa_crescimento * total_referencia
 
-    # 4. Distribuir: meses reais + meses projetados
+    # 4. Distribuir: meses reais + saldo pelo perfil (conserva o total — R23)
     perfil = _perfil_sazonal(seq_qualificadores, ano_referencia)
-
-    registros = []
-    for mes in range(1, 13):
-        if mes <= mes_referencia:
-            # Mês com dados reais: usar valor real
-            valor = _soma_acumulada(seq_qualificadores, ano_projecao, mes, mes)
-        else:
-            # Mês projetado: distribuir pelo perfil sazonal
-            valor = projecao_total * perfil.get(mes, 1.0 / 12)
-
-        registros.append({
-            'data': date(ano_projecao, mes, 1),
-            'valor_projetado': round(valor, 2),
-        })
-
-    return pd.DataFrame(registros)
+    return _projecao_que_conserva_o_total(
+        seq_qualificadores, ano_projecao, mes_referencia, projecao_total, perfil)
 
 
 def projetar_media_crescimento_anos(
@@ -719,20 +705,50 @@ def projetar_media_crescimento_anos(
     acum_atual = _soma_acumulada(seq_qualificadores, ano_projecao, 1, mes_referencia)
     projecao_total = acum_atual * taxa_media
 
-    # 4. Distribuir: meses reais + meses projetados (perfil sazonal médio)
+    # 4. Distribuir: meses reais + saldo pelo perfil sazonal médio (R23)
     perfil = _perfil_sazonal_medio(seq_qualificadores, anos_referencia)
+    return _projecao_que_conserva_o_total(
+        seq_qualificadores, ano_projecao, mes_referencia, projecao_total, perfil)
 
-    registros = []
-    for mes in range(1, 13):
-        if mes <= mes_referencia:
-            valor = _soma_acumulada(seq_qualificadores, ano_projecao, mes, mes)
-        else:
-            valor = projecao_total * perfil.get(mes, 1.0 / 12)
 
-        registros.append({
-            'data': date(ano_projecao, mes, 1),
-            'valor_projetado': round(valor, 2),
-        })
+def _projecao_que_conserva_o_total(seq_qualificadores: list[int], ano_projecao: int,
+                                   mes_referencia: int, projecao_total: float,
+                                   perfil: dict[int, float]) -> pd.DataFrame:
+    """Doze meses cuja SOMA é o total projetado pela taxa (R23).
 
-    return pd.DataFrame(registros)
+    Meses até a referência recebem o realizado; o SALDO (total − realizado)
+    vai para os meses seguintes pelo perfil RENORMALIZADO nesses meses. Antes
+    cada mês futuro era `total × perfil(mês)`: só fecha a conta quando o peso
+    dos meses realizados no perfil é exatamente o inverso da taxa — verdade no
+    crescimento do último ano (perfil do mesmo ano de referência), falso na
+    MÉDIA de crescimento (taxa média × perfil médio): medido R$ 1.399,98 para
+    um total de R$ 1.600,00. Centavos exatos, resíduo no mês de maior peso.
+    Saldo negativo (o realizado já passou do total) → futuros zerados e a
+    degradação declarada em `attrs`.
+    """
+    realizados = {mes: round(_soma_acumulada(seq_qualificadores, ano_projecao, mes, mes), 2)
+                  for mes in range(1, mes_referencia + 1)}
+    futuros = list(range(mes_referencia + 1, 13))
+    saldo = round(round(projecao_total, 2) - sum(realizados.values()), 2)
+    aviso = None
+    if saldo < 0:
+        aviso = (f"O realizado até o mês {mes_referencia} ({sum(realizados.values()):.2f}) "
+                 f"já supera o total projetado ({projecao_total:.2f}): meses "
+                 "seguintes projetados em zero")
+        saldo = 0.0
+    pesos = {mes: perfil.get(mes, 0.0) for mes in futuros}
+    if futuros and sum(pesos.values()) <= 0:
+        pesos = {mes: 1.0 for mes in futuros}  # perfil sem peso nos futuros
+    total_pesos = sum(pesos.values()) or 1.0
+    partes = {mes: round(saldo * peso / total_pesos, 2) for mes, peso in pesos.items()}
+    if partes:
+        maior = max(pesos, key=pesos.get)
+        partes[maior] = round(partes[maior] + saldo - sum(partes.values()), 2)
+    registros = [{'data': date(ano_projecao, mes, 1),
+                  'valor_projetado': realizados.get(mes, partes.get(mes, 0.0))}
+                 for mes in range(1, 13)]
+    resultado = pd.DataFrame(registros)
+    if aviso:
+        resultado.attrs['degradacao'] = aviso
+    return resultado
 

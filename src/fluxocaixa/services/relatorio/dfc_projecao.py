@@ -67,6 +67,7 @@ def resolver_projecao(cenario_id: int, ano: int) -> tuple[dict, dict]:
 
     if periodicidade == periodo_resolver.ANUAL:
         bruto = _redistribuir_por_perfil(bruto, cenario.ano_base)
+    bruto = _traduzir_para_o_plano(bruto, ano)
 
     mapa = {
         (seq, tipo, mes): (valor if tipo == 'C' else -valor).quantize(Decimal("0.01"))
@@ -95,6 +96,46 @@ def projecao_por_qualificador(cenario_id: int, ano: int,
             continue
         saida[(seq, mes)] = saida.get((seq, mes), Decimal(0)) + abs(valor)
     return saida, origem
+
+
+def _traduzir_para_o_plano(bruto: dict, ano: int) -> dict:
+    """Re-chaveia pelo plano do ano consultado (previsao R21, design D5).
+
+    Versão publicada ANTES de abrir o exercício aponta para o plano antigo, e
+    o relatório do ano monta a árvore do plano novo — os valores sumiam. A
+    versão é registro histórico e não se reescreve: a tradução é na LEITURA,
+    pela `cod_rubrica_raiz` (única entre ativos do exercício). Sem
+    correspondente, o `seq` gravado fica (comportamento anterior); dois `seq`
+    antigos no mesmo novo somam.
+    """
+    from ..qualificador_service import resolver_exercicio_do_plano
+
+    seqs = {seq for (seq, _tipo, _mes) in bruto if seq is not None}
+    plano = resolver_exercicio_do_plano(ano)
+    if not seqs or plano is None:
+        return bruto
+    raiz_de_fora = {
+        q.seq_qualificador: q.cod_rubrica_raiz
+        for q in Qualificador.query.filter(
+            Qualificador.seq_qualificador.in_(seqs)).all()
+        if q.num_ano_exercicio != plano and q.cod_rubrica_raiz is not None
+    }
+    if not raiz_de_fora:
+        return bruto
+    no_plano = {
+        q.cod_rubrica_raiz: q.seq_qualificador
+        for q in Qualificador.query.filter(
+            Qualificador.num_ano_exercicio == plano,
+            Qualificador.ind_status == 'A',
+            Qualificador.cod_rubrica_raiz.in_(set(raiz_de_fora.values()))).all()
+    }
+    traduzido: dict = {}
+    for (seq, tipo, mes), valor in bruto.items():
+        if seq in raiz_de_fora:
+            seq = no_plano.get(raiz_de_fora[seq], seq)
+        chave = (seq, tipo, mes)
+        traduzido[chave] = traduzido.get(chave, Decimal(0)) + valor
+    return traduzido
 
 
 def _mapa_da_versao(versao, ano: int, periodicidade: str) -> dict:
