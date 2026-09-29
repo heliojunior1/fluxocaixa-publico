@@ -36,8 +36,10 @@ def test_leitores_de_serie_filtram_ativos():
         formula_engine._buscar_valores_historicos_anual,
         formula_engine._soma_acumulada,
         formula_engine._perfil_sazonal,
-        modelos.obter_dados_historicos,
-        modelos.obter_dados_historicos_agregados,
+        # leitor ÚNICO das séries dos modelos (obter_dados_historicos* e
+        # obter_serie_do_ano_base delegam a ele — change
+        # corrigir-motores-de-previsao)
+        modelos._lancamentos_da_serie,
     ]
     for leitor in leitores:
         fonte = inspect.getsource(leitor)

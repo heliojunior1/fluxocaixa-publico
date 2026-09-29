@@ -726,4 +726,35 @@ if not SimuladorCenario.query.filter_by(nom_cenario='Cenário métodos E2E').fir
         num_periodos=12, tipo_cenario_receita='', config_receita={},
         tipo_cenario_despesa='', config_despesa={}, user_id=1)
 
+# ---------------------------------------------------------------------------
+# Backtest com reprojeção intra-ano (backtest_intra_ano.spec.ts, change
+# corrigir-motores-de-previsao): folha de receita sob o bloco 1.989 com
+# 100.00/mês em 2082 e 150.00/mês em 2083 (ilha própria). Dados fictícios.
+# ---------------------------------------------------------------------------
+if not Qualificador.query.filter_by(num_qualificador='1.989.1').first():
+    from datetime import date as _date_bt
+
+    _raiz_bt = Qualificador.query.filter_by(num_qualificador='1').first()
+    _bloco_bt = Qualificador(num_qualificador='1.989', dsc_qualificador='Bloco backtest E2E',
+                             cod_qualificador_pai=_raiz_bt.seq_qualificador if _raiz_bt else None,
+                             ind_status='A')
+    db.session.add(_bloco_bt)
+    db.session.commit()
+    _folha_bt = Qualificador(num_qualificador='1.989.1', dsc_qualificador='Folha backtest E2E',
+                             cod_qualificador_pai=_bloco_bt.seq_qualificador, ind_status='A')
+    db.session.add(_folha_bt)
+    db.session.commit()
+    _tipo_bt = TipoLancamento.query.filter_by(dsc_tipo_lancamento='Entrada').first()
+    _origem_bt = OrigemLancamento.query.filter_by(dsc_origem_lancamento='Manual').first()
+    for _ano_bt, _valor_bt in ((2082, '100.00'), (2083, '150.00')):
+        for _mes_bt in range(1, 13):
+            db.session.add(Lancamento(
+                dat_lancamento=_date_bt(_ano_bt, _mes_bt, 15),
+                seq_qualificador=_folha_bt.seq_qualificador,
+                val_lancamento=Decimal(_valor_bt),
+                cod_tipo_lancamento=_tipo_bt.cod_tipo_lancamento,
+                cod_origem_lancamento=_origem_bt.cod_origem_lancamento,
+                cod_pessoa_inclusao=1, ind_status='A'))
+    db.session.commit()
+
 print("usuarios e2e prontos")

@@ -18,6 +18,7 @@ ARQUIVOS_DE_SERIE = [
     "formula_engine.py",
     "modelos_economicos_service.py",
     "backtest_service.py",
+    "metodo_qualificador_service.py",
 ]
 
 # As duas formas da lição F6.1b: o predicado de classe e o filter_by.
@@ -26,12 +27,46 @@ PADRAO_IGUALDADE = re.compile(
 )
 
 
+# Exceção declarada na própria linha: consulta que NÃO é série histórica
+# (ex.: LOA do exercício, que pertence ao `seq` do plano). Visível no código,
+# nunca uma lista escondida aqui.
+MARCADOR_FORA_DA_SERIE = "guarda-raiz: não é série"
+
+
+# IN com lista NÃO expandida pela raiz (change corrigir-motores-de-previsao,
+# R17): o crescimento filtrava `.in_(seq_qualificadores)` cru e projetava zero
+# depois de abrir um exercício — a guarda só olhava a igualdade.
+PADRAO_IN_CRU = re.compile(
+    r"Lancamento\.seq_qualificador\.in_\(\s*(?!_?seqs_das?_rubricas?\()"
+)
+
+
+def test_guarda_in_nao_expandido_nos_servicos_de_serie():
+    violacoes = []
+    for nome in ARQUIVOS_DE_SERIE:
+        linhas = (RAIZ_SRC / nome).read_text(encoding="utf-8").splitlines()
+        for n, linha in enumerate(linhas, start=1):
+            if not PADRAO_IN_CRU.search(linha) or MARCADOR_FORA_DA_SERIE in linha:
+                continue
+            # argumento na linha seguinte (quebra depois do parêntese)
+            resto = linha.split(".in_(", 1)[1].strip()
+            if not resto and n < len(linhas):
+                resto = linhas[n].strip()
+            if not re.match(r"_?seqs_das?_rubricas?\(", resto):
+                violacoes.append(f"{nome}:{n}: {linha.strip()}")
+    assert not violacoes, (
+        "Série filtrada por IN com lista não expandida pela raiz — use "
+        "serie_historica.seqs_da_rubrica/seqs_das_rubricas:\n"
+        + "\n".join(violacoes)
+    )
+
+
 def test_guarda_igualdade_crua_nos_servicos_de_serie():
     violacoes = []
     for nome in ARQUIVOS_DE_SERIE:
         texto = (RAIZ_SRC / nome).read_text(encoding="utf-8")
         for n, linha in enumerate(texto.splitlines(), start=1):
-            if PADRAO_IGUALDADE.search(linha):
+            if PADRAO_IGUALDADE.search(linha) and MARCADOR_FORA_DA_SERIE not in linha:
                 violacoes.append(f"{nome}:{n}: {linha.strip()}")
     assert not violacoes, (
         "Consulta de série por igualdade crua de seq_qualificador — use "

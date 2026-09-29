@@ -63,10 +63,16 @@
                     {% for modelo in modelos_disponiveis %}
                     <label class="flex items-center gap-2 cursor-pointer hover:bg-white p-1 rounded">
                         <input type="checkbox" value="{{ modelo.codigo }}" class="modelo-cb rounded text-violet-600 focus:ring-violet-500" checked>
-                        <span class="text-sm text-slate-700">{{ modelo.nome }}</span>
+                        <span class="text-sm text-slate-700">{{ modelo.nome }}{% if modelo.intra_ano %} <span class="text-xs text-slate-400">(reprojeção intra-ano)</span>{% endif %}</span>
                     </label>
                     {% endfor %}
                 </div>
+                <label class="block text-xs text-slate-500 mt-2" for="mes-referencia">
+                    Mês de referência da reprojeção intra-ano
+                    <input type="number" id="mes-referencia" data-testid="backtest-mes-referencia" min="1" max="11"
+                        value="{{ mes_referencia_padrao }}" class="ml-1 w-16 text-sm border-slate-200 rounded">
+                </label>
+                <p class="text-xs text-slate-400 mt-1">O crescimento usa o realizado do ano até este mês e é medido só nos meses seguintes — fica fora do melhor modelo.</p>
             </div>
         </div>
 
@@ -136,6 +142,13 @@
                 </div>
             </div>
             <div id="ranking-tabela"></div>
+        </div>
+
+        <!-- Reprojeção intra-ano (fora do ranking — previsao R16) -->
+        <div class="hidden bg-white rounded-xl shadow-sm border border-slate-200 p-6" id="intra-ano-resultado" data-testid="backtest-intra-ano">
+            <h3 class="text-lg font-semibold text-slate-700 mb-1">Reprojeção intra-ano</h3>
+            <p class="text-xs text-slate-400 mb-4">Usa o realizado do próprio ano até o mês de referência e é medida só nos meses seguintes — não disputa o melhor modelo.</p>
+            <div id="intra-ano-tabela"></div>
         </div>
 
         <!-- Resultado por Grupos -->
@@ -214,6 +227,7 @@ async function executarBacktest() {
                 anos_teste: anosTeste,
                 modelos: modelos,
                 qualificadores_ids: quals.length ? quals : null,
+                mes_referencia: parseInt(document.getElementById('mes-referencia').value) || 6,
             }),
         });
 
@@ -239,9 +253,37 @@ async function executarBacktest() {
 // ==================== RENDERIZAR RESULTADOS ====================
 function renderResultados(data) {
     renderRanking(data.ranking_geral);
+    renderIntraAno(data);
     renderGrupos(data);
     popularDropdownsGrafico(data);
     atualizarGrafico();
+}
+
+function renderIntraAno(data) {
+    const painel = document.getElementById('intra-ano-resultado');
+    const linhas = [];
+    data.resultados_filho.forEach(f => {
+        Object.entries(f.intra_ano || {}).forEach(([codigo, m]) => {
+            linhas.push(`<tr class="border-t border-slate-100" data-testid="intra-ano-linha">
+                <td class="py-2 pr-4 text-sm">${escHtml(f.num_qualificador)} — ${escHtml(f.dsc_qualificador)}</td>
+                <td class="py-2 pr-4 text-sm">${escHtml(m.nome)}</td>
+                <td class="py-2 pr-4 text-sm text-right">${m.mes_referencia + 1}–12</td>
+                <td class="py-2 pr-4 text-sm text-right">${m.mape != null ? m.mape.toFixed(2) + '%' : '-'}</td>
+                <td class="py-2 text-sm text-right">${m.wmape != null ? m.wmape.toFixed(2) + '%' : '-'}</td>
+            </tr>`);
+        });
+    });
+    if (!linhas.length) {
+        painel.classList.add('hidden');
+        return;
+    }
+    document.getElementById('intra-ano-tabela').innerHTML = `<table class="w-full">
+        <thead><tr class="text-xs text-slate-500 text-left">
+            <th class="pb-2">Rubrica</th><th class="pb-2">Método</th>
+            <th class="pb-2 text-right">Meses medidos</th><th class="pb-2 text-right">MAPE</th>
+            <th class="pb-2 text-right">WMAPE</th></tr></thead>
+        <tbody>${linhas.join('')}</tbody></table>`;
+    painel.classList.remove('hidden');
 }
 
 function renderRanking(ranking) {

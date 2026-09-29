@@ -504,73 +504,76 @@ def projetar_cenario_formula(
 # ==================== Projeções por Crescimento ====================
 
 
+def _faixa_de_meses(ano: int, mes_ini: int, mes_fim: int) -> tuple[date, date]:
+    """Faixa de datas sargável (CLAUDE.md: filtro de período é FAIXA)."""
+    import calendar
+
+    return (date(ano, mes_ini, 1),
+            date(ano, mes_fim, calendar.monthrange(ano, mes_fim)[1]))
+
+
 def _soma_acumulada(seq_qualificadores: list[int], ano: int, mes_ini: int, mes_fim: int) -> float:
-    """Soma dos lançamentos no período [mes_ini, mes_fim] do ano.
+    """Magnitude do acumulado [mes_ini, mes_fim] do ano (previsao R17).
 
-    Args:
-        seq_qualificadores: Lista de IDs dos qualificadores a somar
-        ano: Ano dos lançamentos
-        mes_ini: Mês inicial (1-12)
-        mes_fim: Mês final (1-12)
-
-    Returns:
-        Soma absoluta dos lançamentos no período
+    Duas correções da change corrigir-motores-de-previsao: (1) a lista é
+    expandida pela RAIZ — com o `seq` cru, depois de abrir um exercício o ano
+    de referência (gravado no plano anterior) somava zero e o crescimento
+    projetava zero; (2) é o absoluto da SOMA com sinal, não a soma dos
+    absolutos — um estorno reduz o acumulado em vez de aumentá-lo.
     """
-    from sqlalchemy import extract, func
+    from sqlalchemy import func
 
     from ..models import Lancamento
     from ..models.base import SessionLocal
+    from .serie_historica import seqs_das_rubricas
 
+    inicio, fim = _faixa_de_meses(ano, mes_ini, mes_fim)
     session = SessionLocal()
-    # `extract`, nunca `strftime` (só SQLite); erro de banco SOBE (R11)
+    # erro de banco SOBE (R11)
     total = (
-        session.query(func.sum(func.abs(Lancamento.valor_com_sinal)))
+        session.query(func.sum(Lancamento.valor_com_sinal))
         .filter(
-            Lancamento.seq_qualificador.in_(seq_qualificadores),
-            extract('year', Lancamento.dat_lancamento) == ano,
-            extract('month', Lancamento.dat_lancamento).between(mes_ini, mes_fim),
+            Lancamento.seq_qualificador.in_(seqs_das_rubricas(seq_qualificadores)),
+            Lancamento.dat_lancamento >= inicio,
+            Lancamento.dat_lancamento <= fim,
             Lancamento.ind_status == 'A',
         )
         .scalar()
     )
-    return float(total) if total else 0.0
+    return abs(float(total)) if total else 0.0
 
 
 def _perfil_sazonal(seq_qualificadores: list[int], ano: int) -> dict[int, float]:
-    """Retorna o perfil sazonal de um ano: {mes: proporção}.
+    """Perfil sazonal de um ano: {mes: proporção}, soma = 1.0.
 
-    Ex: {1: 0.08, 2: 0.07, ..., 12: 0.11} onde a soma = 1.0.
-    Se o total do ano for 0, retorna distribuição uniforme (1/12).
-
-    Args:
-        seq_qualificadores: Lista de IDs dos qualificadores
-        ano: Ano para calcular o perfil
-
-    Returns:
-        Dicionário {mês: proporção}
+    Magnitude de cada mês = absoluto da soma com sinal do mês (R17), série
+    costurada pela raiz. Ano sem movimento → distribuição uniforme (1/12).
     """
     from sqlalchemy import extract, func
 
     from ..models import Lancamento
     from ..models.base import SessionLocal
+    from .serie_historica import seqs_das_rubricas
 
+    inicio, fim = _faixa_de_meses(ano, 1, 12)
     session = SessionLocal()
     mes_col = extract('month', Lancamento.dat_lancamento)
     resultados = (
         session.query(
             mes_col.label('mes'),
-            func.sum(func.abs(Lancamento.valor_com_sinal)).label('total')
+            func.sum(Lancamento.valor_com_sinal).label('total')
         )
         .filter(
-            Lancamento.seq_qualificador.in_(seq_qualificadores),
-            extract('year', Lancamento.dat_lancamento) == ano,
+            Lancamento.seq_qualificador.in_(seqs_das_rubricas(seq_qualificadores)),
+            Lancamento.dat_lancamento >= inicio,
+            Lancamento.dat_lancamento <= fim,
             Lancamento.ind_status == 'A',
         )
         .group_by(mes_col)
         .all()
     )
 
-    valores = {int(r.mes): float(r.total) for r in resultados}
+    valores = {int(r.mes): abs(float(r.total or 0)) for r in resultados}
     total_ano = sum(valores.values())
 
     if total_ano > 0:

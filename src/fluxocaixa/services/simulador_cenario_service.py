@@ -645,9 +645,7 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
     ⚠️ Convenção de sinal (D7/R6): todo motor devolve MAGNITUDE. O sinal do
     fluxo vem da perna na leitura — a mesma regra que a F6.1b deu ao lançamento.
     """
-    from datetime import date
 
-    from dateutil.relativedelta import relativedelta
 
     from ..models.lancamento import TIPO_CREDITO
     from .formula_engine import (
@@ -695,14 +693,11 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
         # Lista com UM qualificador é o caso comum da tela; antes caía no
         # `elif um` (chave ausente) e a série vinha VAZIA — modelo sem treino.
         um = cfg.get('seq_qualificador') or (quals[0] if len(quals) == 1 else None)
-        fim = date(ano_base - 1, 12, 31)
-        inicio = fim - relativedelta(years=anos_atras)
-        if quals and len(quals) > 1:
-            historico = modelos.obter_dados_historicos_agregados(quals, inicio, fim)
-        elif um:
-            historico = modelos.obter_dados_historicos(um, inicio, fim)
-        else:
+        seqs = quals if quals and len(quals) > 1 else ([um] if um else [])
+        if not seqs:
             return pd.DataFrame(columns=['data', 'valor'])
+        # janela de 1º de janeiro e série regular (previsao R18)
+        historico = modelos.obter_serie_do_ano_base(seqs, ano_base, anos_atras)
         if len(historico) > 0:
             historico = historico.copy()
             historico['valor'] = historico['valor'].abs()
@@ -733,7 +728,8 @@ def _projetar_perna(perna: str, config, ajustes, simulador, modelos, pd):
             'LIGHTGBM': modelos.projetar_lightgbm,
         }[modelo]
         historico = _historico()
-        projecao = motor(historico, meses, cfg, ano_base) if len(historico) >= 12 else vazio
+        projecao = (motor(historico, meses, cfg, ano_base)
+                    if len(historico) >= modelos.MINIMO_DE_MESES[modelo] else vazio)
         projecao = _com_serie_info(_magnitude(projecao), historico)
         return projecao, _por_folha(projecao)
 

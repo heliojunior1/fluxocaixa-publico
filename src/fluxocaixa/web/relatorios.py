@@ -467,7 +467,11 @@ async def dfc_eventos(request: Request):
 @handle_exceptions
 async def relatorio_backtest(request: Request):
     """Página do relatório de Backtest de Modelos."""
-    from ..services.backtest_service import MODELOS_DISPONIVEIS
+    from ..services.backtest_service import (
+        MES_REFERENCIA_PADRAO,
+        METODOS_INTRA_ANO,
+        MODELOS_DISPONIVEIS,
+    )
 
     anos_disponiveis = get_available_years()
     qualificadores = list_active_qualificadores(_exercicio_combo())
@@ -492,8 +496,12 @@ async def relatorio_backtest(request: Request):
                 filhos.append(q)
 
     modelos = [
-        {'codigo': k, 'nome': v['nome']}
+        {'codigo': k, 'nome': v['nome'], 'intra_ano': False}
         for k, v in MODELOS_DISPONIVEIS.items()
+    ] + [
+        # reprojeção intra-ano: avaliada à parte, fora do melhor modelo (R16)
+        {'codigo': k, 'nome': v['nome'], 'intra_ano': True}
+        for k, v in METODOS_INTRA_ANO.items()
     ]
 
     return templates.TemplateResponse(
@@ -504,6 +512,7 @@ async def relatorio_backtest(request: Request):
             "modelos_disponiveis": modelos,
             "grupos_qualificadores": grupos,
             "filhos": filhos,
+            "mes_referencia_padrao": MES_REFERENCIA_PADRAO,
         },
     )
 
@@ -520,6 +529,10 @@ async def relatorio_backtest_executar(request: Request):
     anos_teste = data.get('anos_teste', [])
     modelos = data.get('modelos', [])
     qualificadores_ids = data.get('qualificadores_ids')
+    try:
+        mes_referencia = int(data.get('mes_referencia') or 6)
+    except (TypeError, ValueError):
+        return JSONResponse({'error': 'Mês de referência inválido'}, status_code=400)
 
     if not anos_treino:
         return JSONResponse({'error': 'Selecione pelo menos um ano de treino'}, status_code=400)
@@ -534,6 +547,7 @@ async def relatorio_backtest_executar(request: Request):
             anos_teste=[int(a) for a in anos_teste],
             modelos=modelos,
             qualificadores_ids=[int(q) for q in qualificadores_ids] if qualificadores_ids else None,
+            mes_referencia=mes_referencia,
         )
         return JSONResponse(resultado)
     except ValueError as e:

@@ -59,12 +59,14 @@ METODOS = {
 
 # Modelos oferecidos na marcação → (janela de treino em anos, mínimo de
 # pontos). Os dois de crescimento não treinam série: leem acumulados.
+# (janela em anos, mínimo de meses) — o mínimo vem da origem única
+# `modelos_economicos_service.MINIMO_DE_MESES` (previsao R19).
 MODELOS_DE_SERIE = {
     'HOLT_WINTERS': (3, 12),
     'ARIMA': (3, 12),
     'SARIMA': (4, 12),
-    'XGBOOST': (3, 13),
-    'LIGHTGBM': (3, 13),
+    'XGBOOST': (3, 14),
+    'LIGHTGBM': (3, 14),
     'MEDIA_HISTORICA': (3, 1),
     'CRESCIMENTO_ANO': None,
     'MEDIA_CRESCIMENTO': None,
@@ -793,7 +795,8 @@ def _projetar_grupo(ex: _Execucao, perna: str, marcacao, config: dict, folhas: l
         from ..models import Loa
 
         for folha in folhas:
-            loa = Loa.query.filter_by(seq_qualificador=folha.seq_qualificador,
+            # LOA é orçamento DO EXERCÍCIO (linha do plano), não série.
+            loa = Loa.query.filter_by(seq_qualificador=folha.seq_qualificador,  # guarda-raiz: não é série
                                       num_ano=ex.ano, ind_status='A').first()
             if loa is None:
                 ex.marcar(folha.seq_qualificador, STATUS_LACUNA,
@@ -892,7 +895,6 @@ def _treinar(ex, perna, config, folhas, seq_no) -> dict[int, float] | None:
     """Treina o modelo na série das folhas (soma costurada por raiz) e devolve
     o total projetado por MÊS do ano-base. Insuficiência vira lacuna com nota
     — nunca projeção zero em silêncio (R12)."""
-    from dateutil.relativedelta import relativedelta
 
     from . import modelos_economicos_service as modelos
 
@@ -922,13 +924,9 @@ def _treinar(ex, perna, config, folhas, seq_no) -> dict[int, float] | None:
                 anos_referencia=anos, mes_referencia=mes_ref, num_periodos=12)
         return _df_por_mes(df, ex.ano)
 
-    janela, minimo = MODELOS_DE_SERIE[modelo]
-    fim = date(ex.ano - 1, 12, 31)
-    inicio = fim - relativedelta(years=janela)
-    if len(seqs) > 1:
-        historico = modelos.obter_dados_historicos_agregados(seqs, inicio, fim)
-    else:
-        historico = modelos.obter_dados_historicos(seqs[0], inicio, fim)
+    janela, _ = MODELOS_DE_SERIE[modelo]
+    minimo = modelos.MINIMO_DE_MESES[modelo]
+    historico = modelos.obter_serie_do_ano_base(seqs, ex.ano, janela)
     if len(historico) < minimo:
         return _lacuna(
             f"Histórico insuficiente para {ROTULO_MODELO[modelo]}: "

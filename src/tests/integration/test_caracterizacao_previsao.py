@@ -49,14 +49,22 @@ def test_serie_de_entrada_tem_o_sinal_correto(massa):
     """
     series = prev.coletar_series()
 
-    assert series[prev.QUAL_RECEITA], "série de receita vazia"
-    assert all(float(p["valor"]) > 0 for p in series[prev.QUAL_RECEITA])
-    assert series[prev.QUAL_DESPESA], "série de despesa vazia"
-    assert all(float(p["valor"]) < 0 for p in series[prev.QUAL_DESPESA]), (
+    # A série é REGULAR (previsao R18): mês fechado sem movimento vem 0.00 —
+    # a massa tem o ano-base só com janeiro. O sinal se afere nos meses COM
+    # movimento; zero não tem sinal.
+    def _com_movimento(pontos):
+        return [float(p["valor"]) for p in pontos if float(p["valor"]) != 0]
+
+    receita = _com_movimento(series[prev.QUAL_RECEITA])
+    assert receita, "série de receita vazia"
+    assert all(v > 0 for v in receita)
+    despesa = _com_movimento(series[prev.QUAL_DESPESA])
+    assert despesa, "série de despesa vazia"
+    assert all(v < 0 for v in despesa), (
         "série de despesa deveria vir NEGATIVA (valor com sinal); positiva "
         "significa leitura da coluna crua — o resíduo da F6.1b de volta"
     )
-    assert all(float(p["valor"]) < 0 for p in series["agregado_despesa"])
+    assert all(v < 0 for v in _com_movimento(series["agregado_despesa"]))
 
 
 def test_simulacoes_deterministicas_cobertas(massa):

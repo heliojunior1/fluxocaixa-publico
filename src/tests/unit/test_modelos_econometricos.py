@@ -70,3 +70,56 @@ def test_validar_formula_nao_avalia():
         raiz_ok = False
         assert "avaliar" in str(exc) or "Erro" in str(exc)
     assert raiz_ok is False, "divisão por zero em runtime deveria falhar"
+
+
+# --- change corrigir-motores-de-previsao (R18/R19) ---------------------------
+
+def _serie_ate(ultimo_mes: str, n: int):
+    import pandas as pd
+
+    datas = pd.date_range(end=ultimo_mes, periods=n, freq="MS")
+    return pd.DataFrame({"data": datas, "valor": [1.0] * n})
+
+
+def test_horizonte_historico_ate_dezembro_nao_descarta():
+    from fluxocaixa.services.modelos_economicos_service import _horizonte
+
+    passos, descarte, datas = _horizonte(_serie_ate("2084-12-01", 24), 2085, 12)
+    assert (passos, descarte) == (12, 0)
+    assert (datas[0].year, datas[0].month) == (2085, 1)
+    assert (datas[-1].year, datas[-1].month) == (2085, 12)
+
+
+def test_horizonte_historico_ate_setembro_descarta_out_a_dez():
+    from fluxocaixa.services.modelos_economicos_service import _horizonte
+
+    passos, descarte, datas = _horizonte(_serie_ate("2084-09-01", 24), 2085, 12)
+    assert (passos, descarte) == (15, 3)
+    assert (datas[0].year, datas[0].month) == (2085, 1)
+
+
+def test_horizonte_sem_ano_base_segue_o_ultimo_mes():
+    from fluxocaixa.services.modelos_economicos_service import _horizonte
+
+    passos, descarte, datas = _horizonte(_serie_ate("2084-09-01", 24), None, 3)
+    assert (passos, descarte) == (3, 0)
+    assert (datas[0].year, datas[0].month) == (2084, 10)
+
+
+def test_minimo_de_meses_tem_origem_unica():
+    """O mesmo mínimo nos quatro pontos de despacho (R19): a rota avulsa, o
+    cenário por perna e o backtest leem MINIMO_DE_MESES direto; o método por
+    qualificador declara o seu e tem de coincidir."""
+    import inspect
+
+    from fluxocaixa.services import backtest_service, simulador_cenario_service
+    from fluxocaixa.services import modelos_economicos_service as modelos
+    from fluxocaixa.services.metodo_qualificador_service import MODELOS_DE_SERIE
+
+    assert modelos.MINIMO_DE_MESES["XGBOOST"] == 14
+    assert modelos.MINIMO_DE_MESES["LIGHTGBM"] == 14
+    for modelo, minimo in modelos.MINIMO_DE_MESES.items():
+        assert MODELOS_DE_SERIE[modelo][1] == minimo, modelo
+    assert "MINIMO_DE_MESES" in inspect.getsource(modelos.calcular_projecao)
+    assert "MINIMO_DE_MESES" in inspect.getsource(backtest_service._executar_modelo)
+    assert "MINIMO_DE_MESES" in inspect.getsource(simulador_cenario_service._projetar_perna)

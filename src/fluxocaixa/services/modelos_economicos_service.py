@@ -10,6 +10,7 @@ import pandas as pd
 from dateutil.relativedelta import relativedelta
 
 from ..models import Lancamento
+from .serie_historica import seqs_das_rubricas
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,19 @@ except Exception as e:  # noqa: BLE001 - ver nota acima
 
 
 
+# Mínimo de meses da série REGULAR por modelo — ORIGEM ÚNICA dos quatro pontos
+# de despacho (rota avulsa, cenário por perna, método por qualificador,
+# backtest). ML: 12 defasagens + 2 linhas de treino = 14 (previsao R19).
+MINIMO_DE_MESES = {
+    'HOLT_WINTERS': 12,
+    'ARIMA': 12,
+    'SARIMA': 12,
+    'XGBOOST': 14,
+    'LIGHTGBM': 14,
+    'MEDIA_HISTORICA': 1,
+}
+
+
 # ==================== Helper Functions ====================
 
 def _datas_do_ano_base(ano_base: int, num_periodos: int) -> list[date]:
@@ -81,61 +95,88 @@ def _datas_do_ano_base(ano_base: int, num_periodos: int) -> list[date]:
     return [inicio + relativedelta(months=i) for i in range(num_periodos)]
 
 
-def obter_dados_historicos(
-    seq_qualificador: int,
-    data_inicio: date,
-    data_fim: date,
-    agregacao: str = 'mensal'  # 'mensal' ou 'diario'
-) -> pd.DataFrame:
-    """
-    Obtém dados históricos de lançamentos para um qualificador.
-    
-    Args:
-        seq_qualificador: ID do qualificador
-        data_inicio: Data inicial do período
-        data_fim: Data final do período
-        agregacao: 'mensal' ou 'diario'
-    
-    Returns:
-        DataFrame com colunas: data, valor
-    """
-    # Buscar lançamentos no período. F10.2 (previsao R17): a série é da
-    # RUBRICA (raiz), não do seq — costura entre exercícios.
-    from .serie_historica import seqs_da_rubrica
+def janela_do_ano_base(ano_base: int, janela_anos: int) -> tuple[date, date]:
+    """Janela de `janela_anos` anos ANTES do ano-base: 1º de janeiro do ano
+    −N a 31 de dezembro do ano −1 (previsao R18).
 
-    lancamentos = (
+    A forma antiga (`fim - relativedelta(years=N)`) começava em 31/12 do ano
+    −N−1 — um "mês" de um dia só no início da série.
+    """
+    return date(ano_base - janela_anos, 1, 1), date(ano_base - 1, 12, 31)
+
+
+def _fim_da_serie(data_inicio: date, data_fim: date, ultimo_com_movimento,
+                  hoje: date | None):
+    """Mês final da série regular (previsao R18), como Timestamp de 1º dia.
+
+    - janela encerrada → último mês da janela (zeros finais são dado real);
+    - execução dentro da janela → mês ANTERIOR ao da execução: o mês em curso
+      é parcial e os seguintes não aconteceram — zero neles seria inventado;
+    - janela inteira depois da execução (só massa de teste) → último mês com
+      movimento.
+    """
+    hoje = hoje or date.today()
+    if hoje > data_fim:
+        return pd.Timestamp(data_fim.year, data_fim.month, 1)
+    if hoje >= data_inicio:
+        return pd.Timestamp(hoje.year, hoje.month, 1) - pd.DateOffset(months=1)
+    return ultimo_com_movimento
+
+
+def _serie_mensal_regular(lancamentos, data_inicio: date, data_fim: date,
+                          hoje: date | None) -> pd.DataFrame:
+    """Soma mensal COM SINAL, mês a mês e sem buracos (previsao R18).
+
+    Os modelos tratam os pontos como meses consecutivos: um mês sem movimento
+    que sumisse da série deslocava a sazonalidade e o calendário da projeção.
+    A série começa no primeiro mês com movimento — zeros à esquerda de uma
+    rubrica criada no meio da janela pareceriam queda real.
+    """
+    vazio = pd.DataFrame(columns=['data', 'valor'])
+    if not lancamentos:
+        return vazio
+    df = pd.DataFrame(
+        [{'data': lanc.dat_lancamento, 'valor': float(lanc.valor_com_sinal)}
+         for lanc in lancamentos])
+    df['data'] = pd.to_datetime(df['data']).dt.to_period('M').dt.to_timestamp()
+    mensal = df.groupby('data')['valor'].sum()
+    fim = _fim_da_serie(data_inicio, data_fim, mensal.index.max(), hoje)
+    mensal = mensal[mensal.index <= fim]
+    if mensal.empty:
+        return vazio
+    meses = pd.date_range(mensal.index.min(), fim, freq='MS')
+    regular = mensal.reindex(meses, fill_value=0.0)
+    return pd.DataFrame({'data': regular.index, 'valor': regular.values})
+
+
+def _lancamentos_da_serie(seqs: list[int], data_inicio: date, data_fim: date):
+    return (
         Lancamento.query
         .filter(
-            Lancamento.seq_qualificador.in_(seqs_da_rubrica(seq_qualificador)),
+            Lancamento.seq_qualificador.in_(seqs_das_rubricas(seqs)),
             Lancamento.dat_lancamento >= data_inicio,
             Lancamento.dat_lancamento <= data_fim,
             Lancamento.ind_status == 'A',
         )
         .all()
     )
-    
-    if not lancamentos:
-        return pd.DataFrame(columns=['data', 'valor'])
-    
-    # Converter para DataFrame
-    data = []
-    for lanc in lancamentos:
-        data.append({
-            'data': lanc.dat_lancamento,
-            'valor': float(lanc.valor_com_sinal)
-        })
-    
-    df = pd.DataFrame(data)
-    
-    # Agregar se necessário
-    if agregacao == 'mensal':
-        df['ano_mes'] = df['data'].apply(lambda x: x.strftime('%Y-%m'))
-        df_agregado = df.groupby('ano_mes')['valor'].sum().reset_index()
-        df_agregado.columns = ['data', 'valor']
-        df_agregado['data'] = pd.to_datetime(df_agregado['data'] + '-01')
-        return df_agregado.sort_values('data')
-    
-    return df.sort_values('data')
+
+
+def obter_dados_historicos(
+    seq_qualificador: int,
+    data_inicio: date,
+    data_fim: date,
+    agregacao: str = 'mensal',  # 'mensal' ou 'diario'
+    hoje: date | None = None,
+) -> pd.DataFrame:
+    """Série histórica de um qualificador: colunas `data`, `valor` (com sinal).
+
+    F10.2 (previsao R17): a série é da RUBRICA (raiz), não do seq — costura
+    entre exercícios. Mensal é REGULAR (R18, ver `_serie_mensal_regular`);
+    `hoje` é injetável para os testes do corte do mês em curso.
+    """
+    return obter_dados_historicos_agregados(
+        [seq_qualificador], data_inicio, data_fim, agregacao, hoje)
 
 
 def obter_dados_historicos_multiplos(
@@ -152,120 +193,126 @@ def obter_dados_historicos_multiplos(
 
 # ==================== Revenue Forecast Models ====================
 
+def _horizonte(dados_historicos: pd.DataFrame, ano_base: int | None,
+               num_periodos: int) -> tuple[int, int, list[date]]:
+    """(passos, descarte, datas) da projeção ancorada no calendário (R18).
+
+    O modelo prevê a partir do mês SEGUINTE ao último observado. Com ano-base,
+    os meses entre o último observado e janeiro do ano-base são previstos e
+    DESCARTADOS — antes a posição 1 do forecast era rotulada jan/ano-base
+    mesmo quando o histórico acabava em setembro, e o pico de dezembro saía
+    em março. `datas` são as dos `num_periodos` devolvidos.
+    """
+    ultima = pd.Timestamp(pd.to_datetime(dados_historicos['data']).max())
+    ultima = pd.Timestamp(ultima.year, ultima.month, 1)
+    descarte = 0
+    if ano_base:
+        descarte = max(0, (ano_base - ultima.year) * 12 + (1 - ultima.month) - 1)
+    datas = [(ultima + pd.DateOffset(months=descarte + i + 1)).date()
+             for i in range(num_periodos)]
+    return descarte + num_periodos, descarte, datas
+
+
+def _serie_indexada(dados_historicos: pd.DataFrame) -> pd.Series:
+    """Série com índice mensal (frequência declarada quando regular)."""
+    df = dados_historicos.sort_values('data')
+    indice = pd.DatetimeIndex(pd.to_datetime(df['data']))
+    try:
+        indice = pd.DatetimeIndex(indice, freq='MS')
+    except ValueError:
+        pass  # série irregular vinda de chamador avulso: sem frequência
+    return pd.Series(df['valor'].astype(float).values, index=indice)
+
+
+def _resultado(datas, valores, avisos: list[str], **attrs) -> pd.DataFrame:
+    resultado = pd.DataFrame({
+        'data': datas,
+        'valor_projetado': np.maximum(np.asarray(valores, dtype=float), 0),
+    })
+    if avisos:
+        resultado.attrs['degradacao'] = '; '.join(avisos)
+    resultado.attrs.update(attrs)
+    return resultado
+
+
 def projetar_holt_winters(
     dados_historicos: pd.DataFrame,
     num_periodos: int,
     config: dict,
     ano_base: int = None,
 ) -> pd.DataFrame:
-    """
-    Projeta valores usando Holt-Winters (Suavização Exponencial).
-    
-    Args:
-        dados_historicos: DataFrame com colunas 'data' e 'valor'
-        num_periodos: Número de meses a projetar
-        config: Dicionário com parâmetros:
-            - seasonal_periods: Período sazonal (default: 12 para mensal)
-            - trend: 'add' ou 'mul' (default: 'add')
-            - seasonal: 'add' ou 'mul' (default: 'add')
-            - damped_trend: bool (default: False) - Amortecer tendência
-            - use_boxcox: bool (default: False) - Transformação Box-Cox
-        ano_base: Ano base para projeção (opcional)
-    
-    Returns:
-        DataFrame com colunas: data, valor_projetado
+    """Holt-Winters (suavização exponencial).
+
+    config: seasonal_periods (12), trend ('add'), seasonal ('add'),
+    damped_trend (False), use_boxcox (False). Devolve `data`,
+    `valor_projetado`; degradações em `attrs['degradacao']` (R12).
+
+    ⚠️ Sazonalidade exige DOIS ciclos (R12): com menos de
+    `2 × seasonal_periods` meses o modelo roda sem componente sazonal e avisa.
+    Antes o período era reduzido a `n // 2` — sazonalidade semestral
+    inventada numa série mensal.
     """
     if not HAS_STATSMODELS:
         raise ValueError("Biblioteca statsmodels não está instalada. Execute: pip install statsmodels")
-    
-    if len(dados_historicos) < 24:  # Mínimo de 2 anos de dados
-        # Tentar com menos dados se houver pelo menos 12 meses
-        if len(dados_historicos) >= 12:
-            logger.info("Usando Holt-Winters com menos de 24 meses de dados")
-        else:
-            raise ValueError("Holt-Winters requer pelo menos 12 meses de dados históricos")
-    
-    # Parâmetros
+
+    n = len(dados_historicos)
+    if n < 12:
+        raise ValueError("Holt-Winters requer pelo menos 12 meses de dados históricos")
+
     seasonal_periods = int(config.get('seasonal_periods', 12))
     trend = config.get('trend', 'add')
     seasonal = config.get('seasonal', 'add')
     damped_trend = config.get('damped_trend', False)
     use_boxcox = config.get('use_boxcox', False)
-    
-    # Garantir que o período sazonal não seja maior que os dados
-    if seasonal_periods >= len(dados_historicos):
-        seasonal_periods = len(dados_historicos) // 2
-    
-    # Criar série temporal
-    df_sorted = dados_historicos.sort_values('data')
-    series = df_sorted.set_index('data')['valor']
-    
-    # Garantir valores positivos para multiplicativo ou Box-Cox.
-    # O deslocamento é REVERTIDO depois do forecast (previsao R12): treinar
-    # no espaço deslocado e devolver sem subtrair inflava toda projeção em
-    # (1 - min) — inclusive no fallback, que retreina a série já deslocada.
+
+    avisos = []
+    if seasonal and n < 2 * seasonal_periods:
+        avisos.append(
+            f"Holt-Winters sem sazonalidade: a sazonalidade exige "
+            f"{2 * seasonal_periods} meses de histórico (encontrados {n})")
+        seasonal = None
+
+    series = _serie_indexada(dados_historicos)
+    passos, descarte, datas = _horizonte(dados_historicos, ano_base, num_periodos)
+
+    # Garantir valores positivos para multiplicativo ou Box-Cox. O
+    # deslocamento é REVERTIDO depois do forecast (previsao R12) — inclusive
+    # no fallback, que retreina a série já deslocada.
     deslocamento = 0.0
     if seasonal == 'mul' or use_boxcox:
         min_val = series.min()
         if min_val <= 0:
-            series = series - min_val + 1  # Ajustar para valores positivos
+            series = series - min_val + 1
             deslocamento = float(min_val) - 1.0  # original = deslocada + (min−1)
 
-    degradacao = None
-    try:
-        # Treinar modelo
-        model = ExponentialSmoothing(
+    def _ajustar(trend_, seasonal_, **extra):
+        modelo = ExponentialSmoothing(
             series,
-            seasonal_periods=seasonal_periods,
-            trend=trend,
-            seasonal=seasonal,
-            damped_trend=damped_trend,
-            use_boxcox=use_boxcox,
+            seasonal_periods=seasonal_periods if seasonal_ else None,
+            trend=trend_,
+            seasonal=seasonal_,
+            **extra,
         )
         with _sem_avisos_de_convergencia():
-            fitted_model = model.fit(optimized=True)
+            return modelo.fit(**({'optimized': True} if extra else {}))
 
-        # Fazer projeção
-        forecast = fitted_model.forecast(steps=num_periodos)
-
+    try:
+        fitted_model = _ajustar(trend, seasonal, damped_trend=damped_trend,
+                                use_boxcox=use_boxcox)
+        forecast = fitted_model.forecast(steps=passos)
     except Exception as e:
         # Fallback NUNCA silencioso (R12): a degradação viaja no resultado
-        degradacao = (f"Holt-Winters (trend={trend}, seasonal={seasonal}) "
-                      f"falhou: {e}; usado Holt-Winters aditivo simples")
-        logger.warning("%s", degradacao)
-        model = ExponentialSmoothing(
-            series,
-            seasonal_periods=seasonal_periods,
-            trend='add',
-            seasonal='add',
-        )
-        with _sem_avisos_de_convergencia():
-            fitted_model = model.fit()
-        forecast = fitted_model.forecast(steps=num_periodos)
+        sazonal_fallback = 'add' if seasonal else None
+        mensagem = (f"Holt-Winters (trend={trend}, seasonal={seasonal}) "
+                    f"falhou: {e}; usado Holt-Winters aditivo simples")
+        logger.warning("%s", mensagem)
+        avisos.append(mensagem)
+        fitted_model = _ajustar('add', sazonal_fallback)
+        forecast = fitted_model.forecast(steps=passos)
 
     # Reverter o deslocamento ANTES do clamp de não-negatividade
-    if deslocamento:
-        forecast = forecast + deslocamento
-    
-    # Criar DataFrame de resultado
-    if ano_base:
-        # Usar ano base especificado
-        datas_futuras = _datas_do_ano_base(ano_base, num_periodos)
-    else:
-        ultima_data = df_sorted['data'].max()
-        datas_futuras = [ultima_data + relativedelta(months=i+1) for i in range(num_periodos)]
-    
-    # Garantir valores não-negativos
-    valores = forecast.values
-    valores = np.maximum(valores, 0)
-    
-    resultado = pd.DataFrame({
-        'data': datas_futuras,
-        'valor_projetado': valores
-    })
-    if degradacao:
-        resultado.attrs['degradacao'] = degradacao
-    return resultado
+    valores = np.asarray(forecast, dtype=float)[descarte:] + deslocamento
+    return _resultado(datas, valores, avisos)
 
 
 def projetar_arima(
@@ -274,96 +321,58 @@ def projetar_arima(
     config: dict,
     ano_base: int = None,
 ) -> pd.DataFrame:
-    """
-    Projeta valores usando ARIMA (AutoRegressive Integrated Moving Average).
-    
-    Args:
-        dados_historicos: DataFrame com colunas 'data' e 'valor'
-        num_periodos: Número de meses a projetar
-        config: Dicionário com parâmetros:
-            - p: ordem autoregressiva (default: 1)
-            - d: ordem de diferenciação (default: 1)
-            - q: ordem de média móvel (default: 1)
-            - auto_order: bool (default: False) - Seleção automática de ordem
-        ano_base: Ano base para projeção (opcional)
-    
-    Returns:
-        DataFrame com colunas: data, valor_projetado
+    """ARIMA(p, d, q).
+
+    config: p (1), d (1), q (1), auto_order (False). A ordem usada viaja em
+    `attrs['ordem']`.
+
+    ⚠️ `auto_order` varia só p e q, com o `d` configurado (R12): o AIC de
+    modelos com diferenciações diferentes é calculado sobre séries diferentes
+    e não é comparável.
     """
     if not HAS_STATSMODELS:
         raise ValueError("Biblioteca statsmodels não está instalada. Execute: pip install statsmodels")
-    
+
     if len(dados_historicos) < 12:
         raise ValueError("ARIMA requer pelo menos 12 meses de dados históricos")
-    
-    # Parâmetros
+
     p = int(config.get('p', 1))
     d = int(config.get('d', 1))
     q = int(config.get('q', 1))
     auto_order = config.get('auto_order', False)
-    
-    # Criar série temporal
-    df_sorted = dados_historicos.sort_values('data')
-    series = df_sorted.set_index('data')['valor']
 
-    degradacao = None
+    series = _serie_indexada(dados_historicos)
+    passos, descarte, datas = _horizonte(dados_historicos, ano_base, num_periodos)
+
+    avisos = []
     try:
-        if auto_order:
-            # Tentar encontrar melhor ordem automaticamente
-            best_aic = float('inf')
-            best_order = (p, d, q)
-            
-            for p_try in range(4):
-                for d_try in range(3):
+        with _sem_avisos_de_convergencia():
+            if auto_order:
+                melhor_aic, melhor = float('inf'), (p, q)
+                for p_try in range(4):
                     for q_try in range(4):
                         try:
-                            model = ARIMA(series, order=(p_try, d_try, q_try))
-                            fitted = model.fit()
-                            if fitted.aic < best_aic:
-                                best_aic = fitted.aic
-                                best_order = (p_try, d_try, q_try)
+                            aic = ARIMA(series, order=(p_try, d, q_try)).fit().aic
                         except Exception:
                             # nunca `except:` nu — capturaria KeyboardInterrupt
-                            # bem onde o usuário interromperia por lentidão
                             continue
-            
-            p, d, q = best_order
-        
-        # Treinar modelo
-        model = ARIMA(series, order=(p, d, q))
-        with _sem_avisos_de_convergencia():
-            fitted_model = model.fit()
-
-        # Fazer projeção
-        forecast = fitted_model.forecast(steps=num_periodos)
-
+                        if aic < melhor_aic:
+                            melhor_aic, melhor = aic, (p_try, q_try)
+                p, q = melhor
+            fitted_model = ARIMA(series, order=(p, d, q)).fit()
+        forecast = fitted_model.forecast(steps=passos)
     except Exception as e:
         # Fallback NUNCA silencioso (R12)
-        degradacao = (f"ARIMA({p},{d},{q}) falhou: {e}; usado ARIMA(1,1,1)")
-        logger.warning("%s", degradacao)
-        model = ARIMA(series, order=(1, 1, 1))
+        mensagem = f"ARIMA({p},{d},{q}) falhou: {e}; usado ARIMA(1,1,1)"
+        logger.warning("%s", mensagem)
+        avisos.append(mensagem)
+        p, d, q = 1, 1, 1
         with _sem_avisos_de_convergencia():
-            fitted_model = model.fit()
-        forecast = fitted_model.forecast(steps=num_periodos)
-    
-    # Criar DataFrame de resultado
-    if ano_base:
-        datas_futuras = _datas_do_ano_base(ano_base, num_periodos)
-    else:
-        ultima_data = df_sorted['data'].max()
-        datas_futuras = [ultima_data + relativedelta(months=i+1) for i in range(num_periodos)]
-    
-    # Garantir valores não-negativos
-    valores = forecast.values
-    valores = np.maximum(valores, 0)
-    
-    resultado = pd.DataFrame({
-        'data': datas_futuras,
-        'valor_projetado': valores
-    })
-    if degradacao:
-        resultado.attrs['degradacao'] = degradacao
-    return resultado
+            fitted_model = ARIMA(series, order=(p, d, q)).fit()
+        forecast = fitted_model.forecast(steps=passos)
+
+    valores = np.asarray(forecast, dtype=float)[descarte:]
+    return _resultado(datas, valores, avisos, ordem=(p, d, q))
 
 
 def projetar_sarima(
@@ -372,101 +381,70 @@ def projetar_sarima(
     config: dict,
     ano_base: int = None,
 ) -> pd.DataFrame:
-    """
-    Projeta valores usando SARIMA (Seasonal ARIMA).
-    
-    Args:
-        dados_historicos: DataFrame com colunas 'data' e 'valor'
-        num_periodos: Número de meses a projetar
-        config: Dicionário com parâmetros:
-            - p, d, q: ordens não-sazonais
-            - P, D, Q, s: ordens sazonais (s = período sazonal, default 12)
-            - enforce_stationarity: bool (default: True)
-            - enforce_invertibility: bool (default: True)
-        ano_base: Ano base para projeção (opcional)
-    
-    Returns:
-        DataFrame com colunas: data, valor_projetado
+    """SARIMA(p, d, q)(P, D, Q, s).
+
+    config: p, d, q (1, 1, 1); P, D, Q (1, 1, 1); s (12);
+    enforce_stationarity e enforce_invertibility (default **False** — o
+    código sempre usou False; a docstring antiga dizia True).
+
+    ⚠️ Sazonalidade exige DOIS ciclos (R12): com menos de `2 × s` meses o
+    SARIMA roda sem a parte sazonal e avisa — diferença sazonal sobre menos
+    de dois ciclos deixa quase nada para estimar.
     """
     if not HAS_STATSMODELS:
         raise ValueError("Biblioteca statsmodels não está instalada. Execute: pip install statsmodels")
-    
-    if len(dados_historicos) < 24:
-        # Tentar com menos dados se houver pelo menos 12 meses
-        if len(dados_historicos) >= 12:
-            logger.info("Usando SARIMA com menos de 24 meses de dados")
-        else:
-            raise ValueError("SARIMA requer pelo menos 12 meses de dados históricos")
-    
-    # Parâmetros não-sazonais
+
+    n = len(dados_historicos)
+    if n < 12:
+        raise ValueError("SARIMA requer pelo menos 12 meses de dados históricos")
+
     p = int(config.get('p', 1))
     d = int(config.get('d', 1))
     q = int(config.get('q', 1))
-    
-    # Parâmetros sazonais
     P = int(config.get('P', 1))
     D = int(config.get('D', 1))
     Q = int(config.get('Q', 1))
     s = int(config.get('s', 12))
-    
     enforce_stationarity = config.get('enforce_stationarity', False)
     enforce_invertibility = config.get('enforce_invertibility', False)
-    
-    # Criar série temporal
-    df_sorted = dados_historicos.sort_values('data')
-    series = df_sorted.set_index('data')['valor']
-    
-    degradacao = None
+
+    avisos = []
+    if (P or D or Q) and n < 2 * s:
+        avisos.append(
+            f"SARIMA sem componente sazonal: a sazonalidade exige {2 * s} "
+            f"meses de histórico (encontrados {n})")
+        P = D = Q = 0
+    ordem_sazonal = (P, D, Q, s) if (P or D or Q) else (0, 0, 0, 0)
+
+    series = _serie_indexada(dados_historicos)
+    passos, descarte, datas = _horizonte(dados_historicos, ano_base, num_periodos)
+
     try:
-        # Treinar modelo SARIMA
         model = SARIMAX(
             series,
             order=(p, d, q),
-            seasonal_order=(P, D, Q, s),
+            seasonal_order=ordem_sazonal,
             enforce_stationarity=enforce_stationarity,
             enforce_invertibility=enforce_invertibility,
         )
         with _sem_avisos_de_convergencia():
             fitted_model = model.fit(disp=False, maxiter=200)
-
-        # Fazer projeção
-        forecast = fitted_model.forecast(steps=num_periodos)
-
+        forecast = np.asarray(fitted_model.forecast(steps=passos), dtype=float)
     except Exception as e:
         # Fallback NUNCA silencioso (R12) — dois níveis, ambos registrados
-        degradacao = f"SARIMA falhou: {e}; usado ARIMA(1,1,1)"
-        logger.warning("%s", degradacao)
+        mensagem = f"SARIMA falhou: {e}; usado ARIMA(1,1,1)"
         try:
-            model = ARIMA(series, order=(1, 1, 1))
             with _sem_avisos_de_convergencia():
-                fitted_model = model.fit()
-            forecast = fitted_model.forecast(steps=num_periodos)
+                fitted_model = ARIMA(series, order=(1, 1, 1)).fit()
+            forecast = np.asarray(fitted_model.forecast(steps=passos), dtype=float)
         except Exception as e2:
-            degradacao = (f"SARIMA falhou: {e}; ARIMA(1,1,1) também falhou: "
-                          f"{e2}; usada a média dos últimos 12 meses")
-            logger.warning("%s", degradacao)
-            # Fallback final: média dos últimos 12 meses
-            media = series.tail(12).mean()
-            forecast = pd.Series([media] * num_periodos)
-    
-    # Criar DataFrame de resultado
-    if ano_base:
-        datas_futuras = _datas_do_ano_base(ano_base, num_periodos)
-    else:
-        ultima_data = df_sorted['data'].max()
-        datas_futuras = [ultima_data + relativedelta(months=i+1) for i in range(num_periodos)]
-    
-    # Garantir valores não-negativos
-    valores = forecast.values if hasattr(forecast, 'values') else list(forecast)
-    valores = np.maximum(valores, 0)
-    
-    resultado = pd.DataFrame({
-        'data': datas_futuras,
-        'valor_projetado': valores
-    })
-    if degradacao:
-        resultado.attrs['degradacao'] = degradacao
-    return resultado
+            mensagem = (f"SARIMA falhou: {e}; ARIMA(1,1,1) também falhou: "
+                        f"{e2}; usada a média dos últimos 12 meses")
+            forecast = np.full(passos, float(series.tail(12).mean()))
+        logger.warning("%s", mensagem)
+        avisos.append(mensagem)
+
+    return _resultado(datas, forecast[descarte:], avisos)
 
 
 def projetar_regressao_multipla(
@@ -551,101 +529,68 @@ def projetar_regressao_multipla(
     return resultado
 
 
+def _projetar_ml(chave: str, nome: str, fabricar, dados_historicos: pd.DataFrame,
+                 num_periodos: int, ano_base: int | None) -> pd.DataFrame:
+    """Treino + previsão recursiva comuns a XGBoost e LightGBM (R19).
+
+    Atributos pela origem única `feature_engineering.atributos_do_mes`: o
+    treino nunca vê o próprio alvo e a defasagem k do mês previsto é o valor
+    (observado ou previsto) de k meses antes dele.
+    """
+    from .feature_engineering import atributos_do_mes, get_feature_columns, montar_treino
+    from .validacao import RegraNegocioError
+
+    n = len(dados_historicos)
+    minimo = MINIMO_DE_MESES[chave]
+    if n < minimo:
+        raise RegraNegocioError(
+            f"{nome} requer pelo menos {minimo} meses de dados históricos "
+            f"(12 defasagens + 2 meses de treino); encontrados {n}")
+
+    X_train, y_train = montar_treino(dados_historicos)
+    model = fabricar()
+    model.fit(X_train, y_train)
+
+    serie = dados_historicos.sort_values('data')
+    ultima = pd.Timestamp(pd.to_datetime(serie['data']).max())
+    ultima = pd.Timestamp(ultima.year, ultima.month, 1)
+    passos, descarte, datas = _horizonte(dados_historicos, ano_base, num_periodos)
+    colunas = get_feature_columns()
+    valores = [float(v) for v in serie['valor']]
+    previstos: list[float] = []
+    for k in range(passos):
+        data_k = ultima + pd.DateOffset(months=k + 1)
+        linha = atributos_do_mes(valores + previstos, data_k)
+        X_pred = pd.DataFrame([linha])[colunas].replace([np.inf, -np.inf], 0).fillna(0)
+        previstos.append(max(float(model.predict(X_pred)[0]), 0.0))
+
+    return _resultado(datas, previstos[descarte:], [])
+
+
 def projetar_xgboost(
     dados_historicos: pd.DataFrame,
     num_periodos: int,
     config: dict,
     ano_base: int = None,
 ) -> pd.DataFrame:
-    """
-    Projeta valores usando XGBoost (Gradient Boosting).
-    
-    Uses feature engineering with lag values, cyclical month encoding,
-    rolling statistics, and trend. Prediction is done recursively:
-    each predicted month becomes a lag input for the next.
-    
-    Args:
-        dados_historicos: DataFrame with columns 'data' and 'valor'
-        num_periodos: Number of months to project
-        config: Dict with parameters:
-            - n_estimators: number of trees (default: 100)
-            - max_depth: max tree depth (default: 6)
-            - learning_rate: learning rate (default: 0.1)
-        ano_base: Base year for projection (optional)
-    
-    Returns:
-        DataFrame with columns: data, valor_projetado
+    """XGBoost com previsão recursiva mês a mês.
+
+    config: n_estimators (100), max_depth (6), learning_rate (0.1).
     """
     if not HAS_XGBOOST:
         raise ValueError("Biblioteca xgboost não está instalada. Execute: pip install xgboost")
-    
-    if len(dados_historicos) < 24:
-        if len(dados_historicos) >= 13:
-            logger.info("Usando XGBoost com menos de 24 meses de dados")
-        else:
-            raise ValueError("XGBoost requer pelo menos 13 meses de dados históricos (12 para lags + 1 para treino)")
-    
-    from .feature_engineering import (
-        atualizar_lags_recursivo,
-        criar_features_futuras,
-        criar_features_serie_temporal,
-        get_feature_columns,
-        preparar_dados_treino,
-    )
-    
-    # Parameters
-    n_estimators = int(config.get('n_estimators', 100))
-    max_depth = int(config.get('max_depth', 6))
-    learning_rate = float(config.get('learning_rate', 0.1))
-    
-    # Generate features from historical data
-    df_features = criar_features_serie_temporal(dados_historicos)
-    
-    # Prepare training data
-    X_train, y_train = preparar_dados_treino(df_features)
-    
-    if len(X_train) < 2:
-        raise ValueError("Dados insuficientes para treinar XGBoost após remoção de NaN nos lags")
-    
-    # Train model
-    model = XGBRegressor(
-        n_estimators=n_estimators,
-        max_depth=max_depth,
-        learning_rate=learning_rate,
-        random_state=42,
-        verbosity=0,
-    )
-    model.fit(X_train, y_train)
-    
-    # Generate future features
-    df_futuro = criar_features_futuras(df_features, num_periodos, ano_base)
-    feature_cols = get_feature_columns()
-    
-    # Recursive prediction
-    valores_previstos = []
-    valores_historicos = df_features['valor'].values
-    
-    for i in range(num_periodos):
-        row = df_futuro.iloc[i].to_dict()
-        
-        # Update lags with previously predicted values
-        row = atualizar_lags_recursivo(row, valores_previstos, valores_historicos, i)
-        
-        # Predict
-        X_pred = pd.DataFrame([row])[feature_cols]
-        X_pred = X_pred.replace([np.inf, -np.inf], 0).fillna(0)
-        pred = float(model.predict(X_pred)[0])
-        pred = max(pred, 0)  # Ensure non-negative
-        
-        valores_previstos.append(pred)
-    
-    # Build result DataFrame
-    resultado = pd.DataFrame({
-        'data': df_futuro['data'].values[:num_periodos],
-        'valor_projetado': valores_previstos
-    })
-    
-    return resultado
+
+    def _fabricar():
+        return XGBRegressor(
+            n_estimators=int(config.get('n_estimators', 100)),
+            max_depth=int(config.get('max_depth', 6)),
+            learning_rate=float(config.get('learning_rate', 0.1)),
+            random_state=42,
+            verbosity=0,
+        )
+
+    return _projetar_ml('XGBOOST', 'XGBoost', _fabricar, dados_historicos,
+                        num_periodos, ano_base)
 
 
 def projetar_lightgbm(
@@ -654,97 +599,26 @@ def projetar_lightgbm(
     config: dict,
     ano_base: int = None,
 ) -> pd.DataFrame:
-    """
-    Projeta valores usando LightGBM (Microsoft Gradient Boosting).
-    
-    Uses the same feature engineering approach as XGBoost with recursive prediction.
-    LightGBM is generally faster and more memory-efficient than XGBoost.
-    
-    Args:
-        dados_historicos: DataFrame with columns 'data' and 'valor'
-        num_periodos: Number of months to project
-        config: Dict with parameters:
-            - n_estimators: number of trees (default: 100)
-            - max_depth: max tree depth (default: -1 = no limit)
-            - learning_rate: learning rate (default: 0.1)
-            - num_leaves: max number of leaves per tree (default: 31)
-        ano_base: Base year for projection (optional)
-    
-    Returns:
-        DataFrame with columns: data, valor_projetado
+    """LightGBM com previsão recursiva mês a mês.
+
+    config: n_estimators (100), max_depth (-1), learning_rate (0.1),
+    num_leaves (31).
     """
     if not HAS_LIGHTGBM:
         raise ValueError("Biblioteca lightgbm não está instalada. Execute: pip install lightgbm")
-    
-    if len(dados_historicos) < 24:
-        if len(dados_historicos) >= 13:
-            logger.info("Usando LightGBM com menos de 24 meses de dados")
-        else:
-            raise ValueError("LightGBM requer pelo menos 13 meses de dados históricos (12 para lags + 1 para treino)")
-    
-    from .feature_engineering import (
-        atualizar_lags_recursivo,
-        criar_features_futuras,
-        criar_features_serie_temporal,
-        get_feature_columns,
-        preparar_dados_treino,
-    )
-    
-    # Parameters
-    n_estimators = int(config.get('n_estimators', 100))
-    max_depth = int(config.get('max_depth', -1))
-    learning_rate = float(config.get('learning_rate', 0.1))
-    num_leaves = int(config.get('num_leaves', 31))
-    
-    # Generate features from historical data
-    df_features = criar_features_serie_temporal(dados_historicos)
-    
-    # Prepare training data
-    X_train, y_train = preparar_dados_treino(df_features)
-    
-    if len(X_train) < 2:
-        raise ValueError("Dados insuficientes para treinar LightGBM após remoção de NaN nos lags")
-    
-    # Train model
-    model = LGBMRegressor(
-        n_estimators=n_estimators,
-        max_depth=max_depth,
-        learning_rate=learning_rate,
-        num_leaves=num_leaves,
-        random_state=42,
-        verbosity=-1,
-    )
-    model.fit(X_train, y_train)
-    
-    # Generate future features
-    df_futuro = criar_features_futuras(df_features, num_periodos, ano_base)
-    feature_cols = get_feature_columns()
-    
-    # Recursive prediction
-    valores_previstos = []
-    valores_historicos = df_features['valor'].values
-    
-    for i in range(num_periodos):
-        row = df_futuro.iloc[i].to_dict()
-        
-        # Update lags with previously predicted values
-        row = atualizar_lags_recursivo(row, valores_previstos, valores_historicos, i)
-        
-        # Predict
-        X_pred = pd.DataFrame([row])[feature_cols]
-        X_pred = X_pred.replace([np.inf, -np.inf], 0).fillna(0)
-        pred = float(model.predict(X_pred)[0])
-        pred = max(pred, 0)  # Ensure non-negative
-        
-        valores_previstos.append(pred)
-    
-    # Build result DataFrame
-    resultado = pd.DataFrame({
-        'data': df_futuro['data'].values[:num_periodos],
-        'valor_projetado': valores_previstos
-    })
-    
-    return resultado
+
+    def _fabricar():
+        return LGBMRegressor(
+            n_estimators=int(config.get('n_estimators', 100)),
+            max_depth=int(config.get('max_depth', -1)),
+            learning_rate=float(config.get('learning_rate', 0.1)),
+            num_leaves=int(config.get('num_leaves', 31)),
+            random_state=42,
+            verbosity=-1,
+        )
+
+    return _projetar_ml('LIGHTGBM', 'LightGBM', _fabricar, dados_historicos,
+                        num_periodos, ano_base)
 
 
 # ==================== Expense Forecast Models ====================
@@ -809,77 +683,42 @@ def projetar_media_historica(
     config: dict,
     ano_base: int = None,
 ) -> pd.DataFrame:
-    """
-    Projeta despesas usando média histórica ajustada.
-    
-    Args:
-        dados_historicos: DataFrame com colunas 'data' e 'valor'
-        num_periodos: Número de meses a projetar
-        config: Dicionário com:
-            - periodo_meses: quantos meses usar para média (default: 12)
-            - fator_ajuste: multiplicador para ajuste (default: 1.0)
-            - considerar_sazonalidade: bool (default: True)
-        ano_base: Ano base para projeção (opcional)
-    
-    Returns:
-        DataFrame com colunas: data, valor_projetado
+    """Média histórica, com ou sem perfil por mês do ano.
+
+    config: periodo_meses (12), fator_ajuste (1.0),
+    considerar_sazonalidade (True). Datas pelo horizonte ancorado (R18).
     """
     try:
         periodo_meses = int(config.get('periodo_meses', 12) or 12)
     except (ValueError, TypeError):
         periodo_meses = 12
-    
+
     try:
         fator_ajuste = float(config.get('fator_ajuste', 1.0) or 1.0)
     except (ValueError, TypeError):
         fator_ajuste = 1.0
-    
+
     considerar_sazonalidade = config.get('considerar_sazonalidade', True)
-    
+
     if len(dados_historicos) == 0:
         raise ValueError("Não há dados históricos disponíveis")
-    
-    # Fazer cópia para não modificar original
-    df = dados_historicos.copy()
-    
-    # Usar últimos N meses
+
+    df = dados_historicos.sort_values('data').copy()
     df_recente = df.tail(periodo_meses)
-    
+    _, _, datas = _horizonte(df, ano_base, num_periodos)
+
     if considerar_sazonalidade and len(df) >= 12:
-        # Calcular média por mês do ano (sazonalidade)
+        # Média por mês do ano (sazonalidade) — série regular: mês sem
+        # movimento entra como zero na média (R18)
         df['mes'] = pd.to_datetime(df['data']).dt.month
         media_por_mes = df.groupby('mes')['valor'].mean().to_dict()
-        
-        # Projetar com padrão sazonal
-        data_base = df['data'].max()
-        projecoes = []
-        
-        for i in range(num_periodos):
-            if ano_base:
-                mes = (i % 12) + 1
-            else:
-                data_futura = data_base + relativedelta(months=i+1)
-                mes = data_futura.month
-            valor = media_por_mes.get(mes, df_recente['valor'].mean()) * fator_ajuste
-            projecoes.append(max(valor, 0))
+        media_recente = df_recente['valor'].mean()
+        projecoes = [media_por_mes.get(d.month, media_recente) * fator_ajuste
+                     for d in datas]
     else:
-        # Média simples
-        media = df_recente['valor'].mean() * fator_ajuste
-        projecoes = [max(media, 0)] * num_periodos
-    
-    # Criar DataFrame de resultado
-    if ano_base:
-        datas_futuras = _datas_do_ano_base(ano_base, num_periodos)
-    else:
-        ultima_data = df['data'].max()
-        datas_futuras = [ultima_data + relativedelta(months=i+1) for i in range(num_periodos)]
-    
-    resultado = pd.DataFrame({
-        'data': datas_futuras,
-        'valor_projetado': projecoes
-    })
-    
-    return resultado
+        projecoes = [df_recente['valor'].mean() * fator_ajuste] * num_periodos
+
+    return _resultado(datas, projecoes, [])
 
 
 # ==================== Aggregated Historical Data ====================
@@ -888,63 +727,34 @@ def obter_dados_historicos_agregados(
     seq_qualificadores: list[int],
     data_inicio: date,
     data_fim: date,
-    agregacao: str = 'mensal'
+    agregacao: str = 'mensal',
+    hoje: date | None = None,
 ) -> pd.DataFrame:
-    """
-    Obtém dados históricos agregados de múltiplos qualificadores.
-    
-    Args:
-        seq_qualificadores: Lista de IDs de qualificadores
-        data_inicio: Data inicial do período
-        data_fim: Data final do período
-        agregacao: 'mensal' ou 'diario'
-    
-    Returns:
-        DataFrame com colunas: data, valor (agregado de todos os qualificadores)
-    """
+    """Série histórica SOMADA de vários qualificadores (cada um expandido pela
+    raiz — R17). Mensal é regular (R18); diário devolve só os dias com
+    movimento."""
     if not seq_qualificadores:
         return pd.DataFrame(columns=['data', 'valor'])
-    
-    # Buscar lançamentos de todos os qualificadores. F10.2 (R17): cada seq é
-    # expandido para a sua rubrica (raiz) — costura entre exercícios.
-    from .serie_historica import seqs_das_rubricas
-
-    lancamentos = (
-        Lancamento.query
-        .filter(
-            Lancamento.seq_qualificador.in_(seqs_das_rubricas(seq_qualificadores)),
-            Lancamento.dat_lancamento >= data_inicio,
-            Lancamento.dat_lancamento <= data_fim,
-            Lancamento.ind_status == 'A',
-        )
-        .all()
-    )
-    
+    lancamentos = _lancamentos_da_serie(seq_qualificadores, data_inicio, data_fim)
+    if agregacao == 'mensal':
+        return _serie_mensal_regular(lancamentos, data_inicio, data_fim, hoje)
     if not lancamentos:
         return pd.DataFrame(columns=['data', 'valor'])
-    
-    # Converter para DataFrame
-    data = []
-    for lanc in lancamentos:
-        data.append({
-            'data': lanc.dat_lancamento,
-            'valor': float(lanc.valor_com_sinal),
-            'seq_qualificador': lanc.seq_qualificador
-        })
-    
-    df = pd.DataFrame(data)
-    
-    # Agregar por data (soma de todos os qualificadores)
-    if agregacao == 'mensal':
-        df['ano_mes'] = df['data'].apply(lambda x: x.strftime('%Y-%m'))
-        df_agregado = df.groupby('ano_mes')['valor'].sum().reset_index()
-        df_agregado.columns = ['data', 'valor']
-        df_agregado['data'] = pd.to_datetime(df_agregado['data'] + '-01')
-        return df_agregado.sort_values('data')
-    
-    # Diário
+    df = pd.DataFrame(
+        [{'data': lanc.dat_lancamento, 'valor': float(lanc.valor_com_sinal)}
+         for lanc in lancamentos])
     df_agregado = df.groupby('data')['valor'].sum().reset_index()
     return df_agregado.sort_values('data')
+
+
+def obter_serie_do_ano_base(seq_qualificadores: list[int], ano_base: int,
+                            janela_anos: int, hoje: date | None = None) -> pd.DataFrame:
+    """ORIGEM ÚNICA da série de treino das três portas (rota avulsa, cenário
+    por perna, método por qualificador): janela de 1º de janeiro (R18) e
+    série regular costurada pela raiz."""
+    inicio, fim = janela_do_ano_base(ano_base, janela_anos)
+    return obter_dados_historicos_agregados(
+        list(seq_qualificadores), inicio, fim, 'mensal', hoje)
 
 
 def obter_dados_historicos_por_qualificador(
@@ -982,29 +792,21 @@ def calcular_projecao(tipo_modelo: str, seq_qualificadores: list[int],
     from .validacao import RegraNegocioError
 
     config = config or {}
-    data_fim = date(ano_base - 1, 12, 31)
 
-    def _historico(janela_anos: int):
-        data_inicio = data_fim - relativedelta(years=janela_anos)
-        if len(seq_qualificadores) > 1:
-            return obter_dados_historicos_agregados(
-                seq_qualificadores, data_inicio, data_fim)
-        return obter_dados_historicos(
-            seq_qualificadores[0], data_inicio, data_fim)
-
-    # modelo -> (janela em anos, mínimo de observações, motor)
+    # modelo -> (janela em anos, motor); mínimo em MINIMO_DE_MESES
     tabela = {
-        'HOLT_WINTERS': (3, 12, projetar_holt_winters),
-        'ARIMA': (3, 12, projetar_arima),
-        'SARIMA': (4, 12, projetar_sarima),
-        'MEDIA_HISTORICA': (3, 1, projetar_media_historica),
-        'XGBOOST': (3, 13, projetar_xgboost),
-        'LIGHTGBM': (3, 13, projetar_lightgbm),
+        'HOLT_WINTERS': (3, projetar_holt_winters),
+        'ARIMA': (3, projetar_arima),
+        'SARIMA': (4, projetar_sarima),
+        'MEDIA_HISTORICA': (3, projetar_media_historica),
+        'XGBOOST': (3, projetar_xgboost),
+        'LIGHTGBM': (3, projetar_lightgbm),
     }
 
     if tipo_modelo in tabela:
-        janela, minimo, motor = tabela[tipo_modelo]
-        dados_hist = _historico(janela)
+        janela, motor = tabela[tipo_modelo]
+        minimo = MINIMO_DE_MESES[tipo_modelo]
+        dados_hist = obter_serie_do_ano_base(seq_qualificadores, ano_base, janela)
         if len(dados_hist) < minimo:
             raise RegraNegocioError(
                 f"Dados históricos insuficientes para {tipo_modelo}: "
