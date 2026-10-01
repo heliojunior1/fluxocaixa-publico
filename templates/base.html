@@ -284,7 +284,8 @@
 
             {% if tem_permissao(request, 'FC_CONS_PREVISAO')
                 or tem_permissao(request, 'FC_REL_BACKTEST')
-                or tem_permissao(request, 'FC_CONS_FORMULA') %}
+                or tem_permissao(request, 'FC_CONS_FORMULA')
+                or tem_permissao(request, 'FC_CONS_CORRESPONDENCIA_RUBRICA') %}
             <p
                 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 sidebar-section-title whitespace-nowrap" data-testid="menu-grupo-previsao">
                 Previsão</p>
@@ -311,6 +312,15 @@
                 <i data-lucide="users"
                     class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
                 <span class="sidebar-text whitespace-nowrap">Setores da previsão</span>
+            </a>
+            {% endif %}
+            {% if tem_permissao(request, 'FC_CONS_CORRESPONDENCIA_RUBRICA') %}
+            <a href="{{ url_for('correspondencias_rubricas') }}" data-testid="menu-correspondencias"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="De/Para de rubricas entre exercícios">
+                <i data-lucide="git-merge"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">De/Para de rubricas</span>
             </a>
             {% endif %}
 

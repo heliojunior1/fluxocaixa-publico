@@ -13,7 +13,9 @@ import pytest
 
 RAIZ_SRC = Path(__file__).resolve().parents[2] / "fluxocaixa" / "services"
 
-# Serviços de SÉRIE: têm de consultar via seqs_da_rubrica/seqs_das_rubricas.
+# Serviços de SÉRIE: a série de previsão é lida SÓ por
+# `serie_historica.serie_mensal` (raiz + correspondência entre exercícios,
+# previsao R31) — eles não filtram `Lancamento.seq_qualificador` nenhum.
 ARQUIVOS_DE_SERIE = [
     "formula_engine.py",
     "modelos_economicos_service.py",
@@ -58,6 +60,27 @@ def test_guarda_in_nao_expandido_nos_servicos_de_serie():
         "Série filtrada por IN com lista não expandida pela raiz — use "
         "serie_historica.seqs_da_rubrica/seqs_das_rubricas:\n"
         + "\n".join(violacoes)
+    )
+
+
+# Qualquer filtro de lançamento pelo qualificador nos serviços de série
+# (change correspondencia-rubricas-entre-exercicios): com a correspondência a
+# série deixou de ser um IN — fusão soma origens, desdobramento reconstrói,
+# rateia ou fica pendente — e só `serie_historica` sabe montá-la.
+PADRAO_FILTRO_DE_LANCAMENTO = re.compile(r"Lancamento\.seq_qualificador\b")
+
+
+def test_guarda_servicos_de_serie_leem_pela_origem_unica():
+    violacoes = []
+    for nome in ARQUIVOS_DE_SERIE:
+        texto = (RAIZ_SRC / nome).read_text(encoding="utf-8")
+        for n, linha in enumerate(texto.splitlines(), start=1):
+            if (PADRAO_FILTRO_DE_LANCAMENTO.search(linha)
+                    and MARCADOR_FORA_DA_SERIE not in linha):
+                violacoes.append(f"{nome}:{n}: {linha.strip()}")
+    assert not violacoes, (
+        "Serviço de série filtrando lançamento pelo qualificador — leia por "
+        "serie_historica.serie_mensal:\n" + "\n".join(violacoes)
     )
 
 

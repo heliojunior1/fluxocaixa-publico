@@ -35,6 +35,8 @@ ARQUIVOS = (
     "services/projecao_versao_service.py",
     "services/previsao_service.py",
     "services/simulador_cenario_service.py",
+    # leitor único da série de previsão (change correspondencia-rubricas-entre-exercicios)
+    "services/serie_historica.py",
 )
 
 # ---------------------------------------------------------------------------

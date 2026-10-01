@@ -27,19 +27,15 @@ def test_leitores_de_serie_filtram_ativos():
     """Toda leitura de série histórica considera só lançamentos ativos —
     a mesma série do backtest (previsao R11)."""
     from fluxocaixa.services import formula_engine
-    from fluxocaixa.services import modelos_economicos_service as modelos
+    from fluxocaixa.services import serie_historica
 
+    # A consulta da série de PREVISÃO mora num lugar só (change
+    # correspondencia-rubricas-entre-exercicios): os leitores do
+    # formula_engine, dos modelos e do motor por qualificador somam
+    # `serie_historica.serie_mensal`, que lê por `_mensal`.
     leitores = [
-        formula_engine.listar_anos_disponiveis,
         formula_engine.listar_todos_anos_disponiveis,
-        formula_engine._buscar_valores_historicos_mes,
-        formula_engine._buscar_valores_historicos_anual,
-        formula_engine._soma_acumulada,
-        formula_engine._perfil_sazonal,
-        # leitor ÚNICO das séries dos modelos (obter_dados_historicos* e
-        # obter_serie_do_ano_base delegam a ele — change
-        # corrigir-motores-de-previsao)
-        modelos._lancamentos_da_serie,
+        serie_historica._mensal,
     ]
     for leitor in leitores:
         fonte = inspect.getsource(leitor)

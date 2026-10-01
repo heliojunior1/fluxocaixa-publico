@@ -103,6 +103,13 @@ class ProjecaoValor(Base):
     cod_metodo = Column(String(40))
     seq_qualificador_calculo = Column(
         Integer, ForeignKey('flc_qualificador.seq_qualificador'), nullable=True)
+    # Distribuição pendente (previsao R32): valor do GRUPO de destinos de um
+    # desdobramento sem divisão fundamentada — linha sem folha
+    # (`seq_qualificador` nulo), contada uma vez, identificada pela
+    # correspondência.
+    seq_correspondencia_rubrica = Column(
+        Integer, ForeignKey('flc_correspondencia_rubrica.seq_correspondencia_rubrica'),
+        nullable=True)
 
     # foreign_keys explícito: há duas FKs para flc_qualificador (a folha e o
     # nó de cálculo) e a relação é a da folha.

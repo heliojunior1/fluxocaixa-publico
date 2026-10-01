@@ -73,6 +73,16 @@ def _exigir_confirmacao_de_lacunas(cobertura: dict, confirmado: bool) -> None:
             f"{lacunas} rubrica(s) com histórico ficaram sem projeção "
             f"({exemplos}{'…' if lacunas > 8 else ''}). Resolva na tela de métodos "
             "por qualificador ou confirme a publicação com as lacunas.")
+    # R32: destino de desdobramento sem divisão foi projetado só no GRUPO —
+    # o total está certo, a distribuição entre as rubricas não existe.
+    pendentes = int(cobertura.get('distribuicoes_pendentes') or 0)
+    if pendentes and not confirmado:
+        exemplos = ', '.join(cobertura.get('rubricas_distribuicao_pendente', [])[:8])
+        raise RegraNegocioError(
+            f"{pendentes} rubrica(s) com distribuição pendente ({exemplos}"
+            f"{'…' if pendentes > 8 else ''}): o desdobramento não tem rateio e o "
+            "valor está só no grupo. Registre o rateio na tela de correspondências "
+            "ou confirme a publicação.")
 
 
 def salvar_projecao_como_versao(
@@ -110,6 +120,9 @@ def salvar_projecao_como_versao(
         'total_despesa': float(resultado['resumo']['total_despesa'] or 0),
         'saldo_final': float(resultado['resumo']['saldo_final'] or 0),
         **cobertura,
+        # R33: a versão do De/Para que montou as séries — mudar uma
+        # correspondência depois não muda a explicação deste número.
+        'versao_de_para': resultado.get('versao_de_para'),
     })
 
     try:
@@ -277,6 +290,11 @@ def _df_para_linhas(df, seq_versao: int, cod_tipo: str,
                    if 'seq_qualificador_calculo' in df.columns else None)
         if calculo is not None and not pd.isna(calculo):
             linha['seq_qualificador_calculo'] = int(calculo)
+        # R32: valor do grupo com distribuição pendente (linha sem rubrica)
+        grupo = (row.get('seq_correspondencia_rubrica')
+                 if 'seq_correspondencia_rubrica' in df.columns else None)
+        if grupo is not None and not pd.isna(grupo):
+            linha['seq_correspondencia_rubrica'] = int(grupo)
         out.append(linha)
     return out
 

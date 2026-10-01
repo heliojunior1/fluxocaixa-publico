@@ -853,6 +853,19 @@ def _magnitude(projecao):
 
 
 def executar_simulacao(seq_simulador_cenario: int) -> dict | None:
+    """Executa a simulação com a versão do De/Para FIXADA (previsao R33):
+    todas as séries da execução leem a mesma versão, e ela vai no resultado
+    (`versao_de_para`) — a versão salva a grava no resumo."""
+    from .serie_historica import versao_fixada
+
+    with versao_fixada() as versao:
+        resultado = _executar_simulacao(seq_simulador_cenario)
+    if resultado is not None:
+        resultado['versao_de_para'] = versao
+    return resultado
+
+
+def _executar_simulacao(seq_simulador_cenario: int) -> dict | None:
     """Executa a simulação do cenário, uma perna por configuração.
 
     O shape de retorno é o mesmo de antes da unificação — `projecao_receita`,

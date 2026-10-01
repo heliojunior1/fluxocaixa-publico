@@ -65,6 +65,7 @@ from . import (  # noqa: E402, F401 - import de efeito colateral, DEPOIS do rout
     orcamento,
     orgaos,
     pagamentos,
+    correspondencias,
     previsao_qualificador,
     processamento,
     programacao,

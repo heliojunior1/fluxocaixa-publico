@@ -757,4 +757,39 @@ if not Qualificador.query.filter_by(num_qualificador='1.989.1').first():
                 cod_pessoa_inclusao=1, ind_status='A'))
     db.session.commit()
 
+# ---------------------------------------------------------------------------
+# De/Para de rubricas (correspondencia_rubricas.spec.ts, change
+# correspondencia-rubricas-entre-exercicios): origem "1.988.1" no plano-ilha
+# 2095 e destinos "1.988.2"/"1.988.3" no plano-ilha 2096, com realizado em
+# 2096 de 300,00 e 700,00 (a sugestão de rateio sai 30/70). Dados fictícios.
+# ---------------------------------------------------------------------------
+if not Qualificador.query.filter_by(num_qualificador='1.988.1', num_ano_exercicio=2095).first():
+    from datetime import date as _date_dp
+
+    _tipo_dp = TipoLancamento.query.filter_by(dsc_tipo_lancamento='Entrada').first()
+    _origem_dp = OrigemLancamento.query.filter_by(dsc_origem_lancamento='Manual').first()
+
+    def _rubrica_dp(codigo, dsc, ano, pai=None):
+        _q = Qualificador(num_qualificador=codigo, dsc_qualificador=dsc, ind_status='A',
+                          num_ano_exercicio=ano,
+                          cod_qualificador_pai=pai.seq_qualificador if pai else None)
+        db.session.add(_q)
+        db.session.commit()
+        return _q
+
+    _bloco_95 = _rubrica_dp('1.988', 'Bloco De/Para E2E', 2095)
+    _origem_95 = _rubrica_dp('1.988.1', 'Origem De/Para E2E', 2095, _bloco_95)
+    _bloco_96 = _rubrica_dp('1.988', 'Bloco De/Para E2E', 2096)
+    _destinos_96 = [_rubrica_dp('1.988.2', 'Destino A De/Para E2E', 2096, _bloco_96),
+                    _rubrica_dp('1.988.3', 'Destino B De/Para E2E', 2096, _bloco_96)]
+    for _q_dp, _valor_dp, _ano_dp in ((_origem_95, '1000.00', 2095),
+                                      (_destinos_96[0], '300.00', 2096),
+                                      (_destinos_96[1], '700.00', 2096)):
+        db.session.add(Lancamento(
+            dat_lancamento=_date_dp(_ano_dp, 3, 15), seq_qualificador=_q_dp.seq_qualificador,
+            val_lancamento=Decimal(_valor_dp), cod_tipo_lancamento=_tipo_dp.cod_tipo_lancamento,
+            cod_origem_lancamento=_origem_dp.cod_origem_lancamento,
+            cod_pessoa_inclusao=1, ind_status='A'))
+    db.session.commit()
+
 print("usuarios e2e prontos")

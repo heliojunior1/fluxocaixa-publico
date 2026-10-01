@@ -93,40 +93,12 @@ def avaliar_formula(expressao: str, variaveis: dict[str, float]) -> float:
 
 
 def listar_anos_disponiveis(seq_qualificador: int) -> list[int]:
-    """Retorna lista de anos que possuem dados históricos para um qualificador.
+    """Anos com movimento na série de PREVISÃO da rubrica (raiz +
+    correspondência entre exercícios — origem única `serie_historica`), mais
+    recente primeiro, ex.: [2024, 2023, 2022]."""
+    from .serie_historica import anos_com_movimento
 
-    Consulta a tabela de lançamentos para encontrar todos os anos distintos
-    com dados para o qualificador informado.
-
-    Args:
-        seq_qualificador: ID do qualificador
-
-    Returns:
-        Lista de anos ordenados em ordem decrescente, ex: [2024, 2023, 2022]
-    """
-    from sqlalchemy import extract
-
-    from ..models import Lancamento, db
-
-    anos = (
-        db.session.query(
-            extract('year', Lancamento.dat_lancamento).label('ano')
-        )
-        .filter(Lancamento.seq_qualificador.in_(
-            _seqs_da_rubrica(seq_qualificador)))
-        .filter(Lancamento.ind_status == 'A')
-        .distinct()
-        .order_by(extract('year', Lancamento.dat_lancamento).desc())
-        .all()
-    )
-    return [int(a.ano) for a in anos]
-
-
-def _seqs_da_rubrica(seq_qualificador):
-    """F10.2 (previsao R17): a série é da rubrica (raiz), não do seq."""
-    from .serie_historica import seqs_da_rubrica
-
-    return seqs_da_rubrica(seq_qualificador)
+    return anos_com_movimento([seq_qualificador])
 
 
 def listar_todos_anos_disponiveis() -> list[int]:
@@ -214,40 +186,17 @@ def _buscar_valores_historicos_mes(
     mes: int,
     anos: list[int],
 ) -> dict[int, float]:
-    """Busca valores históricos de um qualificador para um mês em vários anos.
+    """{ano: total com sinal do mês} nos anos pedidos que têm movimento —
+    série de previsão (origem única `serie_historica`). Erro de banco SOBE
+    (R11): `except → {}` projetava zero com aparência de dado apurado."""
+    from .serie_historica import serie_mensal
 
-    Args:
-        seq_qualificador: ID do qualificador
-        mes: Mês (1-12)
-        anos: Lista de anos para buscar
+    if not anos:
+        return {}
+    serie = serie_mensal([seq_qualificador], date(min(anos), 1, 1), date(max(anos), 12, 31))
+    return {ano: valor for (ano, m), valor in serie.valores.items()
+            if m == mes and ano in anos}
 
-    Returns:
-        Dicionário {ano: valor_total_do_mes}
-    """
-    from sqlalchemy import and_, extract, func
-
-    from ..models import Lancamento, db
-
-    resultados = (
-        db.session.query(
-            extract('year', Lancamento.dat_lancamento).label('ano'),
-            func.sum(Lancamento.valor_com_sinal).label('total'),
-        )
-        .filter(
-            and_(
-                Lancamento.seq_qualificador.in_(
-                    _seqs_da_rubrica(seq_qualificador)),
-                extract('month', Lancamento.dat_lancamento) == mes,
-                extract('year', Lancamento.dat_lancamento).in_(anos),
-                Lancamento.ind_status == 'A',
-            )
-        )
-        .group_by(extract('year', Lancamento.dat_lancamento))
-        .all()
-    )
-    # Erro de banco SOBE (R11): `except → {}` fazia o cenário inteiro
-    # projetar zero com aparência de dado apurado.
-    return {int(r.ano): float(r.total) for r in resultados}
 
 
 def projetar_com_formula(
@@ -339,28 +288,18 @@ def _buscar_valores_historicos_anual(
     seq_qualificador: int,
     anos: list[int],
 ) -> dict[int, float]:
-    """Busca totais anuais (soma de todos os meses) para um qualificador."""
-    from sqlalchemy import and_, extract, func
+    """{ano: total com sinal do ano} nos anos pedidos que têm movimento —
+    série de previsão (origem única `serie_historica`)."""
+    from .serie_historica import serie_mensal
 
-    from ..models import Lancamento, db
-
-    resultados = (
-        db.session.query(
-            extract('year', Lancamento.dat_lancamento).label('ano'),
-            func.sum(Lancamento.valor_com_sinal).label('total'),
-        )
-        .filter(
-            and_(
-                Lancamento.seq_qualificador.in_(
-                    _seqs_da_rubrica(seq_qualificador)),
-                extract('year', Lancamento.dat_lancamento).in_(anos),
-                Lancamento.ind_status == 'A',
-            )
-        )
-        .group_by(extract('year', Lancamento.dat_lancamento))
-        .all()
-    )
-    return {int(r.ano): float(r.total) for r in resultados}
+    if not anos:
+        return {}
+    serie = serie_mensal([seq_qualificador], date(min(anos), 1, 1), date(max(anos), 12, 31))
+    totais: dict[int, float] = {}
+    for (ano, _mes), valor in serie.valores.items():
+        if ano in anos:
+            totais[ano] = totais.get(ano, 0.0) + valor
+    return totais
 
 
 def projetar_com_formula_anual(
@@ -513,67 +452,31 @@ def _faixa_de_meses(ano: int, mes_ini: int, mes_fim: int) -> tuple[date, date]:
 
 
 def _soma_acumulada(seq_qualificadores: list[int], ano: int, mes_ini: int, mes_fim: int) -> float:
-    """Magnitude do acumulado [mes_ini, mes_fim] do ano (previsao R17).
+    """Magnitude do acumulado [mes_ini, mes_fim] do ano (previsao R17/R31).
 
-    Duas correções da change corrigir-motores-de-previsao: (1) a lista é
-    expandida pela RAIZ — com o `seq` cru, depois de abrir um exercício o ano
-    de referência (gravado no plano anterior) somava zero e o crescimento
-    projetava zero; (2) é o absoluto da SOMA com sinal, não a soma dos
-    absolutos — um estorno reduz o acumulado em vez de aumentá-lo.
+    Série de previsão pela origem única `serie_historica.serie_mensal` — raiz
+    e correspondência entre exercícios (antes do `seq` cru, o crescimento
+    projetava zero depois de abrir um exercício). É o absoluto da SOMA com
+    sinal, não a soma dos absolutos: um estorno reduz o acumulado.
     """
-    from sqlalchemy import func
-
-    from ..models import Lancamento
-    from ..models.base import SessionLocal
-    from .serie_historica import seqs_das_rubricas
+    from .serie_historica import serie_mensal
 
     inicio, fim = _faixa_de_meses(ano, mes_ini, mes_fim)
-    session = SessionLocal()
-    # erro de banco SOBE (R11)
-    total = (
-        session.query(func.sum(Lancamento.valor_com_sinal))
-        .filter(
-            Lancamento.seq_qualificador.in_(seqs_das_rubricas(seq_qualificadores)),
-            Lancamento.dat_lancamento >= inicio,
-            Lancamento.dat_lancamento <= fim,
-            Lancamento.ind_status == 'A',
-        )
-        .scalar()
-    )
+    total = sum(serie_mensal(seq_qualificadores, inicio, fim).valores.values())
     return abs(float(total)) if total else 0.0
 
 
 def _perfil_sazonal(seq_qualificadores: list[int], ano: int) -> dict[int, float]:
     """Perfil sazonal de um ano: {mes: proporção}, soma = 1.0.
 
-    Magnitude de cada mês = absoluto da soma com sinal do mês (R17), série
-    costurada pela raiz. Ano sem movimento → distribuição uniforme (1/12).
+    Magnitude de cada mês = absoluto da soma com sinal do mês, na série de
+    previsão (origem única `serie_historica`). Ano sem movimento → 1/12.
     """
-    from sqlalchemy import extract, func
-
-    from ..models import Lancamento
-    from ..models.base import SessionLocal
-    from .serie_historica import seqs_das_rubricas
+    from .serie_historica import serie_mensal
 
     inicio, fim = _faixa_de_meses(ano, 1, 12)
-    session = SessionLocal()
-    mes_col = extract('month', Lancamento.dat_lancamento)
-    resultados = (
-        session.query(
-            mes_col.label('mes'),
-            func.sum(Lancamento.valor_com_sinal).label('total')
-        )
-        .filter(
-            Lancamento.seq_qualificador.in_(seqs_das_rubricas(seq_qualificadores)),
-            Lancamento.dat_lancamento >= inicio,
-            Lancamento.dat_lancamento <= fim,
-            Lancamento.ind_status == 'A',
-        )
-        .group_by(mes_col)
-        .all()
-    )
-
-    valores = {int(r.mes): abs(float(r.total or 0)) for r in resultados}
+    serie = serie_mensal(seq_qualificadores, inicio, fim)
+    valores = {mes: abs(float(v)) for (a, mes), v in serie.valores.items() if a == ano}
     total_ano = sum(valores.values())
 
     if total_ano > 0:

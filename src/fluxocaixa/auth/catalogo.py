@@ -71,6 +71,12 @@ PERMISSOES = [
     # propostas — avaliar é ato distinto de manter, como confirmar liberação.
     ("FC_MANT_SETOR_PREVISAO", "Cadastrar setores da previsão e marcar o recorte de cada um"),
     ("FC_AVALIAR_PROPOSTA", "Aceitar ou devolver proposta de previsão de setor"),
+    # Correspondência de rubricas entre exercícios (De/Para): a ESTRUTURA é
+    # mudança de classificação (exige ato); o RATEIO é estimativa para a
+    # previsão — responsabilidades separadas.
+    ("FC_CONS_CORRESPONDENCIA_RUBRICA", "Consultar correspondências de rubricas entre exercícios"),
+    ("FC_MANT_CORRESPONDENCIA_RUBRICA", "Cadastrar e inativar fusão/desdobramento de rubricas"),
+    ("FC_DEFINIR_RATEIO_CORRESPONDENCIA", "Definir o rateio de desdobramento para a previsão"),
     # Repartição da projeção por fonte (percentuais-fallback)
     ("FC_CONS_REPARTICAO_FONTE", "Consultar repartição de qualificadores por fonte"),
     ("FC_MANT_REPARTICAO_FONTE", "Definir repartição de qualificadores por fonte"),

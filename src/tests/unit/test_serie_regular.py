@@ -70,9 +70,12 @@ def test_serie_de_treino_da_origem_unica_e_magnitude_e_a_leitura_crua_tem_sinal(
     backtest e fórmulas fazem a própria conversão."""
     from fluxocaixa.services import modelos_economicos_service as modelos
 
-    saidas = _lancamentos((date(2083, 1, 10), -300.0), (date(2083, 2, 10), -200.0),
-                          (date(2083, 2, 20), 50.0))  # estorno reduz o mês
-    monkeypatch.setattr(modelos, "_lancamentos_da_serie", lambda *a, **k: saidas)
+    from fluxocaixa.services.serie_historica import SerieRubricas
+
+    # A série vem da origem única (`serie_historica.serie_mensal`): janeiro
+    # −300, fevereiro −200 + 50 de estorno (o estorno reduz o mês).
+    serie = SerieRubricas(valores={(2083, 1): -300.0, (2083, 2): -150.0}, versao=0)
+    monkeypatch.setattr(modelos, "serie_mensal", lambda *a, **k: serie)
 
     crua = modelos.obter_dados_historicos(1, date(2083, 1, 1), date(2083, 12, 31),
                                           hoje=date(2090, 1, 1))

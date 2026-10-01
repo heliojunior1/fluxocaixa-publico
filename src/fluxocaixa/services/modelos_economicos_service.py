@@ -9,8 +9,7 @@ import numpy as np
 import pandas as pd
 from dateutil.relativedelta import relativedelta
 
-from ..models import Lancamento
-from .serie_historica import seqs_das_rubricas
+from .serie_historica import serie_mensal
 
 logger = logging.getLogger(__name__)
 
@@ -140,9 +139,9 @@ def _fim_da_serie(data_inicio: date, data_fim: date, ultimo_com_movimento,
     return ultimo_com_movimento
 
 
-def _serie_mensal_regular(lancamentos, data_inicio: date, data_fim: date,
-                          hoje: date | None) -> pd.DataFrame:
-    """Soma mensal COM SINAL, mês a mês e sem buracos (previsao R18).
+def _regularizar(mensal: pd.Series, data_inicio: date, data_fim: date,
+                 hoje: date | None) -> pd.DataFrame:
+    """Série mensal COM SINAL, mês a mês e sem buracos (previsao R18).
 
     Os modelos tratam os pontos como meses consecutivos: um mês sem movimento
     que sumisse da série deslocava a sazonalidade e o calendário da projeção.
@@ -150,13 +149,9 @@ def _serie_mensal_regular(lancamentos, data_inicio: date, data_fim: date,
     rubrica criada no meio da janela pareceriam queda real.
     """
     vazio = pd.DataFrame(columns=['data', 'valor'])
-    if not lancamentos:
+    if mensal.empty:
         return vazio
-    df = pd.DataFrame(
-        [{'data': lanc.dat_lancamento, 'valor': float(lanc.valor_com_sinal)}
-         for lanc in lancamentos])
-    df['data'] = pd.to_datetime(df['data']).dt.to_period('M').dt.to_timestamp()
-    mensal = df.groupby('data')['valor'].sum()
+    mensal = mensal.sort_index()
     fim = _fim_da_serie(data_inicio, data_fim, mensal.index.max(), hoje)
     mensal = mensal[mensal.index <= fim]
     if mensal.empty:
@@ -166,17 +161,16 @@ def _serie_mensal_regular(lancamentos, data_inicio: date, data_fim: date,
     return pd.DataFrame({'data': regular.index, 'valor': regular.values})
 
 
-def _lancamentos_da_serie(seqs: list[int], data_inicio: date, data_fim: date):
-    return (
-        Lancamento.query
-        .filter(
-            Lancamento.seq_qualificador.in_(seqs_das_rubricas(seqs)),
-            Lancamento.dat_lancamento >= data_inicio,
-            Lancamento.dat_lancamento <= data_fim,
-            Lancamento.ind_status == 'A',
-        )
-        .all()
-    )
+def _serie_mensal_regular(lancamentos, data_inicio: date, data_fim: date,
+                          hoje: date | None) -> pd.DataFrame:
+    """Série regular a partir de lançamentos em memória (unitários puros)."""
+    if not lancamentos:
+        return pd.DataFrame(columns=['data', 'valor'])
+    df = pd.DataFrame(
+        [{'data': lanc.dat_lancamento, 'valor': float(lanc.valor_com_sinal)}
+         for lanc in lancamentos])
+    df['data'] = pd.to_datetime(df['data']).dt.to_period('M').dt.to_timestamp()
+    return _regularizar(df.groupby('data')['valor'].sum(), data_inicio, data_fim, hoje)
 
 
 def obter_dados_historicos(
@@ -780,21 +774,28 @@ def obter_dados_historicos_agregados(
     agregacao: str = 'mensal',
     hoje: date | None = None,
 ) -> pd.DataFrame:
-    """Série histórica SOMADA de vários qualificadores (cada um expandido pela
-    raiz — R17). Mensal é regular (R18); diário devolve só os dias com
-    movimento."""
+    """Série histórica SOMADA de vários qualificadores (com sinal), mês a mês
+    e regular (R18), pela ORIGEM ÚNICA `serie_historica.serie_mensal` — raiz
+    (R17) e correspondência entre exercícios (R31).
+
+    `attrs` declara o que a série contém: `meses_estimados` (rateio de
+    desdobramento), `pendencias` (desdobramento sem divisão cujos destinos não
+    estão todos no conjunto) e `versao_de_para`. Só existe agregação mensal.
+    """
+    if agregacao != 'mensal':
+        raise ValueError("A série de previsão é mensal")
     if not seq_qualificadores:
         return pd.DataFrame(columns=['data', 'valor'])
-    lancamentos = _lancamentos_da_serie(seq_qualificadores, data_inicio, data_fim)
-    if agregacao == 'mensal':
-        return _serie_mensal_regular(lancamentos, data_inicio, data_fim, hoje)
-    if not lancamentos:
-        return pd.DataFrame(columns=['data', 'valor'])
-    df = pd.DataFrame(
-        [{'data': lanc.dat_lancamento, 'valor': float(lanc.valor_com_sinal)}
-         for lanc in lancamentos])
-    df_agregado = df.groupby('data')['valor'].sum().reset_index()
-    return df_agregado.sort_values('data')
+    serie = serie_mensal(list(seq_qualificadores), data_inicio, data_fim)
+    mensal = pd.Series(
+        {pd.Timestamp(ano, mes, 1): valor for (ano, mes), valor in serie.valores.items()},
+        dtype=float)
+    resultado = _regularizar(mensal, data_inicio, data_fim, hoje)
+    resultado.attrs['meses_estimados'] = sorted(
+        f"{ano}-{mes:02d}" for ano, mes in serie.estimados)
+    resultado.attrs['pendencias'] = serie.pendencias
+    resultado.attrs['versao_de_para'] = serie.versao
+    return resultado
 
 
 def obter_serie_do_ano_base(seq_qualificadores: list[int], ano_base: int,

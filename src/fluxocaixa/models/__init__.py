@@ -36,6 +36,13 @@ from .saldo_fundo import (
 )
 from .simulacao_desembolso import ParametroDesembolso, SimulacaoDesembolso
 from .setor_previsao import SetorPrevisao
+from .correspondencia_rubrica import (
+    CorrespondenciaDestino,
+    CorrespondenciaEvento,
+    CorrespondenciaOrigem,
+    CorrespondenciaRateio,
+    CorrespondenciaRubrica,
+)
 from .simulador_cenario import (
     CenarioAjuste,
     CenarioConfig,
@@ -101,6 +108,11 @@ __all__ = [
     'RubricaFormula',
     'SaldoContaFundo',
     'SetorPrevisao',
+    'CorrespondenciaRubrica',
+    'CorrespondenciaOrigem',
+    'CorrespondenciaDestino',
+    'CorrespondenciaEvento',
+    'CorrespondenciaRateio',
     'SimulacaoDesembolso',
     'SimuladorCenario',
     'SimuladorCenarioHistorico',

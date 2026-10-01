@@ -85,6 +85,12 @@ STATUS_PROJETADA = 'PROJETADA'
 STATUS_LACUNA = 'LACUNA'
 STATUS_DECLARADA = 'DECLARADA'
 STATUS_SEM_PARTICIPACAO = 'SEM_PARTICIPACAO'
+# Destino de desdobramento sem divisão fundamentada (previsao R32): projetado
+# no GRUPO dos destinos, sem rubrica — publicar exige confirmação.
+STATUS_DISTRIBUICAO_PENDENTE = 'DISTRIBUICAO_PENDENTE'
+# Desdobramento com vigência anterior a esta distância do ano-base não afeta
+# a janela de nenhum modelo (a maior é a do SARIMA, 4 anos).
+ALCANCE_DA_PENDENCIA = 4
 STATUS_FORA_DO_RECORTE = 'FORA_DO_RECORTE'
 
 
@@ -667,7 +673,8 @@ def _validar_sem_sobreposicao_de_propostas(seq_simulador_cenario: int,
 # ---------------------------------------------------------------------------
 
 class _Realizado:
-    """Realizado mensal por folha, em MAGNITUDE, costurado por raiz.
+    """Realizado mensal por folha (ou grupo), em MAGNITUDE, pela série de
+    previsão (raiz + correspondência entre exercícios).
 
     Memoizado por (folha, ano) numa execução — a mesma folha é consultada para
     participação, perfil e percentual.
@@ -677,29 +684,20 @@ class _Realizado:
         self._cache: dict = {}
 
     def mensal(self, seq_folha: int, ano: int) -> dict[int, float]:
-        chave = (seq_folha, ano)
+        return self.mensal_conjunto((seq_folha,), ano)
+
+    def mensal_conjunto(self, seqs, ano: int) -> dict[int, float]:
+        """Magnitude por mês do ano para uma folha ou um GRUPO de folhas
+        (destinos de desdobramento pendente, R32), pela série de previsão —
+        origem única `serie_historica.serie_mensal` (raiz + correspondência)."""
+        chave = (tuple(sorted(seqs)), ano)
         if chave in self._cache:
             return self._cache[chave]
-        from sqlalchemy import extract, func
+        from .serie_historica import serie_mensal
 
-        from ..models import Lancamento
-        from ..models.base import db
-        from .serie_historica import seqs_da_rubrica
-
-        mes_col = extract('month', Lancamento.dat_lancamento)
-        linhas = (
-            db.session.query(mes_col.label('mes'),
-                             func.sum(Lancamento.valor_com_sinal))
-            .filter(
-                Lancamento.seq_qualificador.in_(seqs_da_rubrica(seq_folha)),
-                Lancamento.ind_status == 'A',
-                Lancamento.dat_lancamento >= date(ano, 1, 1),
-                Lancamento.dat_lancamento <= date(ano, 12, 31),
-            )
-            .group_by(mes_col)
-            .all()
-        )
-        valores = {int(mes): abs(float(total or 0)) for mes, total in linhas}
+        serie = serie_mensal(list(seqs), date(ano, 1, 1), date(ano, 12, 31))
+        valores = {mes: abs(float(total or 0))
+                   for (a, mes), total in serie.valores.items() if a == ano}
         self._cache[chave] = valores
         return valores
 
@@ -739,6 +737,7 @@ class _Execucao:
         self.cobertas: dict[str, set] = {'C': set(), 'D': set()}
         self.avisos: list[str] = []
         self._parametros = None
+        self._grupos: dict[int, object] = {}
 
     # -- emissão ----------------------------------------------------------
     def emitir_mensal(self, perna, seq_folha, valores_mes: dict[int, float],
@@ -756,14 +755,46 @@ class _Execucao:
             valor = valores_mes.get(d.month, 0.0) / quota
             self._linha(perna, d, seq_folha, valor, cod_metodo, seq_calculo)
 
-    def _linha(self, perna, data, seq_folha, valor, cod_metodo, seq_calculo):
+    def _linha(self, perna, data, seq_folha, valor, cod_metodo, seq_calculo,
+               seq_correspondencia=None):
         self.linhas[perna].append({
             'data': data,
             'seq_qualificador': seq_folha,
             'valor_projetado': abs(float(valor or 0)),
             'cod_metodo': cod_metodo,
             'seq_qualificador_calculo': seq_calculo,
+            'seq_correspondencia_rubrica': seq_correspondencia,
         })
+
+    def emitir_grupo(self, perna, grupo, valores_mes: dict[int, float], cod_metodo,
+                     seq_no):
+        """Valor do GRUPO de destinos com distribuição pendente (R32): linhas
+        sem rubrica, identificadas pela correspondência — contadas UMA vez;
+        os destinos ficam com status de distribuição pendente."""
+        estado, membros = grupo
+        inicio = len(self.linhas[perna])
+        self.emitir_mensal(perna, None, valores_mes, cod_metodo, seq_no)
+        for linha in self.linhas[perna][inicio:]:
+            linha['seq_correspondencia_rubrica'] = estado.seq
+        codigos = ', '.join(sorted(f.num_qualificador for f in membros))
+        for folha in membros:
+            self.marcar(folha.seq_qualificador, STATUS_DISTRIBUICAO_PENDENTE,
+                        f"Desdobramento sem divisão definida: o valor foi projetado no "
+                        f"grupo ({codigos}) e aparece na linha não detalhada — registre "
+                        "o rateio na tela de correspondências", cod_metodo, seq_no)
+
+    def grupo_pendente(self, folha):
+        """Desdobramento PENDENTE de que a folha é destino e que alcança a
+        janela de histórico deste ano-base — ou None. Memoizado."""
+        seq = folha.seq_qualificador
+        if seq not in self._grupos:
+            from .serie_historica import grupo_pendente_da
+
+            estado = grupo_pendente_da(seq)
+            if estado is not None and estado.ano_vigencia <= self.ano - ALCANCE_DA_PENDENCIA:
+                estado = None
+            self._grupos[seq] = estado
+        return self._grupos[seq]
 
     def marcar(self, seq_folha, status, nota='', metodo=None, seq_no=None):
         self.status[seq_folha] = {'status': status, 'nota': nota,
@@ -787,6 +818,22 @@ class _Execucao:
         if total <= 0:
             return {seq: 0.0 for seq in pesos}
         return {seq: peso / total for seq, peso in pesos.items()}
+
+    def participacao_unidades(self, unidades: list) -> dict:
+        """Peso de cada UNIDADE (folha ou grupo pendente) no realizado do ano
+        anterior (fallback três anos) — o grupo pesa pelo realizado conjunto,
+        que inclui a origem antes da vigência (R31)."""
+        def _anual(unidade, ano):
+            return sum(self.realizado.mensal_conjunto(_seqs_da_unidade(unidade), ano).values())
+
+        pesos = {_chave(u): _anual(u, self.ano - 1) for u in unidades}
+        if sum(pesos.values()) <= 0:
+            pesos = {_chave(u): sum(_anual(u, self.ano - k) for k in (1, 2, 3))
+                     for u in unidades}
+        total = sum(pesos.values())
+        if total <= 0:
+            return {chave: 0.0 for chave in pesos}
+        return {chave: peso / total for chave, peso in pesos.items()}
 
     def parametros(self) -> dict:
         if self._parametros is None:
@@ -848,6 +895,49 @@ def _saida(ex: _Execucao) -> dict:
             'status': ex.status, 'avisos': ex.avisos}
 
 
+def _chave(unidade):
+    return ('G', unidade[0].seq) if isinstance(unidade, tuple) else ('F', unidade.seq_qualificador)
+
+
+def _seqs_da_unidade(unidade) -> tuple:
+    if isinstance(unidade, tuple):
+        return tuple(f.seq_qualificador for f in unidade[1])
+    return (unidade.seq_qualificador,)
+
+
+def _unidades(ex: _Execucao, folhas: list, metodo, seq_no) -> list:
+    """Folhas comuns + GRUPOS de destinos de desdobramento pendente (R32).
+
+    Grupo só existe com TODOS os destinos presentes; destino cujo grupo está
+    incompleto vira lacuna citando os que faltam — a rubrica sozinha não tem
+    a série anterior à vigência, e projetá-la sem ela inventaria a divisão.
+    """
+    from .correspondencia_rubrica_service import rubrica_da_raiz
+
+    unidades, por_corr = [], {}
+    for folha in folhas:
+        estado = ex.grupo_pendente(folha)
+        if estado is None:
+            unidades.append(folha)
+        else:
+            por_corr.setdefault(estado.seq, (estado, []))[1].append(folha)
+    for estado, membros in por_corr.values():
+        presentes = {f.cod_rubrica_raiz for f in membros}
+        faltam = set(estado.destinos) - presentes
+        if not faltam:
+            unidades.append((estado, membros))
+            continue
+        codigos = ', '.join(sorted(
+            (rubrica_da_raiz(r).num_qualificador if rubrica_da_raiz(r) else str(r))
+            for r in faltam))
+        for folha in membros:
+            ex.marcar(folha.seq_qualificador, STATUS_LACUNA,
+                      f"Destino de desdobramento sem divisão definida: projete junto com "
+                      f"{codigos} (marque o bloco que reúne todos os destinos) ou registre "
+                      "o rateio", metodo, seq_no)
+    return unidades
+
+
 def _projetar_grupo(ex: _Execucao, perna: str, marcacao, config: dict, folhas: list):
     metodo = marcacao.cod_metodo
     seq_no = marcacao.seq_qualificador
@@ -864,13 +954,16 @@ def _projetar_grupo(ex: _Execucao, perna: str, marcacao, config: dict, folhas: l
     if metodo == PERCENTUAL:
         fator = 1 + float(config.get('percentual', 0)) / 100
         anos = int(config.get('anos_base') or 1)
-        for folha in folhas:
+        for unidade in _unidades(ex, folhas, metodo, seq_no):
             base = Counter()
             for k in range(1, anos + 1):
-                base.update(ex.realizado.mensal(folha.seq_qualificador, ex.ano - k))
+                base.update(ex.realizado.mensal_conjunto(_seqs_da_unidade(unidade), ex.ano - k))
             valores = {m: base.get(m, 0.0) / anos * fator for m in range(1, 13)}
-            ex.emitir_mensal(perna, folha.seq_qualificador, valores, metodo, calc)
-            _status_por_valor(ex, folha, valores, metodo, seq_no,
+            if isinstance(unidade, tuple):
+                ex.emitir_grupo(perna, unidade, valores, metodo, seq_no)
+                continue
+            ex.emitir_mensal(perna, unidade.seq_qualificador, valores, metodo, calc)
+            _status_por_valor(ex, unidade, valores, metodo, seq_no,
                               'Sem realizado na base do percentual')
         return
 
@@ -900,23 +993,32 @@ def _projetar_grupo(ex: _Execucao, perna: str, marcacao, config: dict, folhas: l
         return
 
     if metodo in (VALOR_FIXO, MODELO):
+        unidades = _unidades(ex, folhas, metodo, seq_no)
+        if not unidades:
+            return
         if metodo == MODELO and (config.get('por_folha') or no_folha):
-            for folha in folhas:
-                total_mes = _treinar(ex, perna, config, [folha], seq_no)
+            for unidade in unidades:
+                membros = list(unidade[1]) if isinstance(unidade, tuple) else [unidade]
+                total_mes = _treinar(ex, perna, config, membros, seq_no)
                 if total_mes is None:
                     continue
-                ex.emitir_mensal(perna, folha.seq_qualificador, total_mes, metodo,
+                if isinstance(unidade, tuple):
+                    ex.emitir_grupo(perna, unidade, total_mes, metodo, seq_no)
+                    continue
+                ex.emitir_mensal(perna, unidade.seq_qualificador, total_mes, metodo,
                                  None if no_folha else seq_no)
-                _status_por_valor(ex, folha, total_mes, metodo, seq_no,
+                _status_por_valor(ex, unidade, total_mes, metodo, seq_no,
                                   'O modelo projetou zero')
             return
+        alcancadas = [f for u in unidades
+                      for f in (u[1] if isinstance(u, tuple) else [u])]
         if metodo == VALOR_FIXO:
-            total_mes = _valor_fixo_mensal(ex, config, folhas)
+            total_mes = _valor_fixo_mensal(ex, config, alcancadas)
         else:
-            total_mes = _treinar(ex, perna, config, folhas, seq_no)
+            total_mes = _treinar(ex, perna, config, alcancadas, seq_no)
             if total_mes is None:
                 return
-        _distribuir(ex, perna, folhas, total_mes, metodo, seq_no, calc)
+        _distribuir(ex, perna, unidades, total_mes, metodo, seq_no, calc)
         return
 
     raise RegraNegocioError(f"Método '{metodo}' não existe")
@@ -950,10 +1052,13 @@ def _ratear_em_centavos(total: float, pesos: dict) -> dict:
     return partes
 
 
-def _distribuir(ex, perna, folhas, total_mes, metodo, seq_no, calc):
-    """RN05/RN13: total do nó → folhas pela participação histórica; a folha
-    de maior peso absorve o arredondamento (soma de controle exata)."""
-    pesos = ex.participacao(folhas)
+def _distribuir(ex, perna, unidades, total_mes, metodo, seq_no, calc):
+    """RN05/RN13: total do nó → UNIDADES (folhas e grupos pendentes) pela
+    participação histórica; a de maior peso absorve o arredondamento (soma de
+    controle exata). Grupo pendente recebe a sua parte inteira, sem rubrica
+    (R32) — a divisão entre os destinos não é inventada."""
+    pesos = ex.participacao_unidades(unidades)
+    folhas = [f for u in unidades for f in (u[1] if isinstance(u, tuple) else [u])]
     if not any(pesos.values()):
         for folha in folhas:
             ex.marcar(folha.seq_qualificador, STATUS_SEM_PARTICIPACAO,
@@ -963,11 +1068,15 @@ def _distribuir(ex, perna, folhas, total_mes, metodo, seq_no, calc):
             "sem realizado para distribuir — o total não foi projetado")
         return
     por_mes = {m: _ratear_em_centavos(v, pesos) for m, v in total_mes.items()}
-    for folha in folhas:
-        seq = folha.seq_qualificador
-        valores = {m: partes[seq] for m, partes in por_mes.items()}
+    for unidade in unidades:
+        chave = _chave(unidade)
+        valores = {m: partes[chave] for m, partes in por_mes.items()}
+        if isinstance(unidade, tuple):
+            ex.emitir_grupo(perna, unidade, valores, metodo, seq_no)
+            continue
+        seq = unidade.seq_qualificador
         ex.emitir_mensal(perna, seq, valores, metodo, calc)
-        if pesos[seq] <= 0:
+        if pesos[chave] <= 0:
             ex.marcar(seq, STATUS_SEM_PARTICIPACAO,
                       'Sem realizado: participação zero no bloco', metodo, seq_no)
         else:
@@ -1203,7 +1312,7 @@ def distribuir_projecao_agregada(projecao, seq_qualificadores, ano_base: int):
 # ---------------------------------------------------------------------------
 
 COLUNAS = ['data', 'seq_qualificador', 'valor_projetado', 'cod_metodo',
-           'seq_qualificador_calculo']
+           'seq_qualificador_calculo', 'seq_correspondencia_rubrica']
 
 
 def combinar(pernas: dict, simulador, marcacoes: dict) -> tuple[dict, dict]:
@@ -1277,7 +1386,12 @@ def cobertura(simulador, resultado: dict) -> dict:
             if len(positivos):
                 agregado.append(chave)
             continue
-        if positivos['seq_qualificador'].isna().any():
+        sem_rubrica = positivos['seq_qualificador'].isna()
+        if 'seq_correspondencia_rubrica' in positivos.columns:
+            # valor do GRUPO pendente (R32): sem rubrica de propósito, contado
+            # pela distribuição pendente — não é modelo agregado
+            sem_rubrica &= positivos['seq_correspondencia_rubrica'].isna()
+        if sem_rubrica.any():
             agregado.append(chave)
         projetadas[perna] = {int(s) for s in positivos['seq_qualificador'].dropna()}
 
@@ -1286,7 +1400,7 @@ def cobertura(simulador, resultado: dict) -> dict:
     if setor is not None:
         from .setor_previsao_service import no_no_recorte
 
-    saida = {'C': [], 'D': [], 'lacunas': 0, 'avisos': list(
+    saida = {'C': [], 'D': [], 'lacunas': 0, 'distribuicoes_pendentes': 0, 'avisos': list(
         (resultado.get('execucao_marcacoes') or {}).get('avisos', []))}
     for chave in agregado:
         saida['avisos'].append(
@@ -1321,6 +1435,8 @@ def cobertura(simulador, resultado: dict) -> dict:
             saida[perna].append(item)
             if status == STATUS_LACUNA:
                 saida['lacunas'] += 1
+            elif status == STATUS_DISTRIBUICAO_PENDENTE:
+                saida['distribuicoes_pendentes'] += 1
     return saida
 
 
@@ -1328,7 +1444,11 @@ def resumo_cobertura(cob: dict) -> dict:
     """Forma curta gravada no `json_resumo` da versão (RN12)."""
     lacunas = [i['num_qualificador'] for p in ('C', 'D') for i in cob[p]
                if i['status'] == STATUS_LACUNA]
-    return {'lacunas': len(lacunas), 'rubricas_sem_projecao': lacunas[:50]}
+    pendentes = [i['num_qualificador'] for p in ('C', 'D') for i in cob[p]
+                 if i['status'] == STATUS_DISTRIBUICAO_PENDENTE]
+    return {'lacunas': len(lacunas), 'rubricas_sem_projecao': lacunas[:50],
+            'distribuicoes_pendentes': len(pendentes),
+            'rubricas_distribuicao_pendente': pendentes[:50]}
 
 
 # ---------------------------------------------------------------------------

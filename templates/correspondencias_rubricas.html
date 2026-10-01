@@ -1,0 +1,142 @@
+{% extends 'base.html' %}
+
+{% block content %}
+{% set pode_manter = tem_permissao(request, 'FC_MANT_CORRESPONDENCIA_RUBRICA') %}
+{% set pode_ratear = tem_permissao(request, 'FC_DEFINIR_RATEIO_CORRESPONDENCIA') %}
+{% set rotulo_modo = {
+    'RECONSTRUCAO': ('bg-green-100 text-green-800', 'Reconstruída pela origem'),
+    'RATEIO': ('bg-yellow-100 text-yellow-800', 'Rateio (estimado)'),
+    'PENDENTE': ('bg-red-100 text-red-800', 'Distribuição pendente'),
+} %}
+<div class="space-y-6" data-testid="tela-correspondencias">
+    <div class="bg-white p-6 rounded-lg shadow-md border">
+        <h2 class="text-2xl font-semibold text-gray-800">Correspondência de rubricas entre exercícios</h2>
+        <p class="text-sm text-gray-600 mt-1 max-w-3xl">
+            O De/Para monta a série de <b>previsão</b> na estrutura vigente: na <b>fusão</b> o destino soma as origens;
+            no <b>desdobramento</b> o histórico da origem é reconstruído pela regra de cada destino (só se reconciliar
+            mês a mês), rateado por um percentual fundamentado (meses estimados) ou fica <b>pendente</b> — nesse caso
+            a previsão sai no grupo dos destinos, sem inventar a divisão. Os lançamentos e os relatórios de realizado
+            não mudam. Continuidade simples (renome, renumeração) é da identidade da rubrica, não daqui.
+        </p>
+        <p class="text-xs text-gray-500 mt-2" data-testid="versao-de-para">Versão atual do De/Para: {{ versao }}</p>
+    </div>
+
+    {% if pode_manter %}
+    <form method="post" action="/previsao/correspondencias" class="bg-white p-6 rounded-lg shadow-md border space-y-3"
+          data-testid="form-correspondencia">
+        <h3 class="font-semibold text-gray-800">Nova correspondência</h3>
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <div>
+                <label for="c-tipo" class="block text-xs text-gray-600 mb-1">Tipo</label>
+                <select id="c-tipo" name="cod_tipo" class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+                    <option value="F">Fusão (várias origens → um destino)</option>
+                    <option value="D">Desdobramento (uma origem → vários destinos)</option>
+                </select>
+            </div>
+            <div>
+                <label for="c-vigencia" class="block text-xs text-gray-600 mb-1">Vigência (exercício)</label>
+                <input id="c-vigencia" name="num_ano_vigencia" type="number" min="1900" max="2200" required
+                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label for="c-origens" class="block text-xs text-gray-600 mb-1">Origens (códigos do plano anterior)</label>
+                <input id="c-origens" name="origens" required placeholder="1.1.1, 1.1.2"
+                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label for="c-destinos" class="block text-xs text-gray-600 mb-1">Destinos (códigos do plano da vigência)</label>
+                <input id="c-destinos" name="destinos" required placeholder="1.1.9"
+                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div>
+                <label for="c-ato" class="block text-xs text-gray-600 mb-1">Referência do ato (portaria, ementário…)</label>
+                <input id="c-ato" name="dsc_referencia_ato" required maxlength="255"
+                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+            </div>
+            <div>
+                <label for="c-fundamento" class="block text-xs text-gray-600 mb-1">Fundamento</label>
+                <input id="c-fundamento" name="dsc_fundamento" required maxlength="500"
+                       class="w-full border border-gray-300 rounded px-3 py-2 text-sm">
+            </div>
+        </div>
+        <div>
+            <label for="c-regras" class="block text-xs text-gray-600 mb-1">
+                Regras de reconstrução (opcional, só desdobramento — uma linha por destino: <code>código | regra</code>)
+            </label>
+            <textarea id="c-regras" name="regras" rows="2" class="w-full border border-gray-300 rounded px-3 py-2 text-sm font-mono"
+                      placeholder="1.1.3 | Natureza começa com '1112'"></textarea>
+        </div>
+        <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded text-sm"
+                data-testid="btn-criar-correspondencia">Cadastrar</button>
+    </form>
+    {% endif %}
+
+    <div class="bg-white p-6 rounded-lg shadow-md border">
+        <h3 class="font-semibold text-gray-800 mb-3">Correspondências ativas</h3>
+        {% if linhas %}
+        <div class="space-y-4">
+            {% for l in linhas %}
+            {% set e = l.estado %}
+            <div class="border rounded p-4" data-testid="correspondencia-{{ e.seq }}">
+                <div class="flex flex-wrap items-center gap-2">
+                    <span class="font-semibold">{{ l.tipo }}</span>
+                    <span class="text-sm text-gray-600">vigente em {{ e.ano_vigencia }}</span>
+                    {% if l.modo %}
+                    {% set estilo = rotulo_modo[l.modo] %}
+                    <span class="text-xs px-2 py-0.5 rounded {{ estilo[0] }}" data-testid="modo-{{ e.seq }}">{{ estilo[1] }}</span>
+                    {% endif %}
+                    <span class="text-xs text-gray-500">Ato: {{ e.referencia_ato }}</span>
+                </div>
+                <div class="text-sm mt-2">
+                    <span class="text-gray-500">De:</span>
+                    {% for o in l.origens %}<span class="inline-block px-2 py-0.5 mr-1 rounded bg-gray-100">{{ o.codigo }} {{ o.descricao }} ({{ o.exercicio }})</span>{% endfor %}
+                    <span class="text-gray-500 ml-2">Para:</span>
+                    {% for d in l.destinos %}<span class="inline-block px-2 py-0.5 mr-1 rounded bg-blue-50">{{ d.codigo }} {{ d.descricao }}{% if d.percentual is not none %} — {{ '%.4f'|format(d.percentual) }}%{% endif %}</span>{% endfor %}
+                </div>
+                <p class="text-xs text-gray-500 mt-1">{{ e.fundamento }}</p>
+
+                {% if e.tipo == 'D' and pode_ratear %}
+                <form method="post" action="/previsao/correspondencias/{{ e.seq }}/rateio"
+                      class="mt-3 flex flex-wrap items-end gap-3" data-testid="form-rateio-{{ e.seq }}">
+                    {% for d in l.destinos %}
+                    {% set sugerido = (l.sugestao or {}).get(d.raiz) %}
+                    <div>
+                        <label class="block text-xs text-gray-600 mb-1" for="pct-{{ e.seq }}-{{ d.raiz }}">% {{ d.codigo }}</label>
+                        <input id="pct-{{ e.seq }}-{{ d.raiz }}" name="pct_{{ d.seq }}" required size="8"
+                               data-testid="pct-{{ d.codigo }}"
+                               value="{% if d.percentual is not none %}{{ '%.4f'|format(d.percentual) }}{% elif sugerido is not none %}{{ '%.4f'|format(sugerido) }}{% endif %}"
+                               class="border border-gray-300 rounded px-2 py-1 text-sm">
+                    </div>
+                    {% endfor %}
+                    <div class="flex-1 min-w-[16rem]">
+                        <label class="block text-xs text-gray-600 mb-1" for="fund-{{ e.seq }}">Fundamento do rateio</label>
+                        <input id="fund-{{ e.seq }}" name="dsc_fundamento" required maxlength="500"
+                               class="w-full border border-gray-300 rounded px-2 py-1 text-sm" data-testid="fundamento-rateio-{{ e.seq }}">
+                    </div>
+                    <button type="submit" class="px-3 py-1 bg-primary-600 text-white rounded text-sm"
+                            data-testid="btn-rateio-{{ e.seq }}">Registrar rateio</button>
+                    {% if l.sugestao %}
+                    <span class="text-xs text-gray-500" data-testid="sugestao-{{ e.seq }}">Sugestão pelo realizado desde {{ e.ano_vigencia }} — confira antes de registrar.</span>
+                    {% endif %}
+                </form>
+                {% endif %}
+
+                {% if pode_manter %}
+                <form method="post" action="/previsao/correspondencias/{{ e.seq }}/inativar"
+                      class="mt-3 flex items-end gap-2" data-testid="form-inativar-{{ e.seq }}">
+                    <input name="motivo" required placeholder="Motivo da inativação" maxlength="500"
+                           class="border border-gray-300 rounded px-2 py-1 text-sm w-72">
+                    <button type="submit" class="text-xs text-red-700 hover:underline">Inativar</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500 italic">Nenhuma correspondência — a série de cada rubrica é a da sua identidade.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
