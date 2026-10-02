@@ -54,6 +54,8 @@ class FonteExtracao(Base):
     txt_cron = Column(String(60))  # crontab 5 campos; None = só execução manual
     json_config = Column(JSON, nullable=False, default=dict)
     json_layout = Column(JSON)  # parser/mapeamento — usado a partir da F3.2
+    # janela padrão (execução sem datas): hoje − N .. hoje (R24)
+    num_dias_retroativos = Column(Integer, nullable=False, default=0, server_default='0')
     ind_status = Column(String(1), default='A', nullable=False)
     dat_inclusao = Column(Date, default=date.today, nullable=False)
     cod_pessoa_inclusao = Column(Integer)

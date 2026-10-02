@@ -47,6 +47,7 @@ from ..services.extracao_service import (
 )
 from ..services.validacao import RegraNegocioError
 from . import handle_exceptions, router, templates
+from .entrada import inteiro
 
 # Opções expostas ao editor de layout (R17) — acompanham o registro de
 # transformações; a UI não hardcoda nomes.
@@ -156,6 +157,8 @@ async def extracao_fonte_criar(request: Request):
         json_config=config,
         json_layout=layout,
         cod_destino=form.get('cod_destino') or 'SALDO_FUNDO',
+        num_dias_retroativos=inteiro(form.get('num_dias_retroativos'),
+                                     'dias retroativos', default=0),
     )
     return RedirectResponse('/extracao/fontes', status_code=303)
 
@@ -174,6 +177,8 @@ async def extracao_fonte_atualizar(request: Request, seq_fonte: int):
         txt_cron=form.get('txt_cron') or None,
         json_config=config,
         json_layout=layout,
+        num_dias_retroativos=inteiro(form.get('num_dias_retroativos'),
+                                     'dias retroativos', default=0),
     )
     return RedirectResponse('/extracao/fontes', status_code=303)
 

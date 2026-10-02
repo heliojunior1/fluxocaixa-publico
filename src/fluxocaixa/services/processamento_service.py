@@ -128,6 +128,19 @@ def _gravar_lancamento(linha, item, mapeamento, cod_origem, pessoa):
     ))
 
 
+def _fora_do_exercicio(item, mapeamento) -> str | None:
+    """Item cuja rubrica não é do exercício do mapeamento (automacao R20) —
+    dado anterior à regra R19; com o ano tendo plano próprio, a linha vira
+    erro explícito, nunca lançamento na rubrica de outro ano."""
+    from .qualificador_service import validar_qualificador_do_exercicio
+
+    try:
+        validar_qualificador_do_exercicio(item.qualificador, mapeamento.num_ano_exercicio)
+    except RegraNegocioError as exc:
+        return f"item do mapeamento aponta rubrica de outro exercício: {exc.mensagem}"
+    return None
+
+
 def _classificar_linhas(mapeamento, itens) -> tuple[int, list, list, list]:
     """`(gerados, seqs_ok, erros, detalhe)`.
 
@@ -150,6 +163,11 @@ def _classificar_linhas(mapeamento, itens) -> tuple[int, list, list, list]:
     for seq, casados in por_linha.items():
         linha = linhas.get(seq)
         if linha is None:  # pragma: no cover - corrida improvável
+            continue
+        fora = _fora_do_exercicio(casados[0], mapeamento) if len(casados) == 1 else None
+        if fora:
+            erros.append((seq, fora))
+            detalhe.append({"linha": seq, "mensagem": fora})
             continue
         if len(casados) > 1:
             quals = ', '.join(sorted(
@@ -260,6 +278,10 @@ def processar_mapeamento(seq_mapeamento: int,
     mapeamento = Mapeamento.query.get(seq_mapeamento)
     if mapeamento is None or mapeamento.ind_status != 'A':
         raise RegraNegocioError("Mapeamento inexistente ou inativo")
+    from .exercicio_service import exigir_aberto
+
+    # automacao R20: exercício fechado não processa
+    exigir_aberto(mapeamento.num_ano_exercicio, "processar o mapeamento")
 
     inicio = datetime.now()
     cronometro = time.monotonic()
@@ -343,8 +365,13 @@ def processar_sistema_origem(seq_sistema_origem: int,
     O grão é o mapeamento (um sistema tem N fontes) — daí processar por sistema
     e não por fonte, sem repetir o mesmo mapeamento.
     """
-    mapeamentos = Mapeamento.query.filter_by(
+    from .exercicio_service import anos_fechados
+
+    fechados = anos_fechados()
+    # automacao R20: mapeamento de exercício FECHADO é pulado no disparo
+    mapeamentos = [m for m in Mapeamento.query.filter_by(
         seq_sistema_origem=seq_sistema_origem, ind_status='A').all()
+        if m.num_ano_exercicio not in fechados]
     return [processar_mapeamento(m.seq_mapeamento, disparo=disparo)
             for m in mapeamentos]
 

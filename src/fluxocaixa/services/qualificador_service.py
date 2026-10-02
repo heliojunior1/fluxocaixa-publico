@@ -305,6 +305,10 @@ def create_qualificador(num_qualificador: str, dsc_qualificador: str,
     # F10.1 (R25): sem ano informado (telas até a F10.4), o plano corrente.
     if num_ano_exercicio is None:
         num_ano_exercicio = date.today().year
+    from .exercicio_service import exigir_aberto
+
+    # cadastros-nucleo R31: o plano de exercício fechado é só leitura
+    exigir_aberto(num_ano_exercicio, "criar qualificador no plano")
     num_qualificador, dsc_qualificador = _validar_qualificador(
         num_qualificador, dsc_qualificador, cod_qualificador_pai,
         num_ano_exercicio,
@@ -488,6 +492,9 @@ def abrir_exercicio(ano_origem: int, ano_novo: int,
             f"O exercício {ano_novo} já possui plano — a abertura é uma "
             "cópia única, não uma sincronização"
         )
+    from .exercicio_service import exigir_aberto
+
+    exigir_aberto(ano_novo, "abrir o exercício")
     if not confirmado:
         raise RegraNegocioError(
             f"A abertura copia {len(origem)} qualificador(es) de "
@@ -530,12 +537,67 @@ def abrir_exercicio(ano_origem: int, ano_novo: int,
 
         _copiar_formulas_da_biblioteca(espelhos)
         db.session.flush()
+        # cadastros-nucleo R32: o mapeamento do ano novo nasce pronto
+        relatorio = _copiar_mapeamentos(ano_origem, ano_novo, espelhos, autor)
         reapontar_cenarios_para_exercicio(ano_novo, planos_antes)
+        from .exercicio_service import registrar_abertura
+
+        registrar_abertura(
+            ano_novo,
+            f"Aberto a partir de {ano_origem}: {len(espelhos)} qualificador(es). "
+            + relatorio, autor)
         db.session.commit()
     except Exception:
         db.session.rollback()
         raise
     return len(espelhos)
+
+
+def _copiar_mapeamentos(ano_origem: int, ano_novo: int, espelhos: dict, autor) -> str:
+    """Mapeamentos ATIVOS da origem → ano novo (cadastros-nucleo R32), sem
+    commit: cabeçalho por sistema de origem e itens ativos com o qualificador
+    re-apontado pelo mapa origem → espelho, mesma regra e inversão, SEM marco
+    de execução (o item é novo — roda inteiro na primeira vez). Item cuja
+    rubrica não foi copiada (inativa) e sistema que já tem mapeamento no ano
+    novo ficam de fora e entram no relatório devolvido."""
+    from ..models import ItemMapeamento, Mapeamento, db
+
+    copiados, sistemas_pulados, itens_pulados = 0, [], []
+    for origem in Mapeamento.query.filter_by(num_ano_exercicio=ano_origem,
+                                             ind_status='A').all():
+        existe = Mapeamento.query.filter_by(
+            num_ano_exercicio=ano_novo, seq_sistema_origem=origem.seq_sistema_origem,
+            ind_status='A').first()
+        if existe is not None:
+            sistemas_pulados.append(str(origem.seq_sistema_origem))
+            continue
+        novo = Mapeamento(num_ano_exercicio=ano_novo,
+                          seq_sistema_origem=origem.seq_sistema_origem,
+                          dsc_mapeamento=origem.dsc_mapeamento, ind_status='A',
+                          cod_pessoa_inclusao=autor)
+        for item in origem.itens:
+            if item.ind_status != 'A':
+                continue
+            espelho = espelhos.get(item.seq_qualificador)
+            if espelho is None:
+                itens_pulados.append(item.txt_regra or str(item.seq_item_mapeamento))
+                continue
+            novo.itens.append(ItemMapeamento(
+                seq_qualificador=espelho.seq_qualificador, txt_regra=item.txt_regra,
+                ind_inversao_sinal=item.ind_inversao_sinal, ind_status='A',
+                cod_pessoa_inclusao=autor))
+        if novo.itens:
+            db.session.add(novo)
+            copiados += 1
+    db.session.flush()
+    partes = [f"{copiados} mapeamento(s) copiado(s)"]
+    if sistemas_pulados:
+        partes.append("sistemas que já tinham mapeamento no ano novo: "
+                      + ", ".join(sistemas_pulados))
+    if itens_pulados:
+        partes.append(f"{len(itens_pulados)} item(ns) não copiado(s) por rubrica "
+                      "inativa: " + "; ".join(itens_pulados[:10]))
+    return ". ".join(partes) + "."
 
 
 def _copiar_formulas_da_biblioteca(espelhos: dict) -> None:
@@ -568,6 +630,9 @@ def update_qualificador(seq_qualificador: int, num_qualificador: str,
     if not qualificador:
         return None
 
+    from .exercicio_service import exigir_aberto
+
+    exigir_aberto(qualificador.num_ano_exercicio, "alterar o plano")
     _validar_sem_ciclo(seq_qualificador, cod_qualificador_pai)
     # F10.1: o exercício é IMUTÁVEL na edição (mover um nó de ano seria
     # reescrever história) — valida-se contra o ano que o nó já tem. A raiz
@@ -607,6 +672,9 @@ def delete_qualificador(seq_qualificador: int, confirmado: bool = False):
     qualificador = qualificador_repository.get_qualificador_by_id(seq_qualificador)
     if qualificador is None:
         raise RegraNegocioError("Qualificador inexistente")
+    from .exercicio_service import exigir_aberto
+
+    exigir_aberto(qualificador.num_ano_exercicio, "inativar qualificador do plano")
 
     filhos_ativos = Qualificador.query.filter_by(
         cod_qualificador_pai=seq_qualificador, ind_status='A'

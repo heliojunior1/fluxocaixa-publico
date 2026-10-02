@@ -52,6 +52,10 @@ class EtlStaging(Base):
     )
     num_ano_exercicio = Column(Integer)
     dat_referencia = Column(Date)
+    # data de REGISTRO/contabilização na origem (extracao-configuravel R24):
+    # janela da extração e chave da reextração substitutiva; a data do
+    # movimento (`dat_referencia`) é a data do lançamento
+    dat_registro = Column(Date)
     val_referencia = Column(Numeric(18, 2))
     json_atributos = Column(JSON)  # a linha crua da origem
     ind_status_processamento = Column(String(1), default=STATUS_PENDENTE, nullable=False)

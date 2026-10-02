@@ -20,6 +20,8 @@ from .conector import ErroLinha, LinhaExtraida
 _DESTINOS_SIMPLES = {
     "cod_banco", "num_agencia", "num_conta", "cod_fundo", "dsc_fundo",
     "val_saldo", "val_aplicacoes", "val_resgates", "dat_saldo",
+    # extracao R24: exercício da linha e data de registro na origem
+    "num_ano_exercicio", "dat_registro",
 }
 _DESTINO_COMPOSTO = "cod_fundo+dsc_fundo"
 
@@ -202,6 +204,8 @@ def parsear(conteudo: bytes, layout: dict, nome_arquivo: str):
                 val_aplicacoes=destino.get("val_aplicacoes", Decimal(0)),
                 val_resgates=destino.get("val_resgates", Decimal(0)),
                 dat_saldo=destino.get("dat_saldo"),
+                num_ano_exercicio=destino.get("num_ano_exercicio"),
+                dat_registro=destino.get("dat_registro"),
             )
         except ValueError as exc:
             yield ErroLinha(numero=i, arquivo=nome_arquivo, mensagem=str(exc))

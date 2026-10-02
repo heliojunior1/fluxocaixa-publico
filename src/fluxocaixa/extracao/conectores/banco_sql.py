@@ -76,7 +76,8 @@ def _montar_stmt(query: str, janela: Janela):
     valores = {
         "data_inicio": janela.data_inicio,
         "data_fim": janela.data_fim,
-        "ano": janela.data_fim.year,
+        # extracao R24: o exercício-alvo da chamada; sem ele, o ano do fim
+        "ano": janela.num_ano_exercicio or janela.data_fim.year,
     }
     usados = {p: valores[p] for p in _BINDS_DISPONIVEIS if f":{p}" in query}
     stmt = sa.text(query)
@@ -90,6 +91,11 @@ class ConectorBancoSql:
     layout_kind = "MAPEAMENTO"
     schema_config = ConfigBancoSql
     schema_layout = LayoutApiRest  # mapeamento coluna→campo (caminho = coluna)
+
+    def usa_exercicio(self, config: dict) -> bool:
+        """A consulta filtra pelo exercício (`:ano`) — então a execução a
+        roda uma vez por exercício aberto (extracao R24)."""
+        return ":ano" in (config.get("query") or "")
 
     def testar_conexao(self, config: dict) -> ResultadoTeste:
         engine = None

@@ -792,4 +792,18 @@ if not Qualificador.query.filter_by(num_qualificador='1.988.1', num_ano_exercici
             cod_pessoa_inclusao=1, ind_status='A'))
     db.session.commit()
 
+# ---------------------------------------------------------------------------
+# Exercícios (exercicios.spec.ts, change exercicio-aberto-fechado): plano-ilha
+# 2131 com uma rubrica — o exercício aparece aberto na tela /exercicios.
+# ---------------------------------------------------------------------------
+if not Qualificador.query.filter_by(num_qualificador='1.991', num_ano_exercicio=2131).first():
+    _bloco_ex = Qualificador(num_qualificador='1.991', dsc_qualificador='Bloco Exercício E2E',
+                             ind_status='A', num_ano_exercicio=2131)
+    db.session.add(_bloco_ex)
+    db.session.commit()
+    db.session.add(Qualificador(num_qualificador='1.991.1', dsc_qualificador='Rubrica Exercício E2E',
+                                ind_status='A', num_ano_exercicio=2131,
+                                cod_qualificador_pai=_bloco_ex.seq_qualificador))
+    db.session.commit()
+
 print("usuarios e2e prontos")

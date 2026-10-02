@@ -57,6 +57,19 @@ def _validar_destino(cod_destino: str) -> None:
     raise RegraNegocioError(f"Destino '{cod_destino}' não é suportado")
 
 
+def _validar_dias_retroativos(dias) -> int:
+    """Janela padrão da carga (extracao R24): hoje − N .. hoje, N entre 0 e
+    o limite do backfill."""
+    try:
+        dias = int(dias or 0)
+    except (TypeError, ValueError):
+        raise RegraNegocioError("Dias retroativos inválido") from None
+    if not 0 <= dias < JANELA_MAXIMA_DIAS:
+        raise RegraNegocioError(
+            f"Dias retroativos deve ficar entre 0 e {JANELA_MAXIMA_DIAS - 1}")
+    return dias
+
+
 def _validar_layout_lancamento(json_layout: dict | None) -> None:
     """Fonte de destino LANCAMENTO exige que o layout designe data e valor da
     linha (`dat_saldo`/`val_saldo`) e ligue `capturar_atributos` (para guardar
@@ -163,6 +176,7 @@ def criar_fonte(
     json_config: dict | None = None,
     json_layout: dict | None = None,
     cod_destino: str = DESTINO_SALDO_FUNDO,
+    num_dias_retroativos: int = 0,
 ) -> FonteExtracao:
     nom_fonte = (nom_fonte or "").strip()
     if not nom_fonte:
@@ -176,6 +190,7 @@ def criar_fonte(
     if cod_destino == DESTINO_LANCAMENTO:
         _validar_layout_lancamento(json_layout)
     _validar_cron(txt_cron)
+    num_dias_retroativos = _validar_dias_retroativos(num_dias_retroativos)
 
     fonte = FonteExtracao(
         nom_fonte=nom_fonte,
@@ -185,6 +200,7 @@ def criar_fonte(
         txt_cron=txt_cron,
         json_config=json_config or {},
         json_layout=json_layout,
+        num_dias_retroativos=num_dias_retroativos,
         cod_pessoa_inclusao=cod_pessoa_atual(),
     )
     db.session.add(fonte)
@@ -200,6 +216,7 @@ def alterar_fonte(
     txt_cron: str | None = ...,
     json_config: dict | None = None,
     json_layout: dict | None = ...,
+    num_dias_retroativos: int | None = None,
 ) -> FonteExtracao:
     """Altera campos mutáveis. Tipo de conector, destino e sistema são
     imutáveis após a criação (mesma disciplina de chaves dos demais CRUDs)."""
@@ -223,6 +240,8 @@ def alterar_fonte(
         if fonte.cod_destino == DESTINO_LANCAMENTO:
             _validar_layout_lancamento(json_layout)
         fonte.json_layout = json_layout
+    if num_dias_retroativos is not None:
+        fonte.num_dias_retroativos = _validar_dias_retroativos(num_dias_retroativos)
 
     fonte.dat_alteracao = date.today()
     fonte.cod_pessoa_alteracao = cod_pessoa_atual()
@@ -245,11 +264,17 @@ def inativar_fonte(seq_fonte: int) -> FonteExtracao:
 # Janela de execução (R6)
 # --------------------------------------------------------------------------
 
-def montar_janela(data_inicio: date | None, data_fim: date | None) -> Janela:
-    """Sem datas → dia corrente; com datas, valida o par (regra de backfill)."""
+def montar_janela(data_inicio: date | None, data_fim: date | None,
+                  dias_retroativos: int = 0) -> Janela:
+    """Sem datas → últimos `dias_retroativos` dias até hoje (extracao R24:
+    documento registrado hoje com movimento retroativo é pego pela carga
+    diária); com datas, valida o par (regra de backfill)."""
     if data_inicio is None and data_fim is None:
+        from datetime import timedelta
+
         hoje = date.today()
-        return Janela(data_inicio=hoje, data_fim=hoje)
+        return Janela(data_inicio=hoje - timedelta(days=max(0, int(dias_retroativos or 0))),
+                      data_fim=hoje)
     if data_inicio is None or data_fim is None:
         raise RegraNegocioError(
             "Informe data_inicio e data_fim em conjunto para o backfill"
@@ -290,6 +315,50 @@ def _serializar_detalhe(detalhe_erros: list) -> str | None:
     return texto[:_LIMITE_DETALHE_ERROS]
 
 
+def _extrair_por_exercicio(conector, config, fonte, janela: Janela):
+    """Conector que filtra pelo exercício (`usa_exercicio`, ex.: consulta SQL
+    com `:ano`) roda UMA VEZ POR EXERCÍCIO ABERTO alcançado pela janela, e a
+    linha sem exercício informado herda o da chamada; os demais rodam uma vez
+    e cada linha leva o seu (extracao R24). Devolve `(emitidos, alvos)`."""
+    from dataclasses import replace
+
+    from .exercicio_service import exercicios_alvo
+
+    usa = getattr(conector, "usa_exercicio", None)
+    if not (callable(usa) and usa(config)):
+        return list(conector.extrair(config, fonte.json_layout, janela)), []
+    alvos = exercicios_alvo(janela.data_inicio, janela.data_fim)
+    emitidos = []
+    for ano in alvos:
+        for item in conector.extrair(config, fonte.json_layout,
+                                     replace(janela, num_ano_exercicio=ano)):
+            if isinstance(item, LinhaExtraida) and item.num_ano_exercicio in (None, ""):
+                item.num_ano_exercicio = ano
+            emitidos.append(item)
+    return emitidos, alvos
+
+
+def _sem_exercicio_fechado(linhas, janela: Janela):
+    """Descarta as linhas de exercício FECHADO, com aviso (extracao R24 —
+    fechado não recebe carga)."""
+    from .exercicio_service import anos_fechados
+
+    fechados = anos_fechados()
+    if not fechados:
+        return linhas, []
+    mantidas, por_ano = [], {}
+    for linha in linhas:
+        ano = staging_service.ano_da_linha(linha, janela.data_fim.year)
+        if ano in fechados:
+            por_ano[ano] = por_ano.get(ano, 0) + 1
+        else:
+            mantidas.append(linha)
+    avisos = [ErroLinha(numero=0, arquivo=f"exercício {ano}", aviso=True,
+                        mensagem=f"{qtd} linha(s) descartada(s): exercício {ano} fechado")
+              for ano, qtd in sorted(por_ano.items())]
+    return mantidas, avisos
+
+
 def executar_fonte(
     seq_fonte: int,
     janela: Janela | None = None,
@@ -300,7 +369,7 @@ def executar_fonte(
     if fonte.ind_status != 'A':
         raise RegraNegocioError(f"Fonte '{fonte.nom_fonte}' está inativa")
     if janela is None:
-        janela = montar_janela(None, None)
+        janela = montar_janela(None, None, fonte.num_dias_retroativos or 0)
 
     inicio = datetime.now()
     cronometro = time.monotonic()
@@ -328,13 +397,18 @@ def executar_fonte(
         config = resolver_config(fonte.json_config or {}, conector.schema_config)
         sistema = SistemaOrigem.query.get(fonte.seq_sistema_origem)
 
+        eh_lancamento = fonte.cod_destino == DESTINO_LANCAMENTO
         # O conector emite LinhaExtraida (dado) ou ErroLinha (erro/aviso de linha).
-        emitidos = list(conector.extrair(config, fonte.json_layout, janela))
+        if eh_lancamento:
+            emitidos, alvos = _extrair_por_exercicio(conector, config, fonte, janela)
+        else:
+            emitidos, alvos = list(conector.extrair(config, fonte.json_layout, janela)), []
         linhas = [e for e in emitidos if isinstance(e, LinhaExtraida)]
         avisos = [e for e in emitidos if isinstance(e, ErroLinha) and e.aviso]
         erros_linha = [e for e in emitidos if isinstance(e, ErroLinha) and not e.aviso]
-
-        eh_lancamento = fonte.cod_destino == DESTINO_LANCAMENTO
+        if eh_lancamento:
+            linhas, descartes = _sem_exercicio_fechado(linhas, janela)
+            avisos += descartes
 
         if not linhas and not erros_linha:
             status = STATUS_SEM_DADOS
@@ -352,6 +426,14 @@ def executar_fonte(
                 for e in (erros_linha + avisos)
             ]
             if eh_lancamento:
+                # Reextração SUBSTITUI (extracao R25): mesma fonte, exercícios
+                # e janela — só quando há linhas novas (resposta vazia
+                # transitória não apaga a carga anterior)
+                if linhas:
+                    anos = set(alvos) | {staging_service.ano_da_linha(l, janela.data_fim.year)
+                                         for l in linhas}
+                    staging_service.substituir_janela(
+                        fonte.seq_fonte_extracao, anos, janela.data_inicio, janela.data_fim)
                 # Destino LANCAMENTO → grava as linhas cruas na staging (F4.1)
                 inseridas = staging_service.gravar_lote(
                     fonte.seq_fonte_extracao, execucao.seq_execucao_extracao,
@@ -485,6 +567,7 @@ def obter_fonte_para_edicao(seq_fonte: int) -> dict:
         "cod_destino": fonte.cod_destino,
         "sistema_origem": sistemas.get(fonte.seq_sistema_origem, ""),
         "txt_cron": fonte.txt_cron or "",
+        "num_dias_retroativos": fonte.num_dias_retroativos or 0,
         "json_config": config,
         "json_layout": fonte.json_layout,  # pré-carga do editor de layout (R17)
     }

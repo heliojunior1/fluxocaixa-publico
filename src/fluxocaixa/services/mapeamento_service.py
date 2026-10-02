@@ -77,7 +77,7 @@ def _mudou(item, dados) -> bool:
     )
 
 
-def _validar_itens(itens):
+def _validar_itens(itens, num_ano_exercicio=None):
     ativos = [i for i in itens if i.get('ind_status', 'A') == 'A']
     if not ativos:
         raise RegraNegocioError("O mapeamento exige ao menos um item ativo")
@@ -92,6 +92,11 @@ def _validar_itens(itens):
             raise RegraNegocioError(
                 "Itens de mapeamento só podem apontar para qualificadores folha"
             )
+        # automacao-lancamentos R19: a rubrica do item é do exercício do
+        # mapeamento (regra de transição da F10.1: só quando o ano tem plano)
+        from .qualificador_service import validar_qualificador_do_exercicio
+
+        validar_qualificador_do_exercicio(qualificador, num_ano_exercicio)
         if seq_q in vistos:
             raise RegraNegocioError(
                 f"Qualificador repetido entre os itens ativos: "
@@ -113,8 +118,11 @@ def _validar_itens(itens):
 
 def criar_mapeamento(num_ano_exercicio, seq_sistema_origem,
                      dsc_mapeamento, itens) -> Mapeamento:
+    from .exercicio_service import exigir_aberto
+
+    exigir_aberto(num_ano_exercicio, "criar mapeamento")
     _validar_cabecalho(num_ano_exercicio, seq_sistema_origem)
-    _validar_itens(itens)
+    _validar_itens(itens, num_ano_exercicio)
 
     pessoa = cod_pessoa_atual()
     mapeamento = Mapeamento(
@@ -142,10 +150,15 @@ def alterar_mapeamento(seq_mapeamento, num_ano_exercicio,
     mapeamento = Mapeamento.query.get(seq_mapeamento)
     if mapeamento is None or mapeamento.ind_status != 'A':
         raise RegraNegocioError("Mapeamento inexistente ou inativo")
+    from .exercicio_service import exigir_aberto
+
+    # o ano de ORIGEM e o de destino da edição: nenhum dos dois pode estar fechado
+    exigir_aberto(mapeamento.num_ano_exercicio, "alterar mapeamento")
+    exigir_aberto(num_ano_exercicio, "alterar mapeamento")
     _validar_cabecalho(num_ano_exercicio, seq_sistema_origem,
                        seq_atual=seq_mapeamento)
     _validar_posse(mapeamento, itens)
-    _validar_itens(itens)
+    _validar_itens(itens, num_ano_exercicio)
 
     pessoa = cod_pessoa_atual()
     hoje = date.today()
@@ -207,6 +220,9 @@ def inativar_mapeamento(seq_mapeamento) -> None:
     mapeamento = Mapeamento.query.get(seq_mapeamento)
     if mapeamento is None or mapeamento.ind_status != 'A':
         raise RegraNegocioError("Mapeamento inexistente ou inativo")
+    from .exercicio_service import exigir_aberto
+
+    exigir_aberto(mapeamento.num_ano_exercicio, "inativar mapeamento")
     mapeamento.ind_status = 'I'
     mapeamento.dat_alteracao = date.today()
     mapeamento.cod_pessoa_alteracao = cod_pessoa_atual()

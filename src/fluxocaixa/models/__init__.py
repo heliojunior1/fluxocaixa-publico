@@ -36,6 +36,7 @@ from .saldo_fundo import (
 )
 from .simulacao_desembolso import ParametroDesembolso, SimulacaoDesembolso
 from .setor_previsao import SetorPrevisao
+from .exercicio import Exercicio, ExercicioEvento
 from .correspondencia_rubrica import (
     CorrespondenciaDestino,
     CorrespondenciaEvento,
@@ -108,6 +109,8 @@ __all__ = [
     'RubricaFormula',
     'SaldoContaFundo',
     'SetorPrevisao',
+    'Exercicio',
+    'ExercicioEvento',
     'CorrespondenciaRubrica',
     'CorrespondenciaOrigem',
     'CorrespondenciaDestino',

@@ -21,6 +21,10 @@ class Janela:
 
     data_inicio: date
     data_fim: date
+    # exercício-alvo da extração (extracao R24): conector que filtra por
+    # exercício (consulta SQL com `:ano`) recebe uma chamada por exercício
+    # aberto; os demais o ignoram
+    num_ano_exercicio: int | None = None
 
 
 @dataclass
@@ -39,6 +43,11 @@ class LinhaExtraida:
     # Linha crua da origem, preenchida quando o layout liga `capturar_atributos`
     # (destino LANCAMENTO → staging). O caminho de saldo ignora este campo.
     json_atributos: dict | None = None
+    # extracao R24: exercício da linha na origem e data de REGISTRO
+    # (contabilização). `dat_saldo` continua sendo a data do MOVIMENTO, que
+    # vira a data do lançamento. Valores crus — coagidos na staging.
+    num_ano_exercicio: object | None = None
+    dat_registro: object | None = None
 
 
 @dataclass

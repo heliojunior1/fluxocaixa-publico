@@ -49,6 +49,17 @@
         <p class="text-xs text-gray-500 mt-1">5 campos (min hora dia mês dia-semana). Vazio = só execução manual.</p>
     </div>
 
+    <div>
+        <label class="block text-sm font-semibold text-gray-700 mb-1">Dias retroativos da carga</label>
+        <input type="number" name="num_dias_retroativos" data-testid="fonte-dias-retroativos" min="0" max="89"
+            value="{{ (fonte.num_dias_retroativos or 0) if edicao else 0 }}"
+            class="w-32 border rounded px-3 py-2 text-sm">
+        <p class="text-xs text-gray-500 mt-1">Sem datas informadas, a execução cobre de hoje − N dias até hoje: documento
+            registrado hoje com data de movimento anterior também é carregado. Na consulta SQL, a janela
+            (<code>:data_inicio</code>/<code>:data_fim</code>) deve filtrar a data de <b>registro</b>, e <code>:ano</code>
+            faz a consulta rodar uma vez por exercício aberto.</p>
+    </div>
+
     <fieldset class="border rounded p-4">
         <legend class="text-sm font-semibold text-gray-700 px-2">Configuração do conector</legend>
         {% for campo in formulario.campos %}

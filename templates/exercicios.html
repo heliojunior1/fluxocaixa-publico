@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+
+{% block content %}
+{% set pode_abrir = tem_permissao(request, 'FC_ABRIR_EXERCICIO') %}
+{% set pode_fechar = tem_permissao(request, 'FC_FECHAR_EXERCICIO') %}
+{% set pode_reabrir = tem_permissao(request, 'FC_REABRIR_EXERCICIO') %}
+<div class="space-y-6" data-testid="tela-exercicios">
+    <div class="bg-white p-6 rounded-lg shadow-md border">
+        <h2 class="text-2xl font-semibold text-gray-800">Exercícios</h2>
+        <p class="text-sm text-gray-600 mt-1 max-w-3xl">
+            Cada exercício tem o seu plano de qualificadores e os seus mapeamentos. <b>Abrir</b> copia o plano, as
+            fórmulas e os mapeamentos do ano de origem. Na virada, dois exercícios ficam abertos ao mesmo tempo.
+            <b>Fechar</b> trava o plano, os mapeamentos, os lançamentos e a automação do ano — a previsão não é
+            afetada — e <b>reabrir</b> devolve a escrita. Todo gesto fica no histórico, com motivo.
+        </p>
+    </div>
+
+    {% if pode_abrir %}
+    <form method="post" action="/exercicios/abrir" class="bg-white p-6 rounded-lg shadow-md border flex flex-wrap items-end gap-3"
+          data-testid="form-abrir-exercicio">
+        <div>
+            <label for="ab-origem" class="block text-xs text-gray-600 mb-1">Copiar do exercício</label>
+            <input id="ab-origem" name="exercicio_origem" type="number" required min="1900" max="2200"
+                   class="border border-gray-300 rounded px-3 py-2 text-sm w-32">
+        </div>
+        <div>
+            <label for="ab-novo" class="block text-xs text-gray-600 mb-1">Novo exercício</label>
+            <input id="ab-novo" name="exercicio_novo" type="number" required min="1900" max="2200"
+                   class="border border-gray-300 rounded px-3 py-2 text-sm w-32">
+        </div>
+        <label class="flex items-center gap-2 text-sm text-gray-700">
+            <input type="checkbox" name="confirmado" value="S" required> Confirmo a cópia do plano e dos mapeamentos
+        </label>
+        <button type="submit" class="px-4 py-2 bg-primary-600 text-white rounded text-sm"
+                data-testid="btn-abrir-exercicio">Abrir exercício</button>
+    </form>
+    {% endif %}
+
+    <div class="bg-white p-6 rounded-lg shadow-md border">
+        <h3 class="font-semibold text-gray-800 mb-3">Situação</h3>
+        {% if exercicios %}
+        <div class="space-y-4">
+            {% for e in exercicios %}
+            <div class="border rounded p-4" data-testid="exercicio-{{ e.ano }}">
+                <div class="flex flex-wrap items-center gap-3">
+                    <span class="text-lg font-semibold">{{ e.ano }}</span>
+                    {% if e.situacao == 'F' %}
+                    <span class="text-xs px-2 py-0.5 rounded bg-slate-200 text-slate-800" data-testid="situacao-{{ e.ano }}">Fechado</span>
+                    {% else %}
+                    <span class="text-xs px-2 py-0.5 rounded bg-green-100 text-green-800" data-testid="situacao-{{ e.ano }}">Aberto</span>
+                    {% endif %}
+                    {% if e.pendencias.pendentes or e.pendencias.erros %}
+                    <span class="text-xs text-orange-700" data-testid="pendencias-{{ e.ano }}">
+                        Automação: {{ e.pendencias.pendentes }} linha(s) pendente(s), {{ e.pendencias.erros }} em erro
+                    </span>
+                    {% endif %}
+                </div>
+
+                {% if e.situacao == 'F' and pode_reabrir %}
+                <form method="post" action="/exercicios/{{ e.ano }}/reabrir" class="mt-3 flex flex-wrap items-end gap-2"
+                      data-testid="form-reabrir-{{ e.ano }}">
+                    <input name="motivo" required maxlength="1000" placeholder="Motivo da reabertura"
+                           class="border border-gray-300 rounded px-2 py-1 text-sm w-80">
+                    <button type="submit" class="px-3 py-1 bg-amber-600 text-white rounded text-sm"
+                            data-testid="btn-reabrir-{{ e.ano }}">Reabrir</button>
+                </form>
+                {% elif e.situacao != 'F' and pode_fechar %}
+                <form method="post" action="/exercicios/{{ e.ano }}/fechar" class="mt-3 flex flex-wrap items-end gap-2"
+                      data-testid="form-fechar-{{ e.ano }}">
+                    <input name="motivo" required maxlength="1000" placeholder="Motivo do fechamento"
+                           class="border border-gray-300 rounded px-2 py-1 text-sm w-80">
+                    <label class="flex items-center gap-1 text-xs text-gray-700">
+                        <input type="checkbox" name="confirmado" value="S" data-testid="confirmar-fechar-{{ e.ano }}">
+                        Confirmo: o ano fica só para leitura
+                    </label>
+                    <button type="submit" class="px-3 py-1 bg-slate-700 text-white rounded text-sm"
+                            data-testid="btn-fechar-{{ e.ano }}">Fechar</button>
+                </form>
+                {% endif %}
+
+                {% if e.historico %}
+                <ul class="mt-3 text-xs text-gray-600 space-y-1" data-testid="historico-{{ e.ano }}">
+                    {% for ev in e.historico %}
+                    <li><b>{{ ev.rotulo }}</b> em {{ ev.dat_evento.strftime('%d/%m/%Y %H:%M') }} — {{ ev.dsc_motivo or '' }}</li>
+                    {% endfor %}
+                </ul>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-sm text-gray-500 italic">Nenhum exercício com plano cadastrado.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

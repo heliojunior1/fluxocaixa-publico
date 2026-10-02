@@ -30,6 +30,20 @@
 </div>
 
 <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+    {% if pendencias_staging %}
+    <div class="mb-4 border border-orange-200 bg-orange-50 rounded p-3 text-sm text-orange-900"
+         data-testid="alerta-staging-pendente">
+        <p class="font-semibold">Linhas da automação paradas há mais de 7 dias</p>
+        <p class="text-xs mb-2">Nenhuma regra do mapeamento do exercício casou com elas — confira o mapeamento
+            daquele ano (natureza nova, item faltando) ou se o exercício deveria ter sido aberto.</p>
+        <ul class="text-xs space-y-0.5">
+            {% for p in pendencias_staging %}
+            <li>Exercício <b>{{ p.ano }}</b> · sistema {{ p.sistema }}: {{ p.quantidade }} linha(s), desde
+                {{ p.mais_antiga.strftime('%d/%m/%Y') if p.mais_antiga else '—' }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
     <table class="min-w-full text-sm" data-testid="tabela-execucoes-mapeamento">
         <thead class="bg-gray-50 text-gray-600 text-xs uppercase">
             <tr>

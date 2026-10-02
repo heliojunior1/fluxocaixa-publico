@@ -98,6 +98,10 @@ def _validar_dados_lancamento(data: LancamentoCreate) -> None:
     from .qualificador_service import validar_qualificador_do_exercicio
 
     validar_qualificador_do_exercicio(qualificador, data.dat_lancamento.year)
+    from .exercicio_service import exigir_aberto
+
+    # cadastros-nucleo R31: nenhum lançamento com data em exercício fechado
+    exigir_aberto(data.dat_lancamento.year, "lançar")
 
     if TipoLancamento.query.get(data.cod_tipo_lancamento) is None:
         raise RegraNegocioError("Tipo de lançamento inexistente")
@@ -166,6 +170,9 @@ def delete_lancamento(ident: int, repo: LancamentoRepository | None = None):
     if atual is None:
         raise RegraNegocioError("Lançamento inexistente")
     _exigir_origem_manual(atual)
+    from .exercicio_service import exigir_aberto
+
+    exigir_aberto(atual.dat_lancamento.year, "inativar lançamento")
     repo.soft_delete(ident, cod_pessoa=cod_pessoa_atual())
 
 
@@ -294,6 +301,9 @@ def import_lancamentos_service(
 
             try:
                 validar_qualificador_do_exercicio(qual, dat.year)
+                from .exercicio_service import exigir_aberto
+
+                exigir_aberto(dat.year, "importar lançamento")
             except RegraNegocioError as e:
                 errors.append(f"Linha {i}: {e}")
                 continue

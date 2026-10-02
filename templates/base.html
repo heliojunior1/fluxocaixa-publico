@@ -497,6 +497,7 @@
             {% endif %}
 
             {% if tem_permissao(request, 'FC_CONS_QUALIFICADOR')
+                or tem_permissao(request, 'FC_CONS_EXERCICIO')
                 or tem_permissao(request, 'FC_CONS_FONTE_RECURSO')
                 or tem_permissao(request, 'FC_CONS_REPARTICAO_FONTE')
                 or tem_permissao(request, 'FC_REL_CONCILIACAO_FONTE')
@@ -504,6 +505,16 @@
             <p
                 class="px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 mt-6 sidebar-section-title whitespace-nowrap" data-testid="menu-grupo-cadastros">
                 Cadastros</p>
+            {% endif %}
+
+            {% if tem_permissao(request, 'FC_CONS_EXERCICIO') %}
+            <a href="{{ url_for('exercicios') }}" data-testid="menu-exercicios"
+                class="sidebar-link flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium hover:text-white group"
+                title="Exercícios (abrir, fechar, reabrir)">
+                <i data-lucide="calendar-check"
+                    class="w-5 h-5 text-slate-400 group-hover:text-blue-400 transition-colors flex-shrink-0"></i>
+                <span class="sidebar-text whitespace-nowrap">Exercícios</span>
+            </a>
             {% endif %}
 
             {% if tem_permissao(request, 'FC_CONS_REPARTICAO_FONTE') %}

@@ -92,7 +92,12 @@ def _coagir(destino: str, valor):
             return Decimal(str(valor)).quantize(Decimal("0.01"))
         except (InvalidOperation, ValueError):
             raise ValueError(f"valor monetário inválido para {destino}: {valor!r}")
-    if destino == "dat_saldo":
+    if destino == "num_ano_exercicio":
+        try:
+            return int(str(valor).strip())
+        except ValueError:
+            raise ValueError(f"exercício inválido: {valor!r}")
+    if destino in ("dat_saldo", "dat_registro"):
         from datetime import date, datetime
 
         if isinstance(valor, date) and not isinstance(valor, datetime):
@@ -102,7 +107,7 @@ def _coagir(destino: str, valor):
         try:
             return date.fromisoformat(str(valor)[:10])
         except ValueError:
-            raise ValueError(f"data inválida para dat_saldo: {valor!r}")
+            raise ValueError(f"data inválida para {destino}: {valor!r}")
     return str(valor)
 
 
@@ -143,6 +148,8 @@ def mapear_item(item, layout, *, cod_banco: str, agencia: str, conta: str):
         val_aplicacoes=destino_vals.get("val_aplicacoes", Decimal(0)),
         val_resgates=destino_vals.get("val_resgates", Decimal(0)),
         dat_saldo=destino_vals.get("dat_saldo"),
+        num_ano_exercicio=destino_vals.get("num_ano_exercicio"),
+        dat_registro=destino_vals.get("dat_registro"),
         # Linha crua para a staging (F4.1) — só quando o layout pede
         json_atributos=dict(item) if getattr(cfg, "capturar_atributos", False)
         and isinstance(item, dict) else None,

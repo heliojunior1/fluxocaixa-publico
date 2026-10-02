@@ -40,9 +40,13 @@ async def execucoes_mapeamento(request: Request):
             'qtd_lancamentos_removidos': e.qtd_lancamentos_removidos,
             'txt_detalhe_erros': e.txt_detalhe_erros,
         })
+    from ..services.staging_service import pendencias
+
     return templates.TemplateResponse('execucoes_mapeamento.html', {
         'request': request,
         'execucoes': linhas,
+        # automacao R21: linhas paradas na staging há mais de 7 dias
+        'pendencias_staging': pendencias(dias=7),
         'mapeamentos': listar_mapeamentos(apenas_ativos=True),
     })
 

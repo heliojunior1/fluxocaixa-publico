@@ -74,6 +74,10 @@ PERMISSOES = [
     # Correspondência de rubricas entre exercícios (De/Para): a ESTRUTURA é
     # mudança de classificação (exige ato); o RATEIO é estimativa para a
     # previsão — responsabilidades separadas.
+    # Exercício aberto/fechado: fechar e reabrir são atos distintos de abrir
+    ("FC_CONS_EXERCICIO", "Consultar exercícios (situação, pendências e histórico)"),
+    ("FC_FECHAR_EXERCICIO", "Fechar exercício (trava plano, mapeamentos, lançamentos e automação do ano)"),
+    ("FC_REABRIR_EXERCICIO", "Reabrir exercício fechado"),
     ("FC_CONS_CORRESPONDENCIA_RUBRICA", "Consultar correspondências de rubricas entre exercícios"),
     ("FC_MANT_CORRESPONDENCIA_RUBRICA", "Cadastrar e inativar fusão/desdobramento de rubricas"),
     ("FC_DEFINIR_RATEIO_CORRESPONDENCIA", "Definir o rateio de desdobramento para a previsão"),
